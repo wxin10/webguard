@@ -1,5 +1,7 @@
 # WebGuard Backend
 
+Runtime target: Python 3.14.
+
 FastAPI 后端负责恶意网站检测、历史记录、规则、黑白名单、模型状态、统计分析、插件联动和结构化报告接口。
 
 ## 本地数据库
@@ -28,9 +30,12 @@ CREATE DATABASE IF NOT EXISTS webguard
 
 ```bash
 cd backend
+python --version
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+The current local dependency stack is FastAPI 0.135.3, Pydantic 2.12.5, pydantic-core 2.41.5, pydantic-settings 2.13.1, SQLAlchemy 2.0.49, Alembic 1.18.4, Uvicorn 0.44.0, python-dotenv 1.2.2, and PyMySQL 1.1.2.
 
 ## 配置
 

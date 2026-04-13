@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
@@ -16,11 +16,10 @@ class DomainWhitelistCreate(DomainWhitelistBase):
 
 class DomainWhitelist(DomainWhitelistBase):
     """域名白名单响应模式"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     added_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class DomainBlacklistBase(BaseModel):
@@ -37,11 +36,10 @@ class DomainBlacklistCreate(DomainBlacklistBase):
 
 class DomainBlacklist(DomainBlacklistBase):
     """域名黑名单响应模式"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     added_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class DomainList(BaseModel):

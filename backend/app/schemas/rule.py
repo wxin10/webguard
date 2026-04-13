@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
@@ -22,11 +22,10 @@ class RuleConfigUpdate(BaseModel):
 
 class RuleConfig(RuleConfigBase):
     """规则配置响应模式"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class RuleConfigList(BaseModel):

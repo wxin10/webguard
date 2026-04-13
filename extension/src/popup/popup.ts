@@ -12,7 +12,17 @@ const connectionStatus = document.getElementById('connection-status');
 let lastResult: DetectionResult | null = null;
 let currentTabUrl = '';
 
-void init();
+void init().catch((error) => {
+  console.error('WebGuard popup init failed', error);
+  if (currentUrlElement) currentUrlElement.textContent = '无法读取当前网址';
+  if (connectionStatus) {
+    connectionStatus.textContent = '插件初始化失败';
+    connectionStatus.className = 'status disconnected';
+  }
+  if (resultCard) {
+    resultCard.innerHTML = '<p class="muted">插件初始化失败，请重新加载扩展后再试。</p>';
+  }
+});
 
 async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -43,6 +53,12 @@ async function scanCurrentTab() {
   resultCard.innerHTML = '<p class="muted">正在采集页面特征并请求 WebGuard 后台...</p>';
   chrome.runtime.sendMessage({ action: 'scan' }, (response: DetectionResult | null) => {
     scanButton.disabled = false;
+    if (chrome.runtime.lastError) {
+      console.error('WebGuard scan message failed', chrome.runtime.lastError);
+      lastResult = null;
+      resultCard.innerHTML = '<p class="muted">扫描请求未完成，请确认后台脚本已加载并重新点击扫描。</p>';
+      return;
+    }
     lastResult = response;
     renderResult(response);
   });

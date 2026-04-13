@@ -4,7 +4,7 @@ WebGuard 是一个基于浏览器插件与 Web 后台联动的恶意网站检测
 
 ## 当前本地开发方案
 
-- Backend：FastAPI + SQLAlchemy
+- Backend：Python 3.14 + FastAPI + SQLAlchemy
 - Database：本机 MySQL
 - Frontend：React + TypeScript + Vite
 - Extension：Chrome Manifest V3 + TypeScript
@@ -41,11 +41,12 @@ CREATE DATABASE IF NOT EXISTS webguard
 
 ```bash
 cd backend
+python --version
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端会读取 `backend/.env`。没有 `.env` 时，默认使用本地 MySQL 配置。
+后端以 Python 3.14 为目标运行环境，依赖栈已升级到 FastAPI 0.135.3、Pydantic 2.12.5、SQLAlchemy 2.0.49、Alembic 1.18.4、Uvicorn 0.44.0 和 PyMySQL 1.1.2。后端会读取 `backend/.env`。没有 `.env` 时，默认使用本地 MySQL 配置。
 
 ### Frontend
 
