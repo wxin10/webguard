@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebGuard 安全警告</title>
+    <link rel="stylesheet" href="warning.css" />
+  </head>
+  <body>
+    <main class="warning-shell">
+      <section class="panel">
+        <p class="eyebrow">WebGuard Active Defense</p>
+        <h1 id="warning-title">检测到高风险网站</h1>
+        <p id="warning-url" class="url"></p>
+
+        <div class="score-card">
+          <span>风险评分</span>
+          <strong id="risk-score">--</strong>
+        </div>
+
+        <section class="detail">
+          <h2>核心危险原因</h2>
+          <p id="risk-reason">正在读取检测结果...</p>
+        </section>
+
+        <section class="detail">
+          <h2>处理建议</h2>
+          <p id="recommendation">建议返回安全页面。</p>
+        </section>
+
+        <div class="actions">
+          <button id="back-button" class="primary">返回安全页面</button>
+          <button id="report-button" class="secondary">查看完整报告</button>
+          <button id="continue-button" class="weak">继续访问</button>
+        </div>
+
+        <section class="feedback">
+          <h2>误报反馈</h2>
+          <textarea id="feedback-comment" placeholder="可选：说明为什么你认为这是误报"></textarea>
+          <button id="false-positive-button" class="secondary">提交误报反馈</button>
+          <p id="feedback-message"></p>
+        </section>
+      </section>
+    </main>
+    <script src="warning.js"></script>
+  </body>
+</html>

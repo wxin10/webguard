@@ -1,0 +1,18 @@
+{
+  "name": "webguard-extension",
+  "version": "1.0.0",
+  "description": "WebGuard 恶意网站检测浏览器插件",
+  "main": "src/background.ts",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node -e \"const fs=require('fs');const path=require('path');const dirs=['popup','options','warning'];dirs.forEach(d=>{const srcDir=path.join('src',d);const distDir=path.join('dist',d);if(!fs.existsSync(distDir))fs.mkdirSync(distDir,{recursive:true});fs.readdirSync(srcDir).forEach(f=>{if(f.endsWith('.html')||f.endsWith('.css'))fs.copyFileSync(path.join(srcDir,f),path.join(distDir,f));});});\"",
+    "clean": "node -e \"const fs=require('fs');if(fs.existsSync('dist'))fs.rmSync('dist',{recursive:true});\"",
+    "rebuild": "npm run clean && npm run build",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/chrome": "^0.0.237"
+  }
+}

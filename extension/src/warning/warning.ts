@@ -1,0 +1,79 @@
+import { submitFeedback } from '../utils/api';
+import { DetectionResult, getSettings } from '../utils/storage';
+
+const params = new URLSearchParams(window.location.search);
+const targetUrl = params.get('url') || '';
+const resultParam = params.get('result') || '';
+const result = parseResult(resultParam);
+
+const title = document.getElementById('warning-title');
+const urlElement = document.getElementById('warning-url');
+const scoreElement = document.getElementById('risk-score');
+const reasonElement = document.getElementById('risk-reason');
+const recommendationElement = document.getElementById('recommendation');
+const backButton = document.getElementById('back-button');
+const continueButton = document.getElementById('continue-button');
+const reportButton = document.getElementById('report-button');
+const falsePositiveButton = document.getElementById('false-positive-button');
+const feedbackComment = document.getElementById('feedback-comment') as HTMLTextAreaElement | null;
+const feedbackMessage = document.getElementById('feedback-message');
+
+render();
+
+backButton?.addEventListener('click', () => {
+  window.location.href = 'about:blank';
+});
+
+continueButton?.addEventListener('click', () => {
+  void continueAccess();
+});
+
+reportButton?.addEventListener('click', () => {
+  void openReport();
+});
+
+falsePositiveButton?.addEventListener('click', () => {
+  void submitFalsePositive();
+});
+
+function render() {
+  if (title) title.textContent = result?.label === 'suspicious' ? '检测到可疑网站' : '检测到恶意网站';
+  if (urlElement) urlElement.textContent = targetUrl;
+  if (scoreElement) scoreElement.textContent = result ? result.risk_score.toFixed(1) : '--';
+  if (reasonElement) reasonElement.textContent = firstLine(result?.explanation) || '该页面命中高风险检测策略。';
+  if (recommendationElement) recommendationElement.textContent = result?.recommendation || '建议返回安全页面，不要输入账号、密码或支付信息。';
+}
+
+function parseResult(value: string): DetectionResult | null {
+  try {
+    return value ? JSON.parse(value) as DetectionResult : null;
+  } catch {
+    return null;
+  }
+}
+
+function firstLine(value?: string) {
+  return (value || '').split('\n').find(Boolean) || '';
+}
+
+async function openReport() {
+  const settings = await getSettings();
+  const reportUrl = result?.record_id ? `${settings.frontendBaseUrl}/reports/${result.record_id}` : `${settings.frontendBaseUrl}/report/latest`;
+  window.open(reportUrl, '_blank');
+}
+
+async function submitFalsePositive() {
+  if (!targetUrl) return;
+  await submitFeedback({
+    url: targetUrl,
+    feedback_type: 'false_positive',
+    comment: feedbackComment?.value || '',
+  });
+  if (feedbackMessage) feedbackMessage.textContent = '反馈已提交，感谢协助优化检测结果。';
+}
+
+async function continueAccess() {
+  if (!targetUrl) return;
+  await chrome.storage.local.set({ webguardBypassUrl: targetUrl });
+  window.location.href = targetUrl;
+}

@@ -1,0 +1,184 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+body {
+  margin: 0;
+  width: 380px;
+  background: #f8fafc;
+}
+
+.popup-shell {
+  padding: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+h1 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.status {
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
+.connected,
+.safe {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.disconnected,
+.malicious {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.suspicious {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.unknown {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.url-card,
+.result-card {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.url-card span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.url-card strong {
+  display: block;
+  margin-top: 6px;
+  max-height: 52px;
+  overflow: hidden;
+  word-break: break-all;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.risk-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.score {
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.bar > div {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.bar-safe {
+  background: #16a34a;
+}
+
+.bar-suspicious {
+  background: #f59e0b;
+}
+
+.bar-malicious {
+  background: #dc2626;
+}
+
+.explanation,
+.recommendation,
+.muted {
+  margin: 12px 0 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.actions {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.primary:hover {
+  background: #1d4ed8;
+}
+
+.secondary,
+.ghost {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+}
+
+.ghost {
+  color: #475569;
+}
