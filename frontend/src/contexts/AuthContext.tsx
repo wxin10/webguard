@@ -1,26 +1,26 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../services/api';
-import type { DemoUser, UserRole } from '../types';
+import type { DevelopmentUser, UserRole } from '../types';
 
 interface AuthContextValue {
-  user: DemoUser | null;
+  user: DevelopmentUser | null;
   login: (username: string, role: UserRole) => Promise<void>;
   logout: () => void;
   switchRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const STORAGE_KEY = 'webguard_demo_user';
+const STORAGE_KEY = 'webguard_dev_user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<DemoUser | null>(null);
+  const [user, setUser] = useState<DevelopmentUser | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) setUser(JSON.parse(raw));
   }, []);
 
-  const persist = (nextUser: DemoUser | null) => {
+  const persist = (nextUser: DevelopmentUser | null) => {
     setUser(nextUser);
     if (nextUser) localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
     else localStorage.removeItem(STORAGE_KEY);
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchRole = async () => {
     const nextRole: UserRole = user?.role === 'admin' ? 'user' : 'admin';
-    await login(user?.username || (nextRole === 'admin' ? 'admin-demo' : 'user-demo'), nextRole);
+    await login(user?.username || (nextRole === 'admin' ? 'admin-dev' : 'user-dev'), nextRole);
   };
 
   const value = useMemo(() => ({ user, login, logout, switchRole }), [user]);

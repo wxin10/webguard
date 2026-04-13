@@ -41,5 +41,3 @@ function collectPageInfo() {
     has_password_input: document.querySelectorAll('input[type="password"]').length > 0,
   };
 }
-
-export {};

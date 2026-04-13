@@ -1,4 +1,4 @@
-import { getSettings, saveSettings } from '../utils/storage';
+import { getSettings, saveSettings } from '../utils/storage.js';
 
 const apiBaseUrlInput = document.getElementById('api-base-url') as HTMLInputElement | null;
 const frontendBaseUrlInput = document.getElementById('frontend-base-url') as HTMLInputElement | null;

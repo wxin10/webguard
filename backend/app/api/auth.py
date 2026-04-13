@@ -20,6 +20,11 @@ class MockLoginResponse(BaseModel):
 
 @router.post("/mock-login", response_model=ApiResponse[MockLoginResponse])
 def mock_login(request: MockLoginRequest):
+    """Development-only login helper.
+
+    Keep this endpoint isolated so it can be replaced by real authentication
+    without changing the rest of the frontend auth context.
+    """
     display_name = request.username.strip() or ("安全运营管理员" if request.role == "admin" else "受保护用户")
     return {
         "code": 0,

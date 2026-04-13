@@ -39,7 +39,7 @@ export default function AppHeader() {
             {user?.role === 'admin' ? 'Admin 管理员' : 'User 普通用户'}
           </span>
           <button onClick={switchRole} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
-            演示模式角色切换
+            切换开发角色
           </button>
           <button onClick={handleLogout} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
             退出

@@ -1,5 +1,6 @@
-import { analyzeCurrentPage } from './utils/api';
-import { DetectionResult, getSettings, saveDetectionResult } from './utils/storage';
+import { analyzeCurrentPage } from './utils/api.js';
+import { getSettings, saveDetectionResult } from './utils/storage.js';
+import type { DetectionResult } from './utils/storage.js';
 
 interface PageInfo {
   url: string;

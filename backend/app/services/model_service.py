@@ -21,7 +21,7 @@ except Exception:
 
 
 class ModelService:
-    """Model service with a safe mock fallback for demo environments."""
+    """Model service with a safe fallback for local development."""
 
     def __init__(self, db: Session, model_dir: Optional[str] = None):
         self.db = db
@@ -36,7 +36,7 @@ class ModelService:
 
     def load_model(self) -> Tuple[Any, str]:
         if not self._real_model_dependencies_available():
-            return MockModel(), "mock"
+            return MockModel(), "fallback"
 
         for candidate in self._collect_candidate_model_dirs():
             if not self._is_valid_paddle_model_dir(candidate):
@@ -48,7 +48,7 @@ class ModelService:
             except Exception as exc:
                 print(f"Failed to load real model from {candidate}: {exc}")
 
-        return MockModel(), "mock"
+        return MockModel(), "fallback"
 
     def _real_model_dependencies_available(self) -> bool:
         return all([paddle, F, AutoTokenizer, ErnieForSequenceClassification])
@@ -223,7 +223,7 @@ class MockModel:
 
     def get_metadata(self) -> Dict[str, Any]:
         return {
-            "framework": "mock",
+            "framework": "fallback",
             "labels": ["safe", "suspicious", "malicious"],
             "note": "真实 Paddle 模型不可用时使用，保证演示链路可运行。",
         }

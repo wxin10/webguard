@@ -54,7 +54,7 @@ export default function AppSidebar() {
       <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 p-5">
         <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
           <p className="font-semibold text-slate-900">{user?.role === 'admin' ? 'Admin 管理员' : 'User 普通用户'}</p>
-          <p className="mt-1">当前演示身份: {user?.display_name}</p>
+          <p className="mt-1">当前开发身份: {user?.display_name}</p>
         </div>
       </div>
     </aside>

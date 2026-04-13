@@ -41,7 +41,7 @@ function AdminDashboard() {
     <div>
       <PageHeader
         title="管理员 Dashboard"
-        description="面向安全运营和答辩演示的全局态势总览，覆盖检测量、风险分布、模型状态、插件事件和最近记录。"
+        description="面向安全运营的全局态势总览，覆盖检测量、风险分布、模型状态、插件事件和最近记录。"
         action={<Link to="/records" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">查看全部记录</Link>}
       />
 
@@ -81,8 +81,8 @@ function AdminDashboard() {
           <div className="mt-5 space-y-4">
             <StatusLine label="后端 API" value="Online" tone="green" />
             <StatusLine label="浏览器插件" value="Connected" tone="green" />
-            <StatusLine label="模型服务" value={modelStatus?.model_type || 'mock'} tone="blue" />
-            <StatusLine label="当前模型" value={modelStatus?.active_model?.name || 'Mock Fallback'} tone="slate" />
+            <StatusLine label="模型服务" value={modelStatus?.model_type || 'fallback'} tone="blue" />
+            <StatusLine label="当前模型" value={modelStatus?.active_model?.name || 'Fallback Model'} tone="slate" />
             <StatusLine label="模型目录" value={modelStatus?.loaded_model_dir || '未加载真实模型'} tone="slate" />
           </div>
         </section>

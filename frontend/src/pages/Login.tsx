@@ -5,7 +5,7 @@ import type { UserRole } from '../types';
 
 export default function Login() {
   const { user, login } = useAuth();
-  const [username, setUsername] = useState('admin-demo');
+  const [username, setUsername] = useState('admin-dev');
   const [role, setRole] = useState<UserRole>('admin');
   const [loading, setLoading] = useState(false);
 
@@ -14,7 +14,7 @@ export default function Login() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    await login(username || `${role}-demo`, role);
+    await login(username || `${role}-dev`, role);
     setLoading(false);
   };
 
@@ -36,8 +36,8 @@ export default function Login() {
           </div>
         </section>
         <form onSubmit={handleSubmit} className="p-8">
-          <h2 className="text-2xl font-bold text-slate-950">演示登录</h2>
-          <p className="mt-2 text-sm text-slate-500">选择身份后进入对应功能范围。</p>
+          <h2 className="text-2xl font-bold text-slate-950">开发登录</h2>
+          <p className="mt-2 text-sm text-slate-500">当前为 development only 登录入口，后续可替换为真实鉴权服务。</p>
 
           <label className="mt-8 block text-sm font-semibold text-slate-700">用户名</label>
           <input
@@ -54,7 +54,7 @@ export default function Login() {
                 type="button"
                 onClick={() => {
                   setRole(item);
-                  setUsername(item === 'admin' ? 'admin-demo' : 'user-demo');
+                  setUsername(item === 'admin' ? 'admin-dev' : 'user-dev');
                 }}
                 className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${
                   role === item ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'

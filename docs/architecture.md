@@ -14,7 +14,7 @@ FastAPI Backend
   -> RuleEngine
   -> ModelService
   -> Detector fusion decision
-  -> ScanRecord + structured report
+  -> MySQL ScanRecord + structured report
 
 React Frontend
   -> admin security console
@@ -22,10 +22,22 @@ React Frontend
   -> /reports/:id report detail
 ```
 
-## 角色
+## 本地开发数据库
+
+本地开发固定使用 MySQL：
+
+```text
+mysql+pymysql://admin:adminadmin@127.0.0.1:3306/webguard?charset=utf8mb4
+```
+
+`backend/.env` 可覆盖默认配置，但正常本地开发不依赖系统级环境变量。
+
+## 角色与鉴权状态
 
 - admin：安全运营人员，访问 Dashboard、全部记录、规则、黑白名单、模型、插件、统计、用户管理。
 - user：被保护用户，访问首页、单网址检测、我的记录、最近报告、插件使用说明。
+
+当前 `mock-login` 仅用于 development-only 权限视图切换；正式上线需要替换为真实鉴权、会话管理和后端权限校验。
 
 ## 启动口径
 

@@ -1,7 +1,7 @@
 {
   "name": "webguard-extension",
   "version": "1.0.0",
-  "description": "WebGuard 恶意网站检测浏览器插件",
+  "description": "WebGuard browser extension",
   "main": "src/background.ts",
   "scripts": {
     "build": "tsc && npm run copy-assets",
@@ -12,7 +12,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/chrome": "^0.0.237"
+    "@types/chrome": "^0.0.237",
+    "typescript": "^5.0.0"
   }
 }

@@ -4,7 +4,7 @@ import {
   AnalysisReport,
   ApiResponse,
   BlacklistItem,
-  DemoUser,
+  DevelopmentUser,
   DomainList,
   ModelStatus,
   ModelVersionList,
@@ -38,7 +38,7 @@ async function unwrap<T>(request: Promise<AxiosResponse<ApiResponse<T>>>): Promi
 
 export const authApi = {
   mockLogin: (data: { username: string; role: UserRole }) =>
-    unwrap(api.post<ApiResponse<DemoUser>>('/api/v1/auth/mock-login', data)),
+    unwrap(api.post<ApiResponse<DevelopmentUser>>('/api/v1/auth/mock-login', data)),
 };
 
 export const scanApi = {

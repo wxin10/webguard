@@ -7,7 +7,7 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export interface DemoUser {
+export interface DevelopmentUser {
   username: string;
   role: UserRole;
   display_name: string;

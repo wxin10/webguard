@@ -1,5 +1,6 @@
-import { checkBackend } from '../utils/api';
-import { DetectionResult, getLastDetectionResult, getSettings } from '../utils/storage';
+import { checkBackend } from '../utils/api.js';
+import { getLastDetectionResult, getSettings } from '../utils/storage.js';
+import type { DetectionResult } from '../utils/storage.js';
 
 const currentUrlElement = document.getElementById('current-url');
 const resultCard = document.getElementById('result-card');
@@ -9,17 +10,20 @@ const optionsButton = document.getElementById('options-button') as HTMLButtonEle
 const connectionStatus = document.getElementById('connection-status');
 
 let lastResult: DetectionResult | null = null;
+let currentTabUrl = '';
 
 void init();
 
 async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (currentUrlElement) currentUrlElement.textContent = tab.url || '无法读取当前网址';
+  currentTabUrl = tab.url || '';
+  if (currentUrlElement) currentUrlElement.textContent = currentTabUrl || '无法读取当前网址';
 
   const online = await checkBackend();
   setConnection(online);
 
-  lastResult = await getLastDetectionResult();
+  const storedResult = await getLastDetectionResult();
+  lastResult = storedResult?.url === currentTabUrl ? storedResult : null;
   renderResult(lastResult);
 
   scanButton?.addEventListener('click', scanCurrentTab);
@@ -78,5 +82,6 @@ function firstLine(value?: string) {
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char] || char));
+  const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return value.replace(/[&<>"']/g, (char) => entities[char] || char);
 }

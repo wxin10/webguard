@@ -1,4 +1,5 @@
-import { DetectionResult, getSettings } from './storage';
+import { getSettings } from './storage.js';
+import type { DetectionResult } from './storage.js';
 
 export interface AnalyzeRequest {
   url: string;

@@ -1,15 +1,41 @@
 # WebGuard
 
-WebGuard 是一个“基于浏览器插件与 Web 后台联动的恶意网站检测与主动防御系统”。项目由 FastAPI 后端、React Web 管理台、Chrome/Edge 浏览器插件组成，适合比赛展示和答辩演示。
+WebGuard 是一个基于浏览器插件与 Web 后台联动的恶意网站检测与主动防御系统。项目由 FastAPI 后端、React Web 控制台、Chrome/Edge 浏览器插件组成。
 
-## 功能定位
+## 当前本地开发方案
 
-- 浏览器插件自动采集当前网页特征并请求后台检测。
-- 后端保留 FeatureExtractor、RuleEngine、ModelService、Detector 主流程，融合规则命中与模型概率生成风险结论。
-- Web 前端提供管理员和普通用户两种演示角色。
-- 恶意网站可自动跳转到插件 warning 页面，并从 popup / warning 跳转到 Web 报告页。
+- Backend：FastAPI + SQLAlchemy
+- Database：本机 MySQL
+- Frontend：React + TypeScript + Vite
+- Extension：Chrome Manifest V3 + TypeScript
 
-## 本地启动
+本地开发数据库固定为：
+
+```text
+host: 127.0.0.1
+port: 3306
+database: webguard
+username: admin
+password: adminadmin
+```
+
+后端默认连接串：
+
+```text
+mysql+pymysql://admin:adminadmin@127.0.0.1:3306/webguard?charset=utf8mb4
+```
+
+如果本机尚未创建数据库，可在 MySQL 中执行：
+
+```sql
+CREATE DATABASE IF NOT EXISTS webguard
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+同样的 SQL 也放在 `backend/scripts/init_mysql.sql` 中。
+
+## 启动
 
 ### Backend
 
@@ -19,7 +45,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端地址：`http://127.0.0.1:8000`
+后端会读取 `backend/.env`。没有 `.env` 时，默认使用本地 MySQL 配置。
 
 ### Frontend
 
@@ -29,7 +55,7 @@ npm install
 npm run dev
 ```
 
-前端默认 API 地址：`http://127.0.0.1:8000`
+默认 API 地址：`http://127.0.0.1:8000`
 
 ### Extension
 
@@ -39,35 +65,23 @@ npm install
 npm run build
 ```
 
-在 Chrome / Edge 扩展管理页开启开发者模式，选择“加载已解压的扩展程序”，加载 `extension` 目录。
+在 Chrome / Edge 扩展管理页开启开发者模式，加载 `extension` 目录。插件默认 API 地址为 `http://127.0.0.1:8000`。
 
-插件默认 API 地址：`http://127.0.0.1:8000`
+## 主要能力
 
-## 演示角色
+- 插件采集当前网页 URL、标题、可见文本、按钮、输入标签、表单 action、密码框等特征。
+- 后端保留 `FeatureExtractor -> RuleEngine -> ModelService -> Detector` 检测主流程。
+- Web 控制台展示检测记录、规则、黑白名单、模型状态、插件状态、统计和报告详情。
+- 插件 popup 支持手动扫描，warning 页面支持恶意网站拦截和报告跳转。
 
-登录页使用 mock 登录，不需要密码。
+## Development-only 登录
 
-- 管理员 admin：Dashboard、全部历史记录、规则管理、黑白名单、模型状态、插件状态、统计分析、用户管理、完整分析报告。
-- 普通用户 user：首页、单网址检测、我的检测记录、最近报告、插件使用说明、简化分析报告。
+当前前端保留 `POST /api/v1/auth/mock-login` 作为 development-only 登录入口，用于本地开发时切换 admin / user 权限视图。该接口不是正式鉴权方案，后续应替换为真实用户体系、token/session 管理和后端权限校验。
 
-顶部提供“演示模式角色切换”按钮，便于现场快速切换。
+## 后续正式上线还需要补齐
 
-## 关键接口
-
-- `POST /api/v1/auth/mock-login`
-- `POST /api/v1/scan/url`
-- `POST /api/v1/plugin/analyze-current`
-- `GET /api/v1/records`
-- `GET /api/v1/records/me`
-- `GET /api/v1/reports/latest`
-- `GET /api/v1/reports/{id}`
-- `GET /api/v1/model/status`
-- `GET /api/v1/stats/overview`
-
-## Docker
-
-```bash
-docker-compose up --build
-```
-
-Docker 后端暴露 `8000`，前端暴露 `80`。
+- 真实用户、密码、会话、权限校验和审计日志。
+- 数据库迁移版本化流程和生产初始化流程。
+- 插件发布签名、版本更新和权限最小化审查。
+- 模型训练、模型版本发布、评估集和灰度策略。
+- 生产级 CORS、日志、监控、告警和密钥管理。

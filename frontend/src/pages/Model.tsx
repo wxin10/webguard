@@ -25,9 +25,9 @@ export default function Model() {
 
   return (
     <div>
-      <PageHeader title="模型状态" description="展示当前模型类型、版本、目录与元数据。真实模型不可用时系统自动回退到 mock 模型以保证演示链路可运行。" />
+      <PageHeader title="模型状态" description="展示当前模型类型、版本、目录与元数据。真实模型不可用时系统自动回退到本地 fallback 模型，保证开发链路可运行。" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="模型类型" value={status?.model_type || 'mock'} tone="blue" />
+        <StatCard title="模型类型" value={status?.model_type || 'fallback'} tone="blue" />
         <StatCard title="模型数量" value={status?.model_count || 0} tone="slate" />
         <StatCard title="当前版本" value={status?.active_model?.version || 'fallback'} tone="green" />
         <StatCard title="运行状态" value="Healthy" tone="green" />
@@ -35,7 +35,7 @@ export default function Model() {
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">当前模型详情</h2>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <Info label="模型名称" value={status?.active_model?.name || 'MockModel'} />
+          <Info label="模型名称" value={status?.active_model?.name || 'FallbackModel'} />
           <Info label="模型目录" value={status?.loaded_model_dir || status?.active_model?.path || '未加载真实模型目录'} />
           <Info label="元数据" value={JSON.stringify(status?.metadata || {}, null, 2)} />
           <Info label="说明" value="Detector 会融合规则评分与模型概率，生成最终风险等级和建议。" />

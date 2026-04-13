@@ -4,7 +4,6 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-import os
 import sys
 from pathlib import Path
 
@@ -19,8 +18,8 @@ from app.models import *  # 导入所有模型
 # access to the values within the .ini file in use.
 config = context.config
 
-# 设置数据库URL
-config.set_main_option('sqlalchemy.url', settings.DATABASE_URL)
+# 设置数据库 URL。Local development uses MySQL by default.
+config.set_main_option('sqlalchemy.url', settings.sqlalchemy_database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

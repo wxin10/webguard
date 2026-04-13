@@ -1,5 +1,6 @@
-import { submitFeedback } from '../utils/api';
-import { DetectionResult, getSettings } from '../utils/storage';
+import { submitFeedback } from '../utils/api.js';
+import { getSettings } from '../utils/storage.js';
+import type { DetectionResult } from '../utils/storage.js';
 
 const params = new URLSearchParams(window.location.search);
 const targetUrl = params.get('url') || '';

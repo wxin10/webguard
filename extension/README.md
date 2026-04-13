@@ -19,7 +19,7 @@ npm run build
 - 自动检测：开启
 - 自动拦截恶意网站：开启
 
-这些配置可在插件 options 页面修改。
+这些配置可在插件 options 页面修改并持久化到 `chrome.storage.local`。
 
 ## 联动流程
 
@@ -29,3 +29,9 @@ npm run build
 4. popup 展示风险等级、风险评分、简短解释、后端连接状态。
 5. 恶意网站自动跳转到 `warning.html`。
 6. popup / warning 可跳转到 Web 前端 `/reports/:id` 或 `/report/latest`。
+
+## 常见检查点
+
+- popup、options、warning 的 HTML 使用 `type="module"` 加载脚本。
+- TypeScript 源码中的相对导入使用 `.js` 扩展名，确保编译后的 ES module 可被浏览器扩展页加载。
+- `manifest.json` 指向 `dist/background.js`、`dist/content.js` 和 `dist/*/*.html`，加载插件前必须先执行 `npm run build`。
