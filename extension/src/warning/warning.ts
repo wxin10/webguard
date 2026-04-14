@@ -1,4 +1,4 @@
-import { markReportFalsePositive, submitFeedback } from '../utils/api.js';
+import { markReportFalsePositive, pauseSite, submitFeedback } from '../utils/api.js';
 import { getSettings, hostFromUrl, pauseHostProtection } from '../utils/storage.js';
 import type { DetectionResult } from '../utils/storage.js';
 
@@ -81,7 +81,13 @@ async function submitFalsePositive() {
 async function continueAccess() {
   if (!targetUrl) return;
   const host = hostFromUrl(targetUrl);
-  if (host) await pauseHostProtection(host, 30);
+  if (host) {
+    try {
+      await pauseSite(host, 30);
+    } catch {
+      await pauseHostProtection(host, 30);
+    }
+  }
   await chrome.storage.local.set({ webguardBypassUrl: targetUrl });
   window.location.href = targetUrl;
 }

@@ -1,4 +1,4 @@
-import { analyzeCurrentPage } from './utils/api.js';
+import { analyzeCurrentPage, getUserStrategies } from './utils/api.js';
 import { getSettings, hostFromUrl, isHostPaused, isTrustedHost, saveDetectionResult } from './utils/storage.js';
 import type { DetectionResult } from './utils/storage.js';
 
@@ -41,6 +41,7 @@ async function checkPage(tabId: number, originalUrl: string): Promise<DetectionR
     }
 
     const host = hostFromUrl(originalUrl);
+    await getUserStrategies().catch(() => undefined);
     if (await isTrustedHost(host)) return null;
     if (await isHostPaused(host)) return null;
 

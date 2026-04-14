@@ -1,5 +1,5 @@
-import { checkBackend } from '../utils/api.js';
-import { addTrustedSite, getLastDetectionResult, getSettings, hostFromUrl, pauseHostProtection, resumeHostProtection } from '../utils/storage.js';
+import { checkBackend, pauseSite, resumeSite, trustSite } from '../utils/api.js';
+import { getLastDetectionResult, getSettings, hostFromUrl, resumeHostProtection } from '../utils/storage.js';
 import type { DetectionResult } from '../utils/storage.js';
 
 const currentUrlElement = document.getElementById('current-url');
@@ -103,9 +103,11 @@ async function trustCurrentSite() {
     renderMessage('当前页面无法加入信任列表。');
     return;
   }
-  await addTrustedSite(host);
+  const status = await trustSite(host);
   const settings = await getSettings();
-  renderMessage(`${host} 已同步到后端信任站点。Web 平台与浏览器助手会使用同一套策略。`);
+  renderMessage(status === 'synced'
+    ? `${host} 已同步到后端信任站点。Web 平台与浏览器助手会使用同一套策略。`
+    : `后端暂不可用，${host} 已先写入离线缓存；连接恢复后请到 Web 平台策略中心确认。`);
   await chrome.tabs.create({ url: `${settings.frontendBaseUrl}/app/my-domains?domain=${encodeURIComponent(host)}` });
 }
 
@@ -115,8 +117,10 @@ async function pauseCurrentSite() {
     renderMessage('当前页面无法临时忽略。');
     return;
   }
-  await pauseHostProtection(host, 30);
-  renderMessage(`${host} 已通过后端策略临时忽略 30 分钟。`);
+  const status = await pauseSite(host, 30);
+  renderMessage(status === 'synced'
+    ? `${host} 已通过后端策略临时忽略 30 分钟。`
+    : `后端暂不可用，${host} 已先写入 30 分钟本地兜底缓存。`);
 }
 
 async function resumeCurrentSite() {
@@ -125,8 +129,13 @@ async function resumeCurrentSite() {
     renderMessage('当前页面无法恢复保护。');
     return;
   }
-  await resumeHostProtection(host);
-  renderMessage(`${host} 已恢复保护，后续访问会继续检测。`);
+  try {
+    await resumeSite(host);
+    renderMessage(`${host} 已通过后端策略恢复保护，后续访问会继续检测。`);
+  } catch {
+    await resumeHostProtection(host);
+    renderMessage(`后端暂不可用，${host} 已先移除本地临时忽略缓存。`);
+  }
 }
 
 function firstLine(value?: string) {

@@ -5,19 +5,25 @@ import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
-import { recordsApi } from '../services/api';
-import { ScanRecordItem } from '../types';
+import { recordsApi, userStrategyApi } from '../services/api';
+import { ScanRecordItem, UserStrategyOverview } from '../types';
 import { formatDate, sourceText } from '../utils';
 
 type FilterKey = 'all' | 'malicious' | 'suspicious' | 'plugin' | 'recent';
 
 export default function MyRecords() {
   const [records, setRecords] = useState<ScanRecordItem[]>([]);
+  const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    recordsApi.getMyRecords().then((data) => setRecords(data.records || [])).finally(() => setLoading(false));
+    Promise.all([recordsApi.getMyRecords(), userStrategyApi.getStrategies()])
+      .then(([recordData, strategyData]) => {
+        setRecords(recordData.records || []);
+        setStrategies(strategyData);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <LoadingBlock />;
@@ -56,12 +62,21 @@ export default function MyRecords() {
           { key: 'label', title: '风险等级', render: (value) => <RiskBadge label={value} size="sm" /> },
           { key: 'risk_score', title: '风险评分', render: (value) => Number(value).toFixed(1) },
           { key: 'source', title: '来源', render: (value) => sourceText(value) },
+          { key: 'domain', title: '处理状态', render: (value) => strategyFor(value, strategies) },
           { key: 'created_at', title: '检测时间', render: (value) => formatDate(value) },
           { key: 'id', title: '处理', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-emerald-700">打开处理</Link> },
         ]}
       />
     </div>
   );
+}
+
+function strategyFor(domain: string, strategies: UserStrategyOverview | null) {
+  if (!strategies) return '未处理';
+  if (strategies.trusted_sites.some((item) => item.domain === domain)) return '已信任';
+  if (strategies.blocked_sites.some((item) => item.domain === domain)) return '已阻止';
+  if (strategies.paused_sites.some((item) => item.domain === domain)) return '临时忽略';
+  return '未处理';
 }
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {

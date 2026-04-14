@@ -6,8 +6,8 @@ import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import RuleHitList from '../components/RuleHitList';
 import { useAuth } from '../contexts/AuthContext';
-import { reportsApi } from '../services/api';
-import { AnalysisReport, ScanRecordItem } from '../types';
+import { reportsApi, userStrategyApi } from '../services/api';
+import { AnalysisReport, ScanRecordItem, UserStrategyOverview } from '../types';
 import { formatDate, riskBar, sourceText } from '../utils';
 
 export default function ReportDetail() {
@@ -16,6 +16,7 @@ export default function ReportDetail() {
   const { user } = useAuth();
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [history, setHistory] = useState<ScanRecordItem[]>([]);
+  const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState('');
   const [message, setMessage] = useState('');
@@ -29,10 +30,12 @@ export default function ReportDetail() {
     Promise.all([
       reportsApi.getReport(id),
       reportsApi.getDomainHistory(id).catch(() => ({ records: [] })),
+      userStrategyApi.getStrategies().catch(() => null),
     ])
-      .then(([reportData, historyData]) => {
+      .then(([reportData, historyData, strategyData]) => {
         setReport(reportData);
         setHistory(historyData.records || []);
+        setStrategies(strategyData);
       })
       .catch(() => setError('报告不存在或后端服务未启动'))
       .finally(() => setLoading(false));
@@ -43,6 +46,8 @@ export default function ReportDetail() {
     setMessage('');
     try {
       await action();
+      const strategyData = await userStrategyApi.getStrategies().catch(() => null);
+      setStrategies(strategyData);
       setMessage(success);
     } catch {
       setMessage('操作失败，请确认后端服务已启动。');
@@ -60,6 +65,7 @@ export default function ReportDetail() {
     { label: '标记为误报', action: () => reportsApi.markFalsePositive(report.id, { note: '用户认为该报告可能误报', status: 'pending_review' }), success: '误报反馈已提交到管理员待处理队列。' },
     { label: '重新检测', action: () => reportsApi.recheck(report.id, { note: '用户从报告页重新检测' }), success: '已重新检测并生成新的报告记录。' },
   ];
+  const currentStrategy = strategyFor(report.domain, strategies);
 
   const adminActions = [
     { label: '确认风险', action: () => reportsApi.review(report.id, { note: '管理员确认风险', status: 'confirmed_risk' }), success: '已记录确认风险处置结果。' },
@@ -109,6 +115,11 @@ export default function ReportDetail() {
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
               {isAdmin ? '管理员动作会写入报告处置记录，并可同步调整全局黑白名单。' : '用户动作会写入你的个人策略，浏览器助手会继续使用同一套后端策略。'}
             </p>
+            {!isAdmin && (
+              <p className="mt-3 inline-flex rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-800">
+                当前域名策略状态：{currentStrategy}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {(isAdmin ? adminActions : userActions).map((item) => (
@@ -185,6 +196,14 @@ export default function ReportDetail() {
       </section>
     </div>
   );
+}
+
+function strategyFor(domain: string, strategies: UserStrategyOverview | null) {
+  if (!strategies) return '未处理';
+  if (strategies.trusted_sites.some((item) => item.domain === domain)) return '已信任';
+  if (strategies.blocked_sites.some((item) => item.domain === domain)) return '已阻止';
+  if (strategies.paused_sites.some((item) => item.domain === domain)) return '临时忽略';
+  return '未处理';
 }
 
 function Probability({ label, value, color }: { label: string; value: number; color: string }) {

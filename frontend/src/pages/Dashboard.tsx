@@ -34,6 +34,7 @@ function UserWorkspace() {
   const riskyRecords = records.filter((item) => item.label === 'suspicious' || item.label === 'malicious');
   const pluginStatus = pluginRecords.length > 0 ? '已同步' : '待连接';
   const strategyCount = (strategies?.trusted_sites.length || 0) + (strategies?.blocked_sites.length || 0);
+  const latestStrategy = latest ? strategyFor(latest.domain, strategies) : '无报告';
 
   if (loading) return <LoadingBlock />;
 
@@ -80,7 +81,7 @@ function UserWorkspace() {
             <div className="mt-5">
               <RiskBadge label={latest.label} />
               <p className="mt-4 break-all text-sm font-semibold text-slate-900">{latest.url}</p>
-              <p className="mt-2 text-sm text-slate-500">风险评分 {latest.risk_score.toFixed(1)} · {sourceText(latest.source)} · {formatDate(latest.created_at)}</p>
+              <p className="mt-2 text-sm text-slate-500">风险评分 {latest.risk_score.toFixed(1)} · {sourceText(latest.source)} · {formatDate(latest.created_at)} · {latestStrategy}</p>
               <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">{latest.explanation || '暂无解释信息'}</p>
               <Link to={`/app/reports/${latest.id}`} className="mt-5 inline-flex rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">打开详细报告</Link>
             </div>
@@ -124,6 +125,14 @@ function UserWorkspace() {
       </section>
     </div>
   );
+}
+
+function strategyFor(domain: string, strategies: UserStrategyOverview | null) {
+  if (!strategies) return '未处理';
+  if (strategies.trusted_sites.some((item) => item.domain === domain)) return '已信任';
+  if (strategies.blocked_sites.some((item) => item.domain === domain)) return '已阻止';
+  if (strategies.paused_sites.some((item) => item.domain === domain)) return '临时忽略';
+  return '未处理';
 }
 
 function AdminDashboard() {

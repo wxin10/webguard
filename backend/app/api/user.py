@@ -73,6 +73,11 @@ def upsert_strategy(
             UserSiteStrategyModel.domain == domain,
             UserSiteStrategyModel.strategy_type == opposite,
         ).update({"is_active": False})
+        db.query(UserSiteStrategyModel).filter(
+            UserSiteStrategyModel.username == username,
+            UserSiteStrategyModel.domain == domain,
+            UserSiteStrategyModel.strategy_type == "paused",
+        ).update({"is_active": False})
 
     db.commit()
     db.refresh(strategy)
