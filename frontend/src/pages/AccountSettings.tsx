@@ -25,15 +25,15 @@ export default function AccountSettings() {
         </div>
       </section>
 
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-950">开发工具</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-          当前本地环境仍保留 mock 登录与角色切换能力，用于开发阶段检查用户工作台和运营控制台。正式上线需要接入真实用户、会话管理、后端权限校验和审计日志。
+      <details className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+        <summary className="cursor-pointer text-base font-bold text-slate-800">开发环境临时能力</summary>
+        <p className="mt-3 max-w-3xl leading-6">
+          当前本地环境仍保留 mock 登录与角色切换能力，用于开发阶段检查个人安全工作台和运营控制台。正式上线需要接入真实用户、会话管理、后端权限校验和审计日志。
         </p>
-        <button onClick={switchRole} className="mt-5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <button onClick={switchRole} className="mt-5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
           切换开发角色
         </button>
-      </section>
+      </details>
     </div>
   );
 }
