@@ -21,7 +21,7 @@ export async function analyzeCurrentPage(data: AnalyzeRequest): Promise<Detectio
   const settings = await getSettings();
   const response = await fetch(`${settings.apiBaseUrl}/api/v1/plugin/analyze-current`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: webGuardHeaders(),
     body: JSON.stringify(data),
   });
 
@@ -44,8 +44,29 @@ export async function submitFeedback(data: FeedbackRequest): Promise<void> {
   const settings = await getSettings();
   const response = await fetch(`${settings.apiBaseUrl}/api/v1/plugin/feedback`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: webGuardHeaders(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+}
+
+export async function markReportFalsePositive(recordId: number, comment: string): Promise<void> {
+  const settings = await getSettings();
+  const response = await fetch(`${settings.apiBaseUrl}/api/v1/reports/${recordId}/mark-false-positive`, {
+    method: 'POST',
+    headers: webGuardHeaders(),
+    body: JSON.stringify({
+      note: comment || '浏览器助手误报反馈',
+      status: 'pending_review',
+    }),
+  });
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+}
+
+function webGuardHeaders(): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'X-WebGuard-User': 'platform-user',
+    'X-WebGuard-Role': 'user',
+  };
 }

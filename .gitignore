@@ -34,6 +34,10 @@ logs/
 
 # 模型文件
 models/
+!backend/app/models/
+backend/app/models/*
+!backend/app/models/__init__.py
+!backend/app/models/user_strategy.py
 
 # 临时文件
 tmp/

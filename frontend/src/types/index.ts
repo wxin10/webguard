@@ -111,6 +111,36 @@ export interface BlacklistItem {
   added_at: string;
 }
 
+export interface UserSiteStrategyItem {
+  id: number;
+  username: string;
+  domain: string;
+  strategy_type: 'trusted' | 'blocked' | 'paused';
+  reason?: string;
+  source?: string;
+  expires_at?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface UserStrategyOverview {
+  trusted_sites: UserSiteStrategyItem[];
+  blocked_sites: UserSiteStrategyItem[];
+  paused_sites: UserSiteStrategyItem[];
+}
+
+export interface ReportActionItem {
+  id: number;
+  report_id: number;
+  actor: string;
+  actor_role: UserRole;
+  action_type: string;
+  status?: string;
+  note?: string;
+  created_at: string;
+}
+
 export interface ModelVersion {
   id: number;
   version: string;

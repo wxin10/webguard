@@ -18,6 +18,9 @@ import {
   StatsOverview,
   TrendStats,
   UrlScanRequest,
+  ReportActionItem,
+  UserSiteStrategyItem,
+  UserStrategyOverview,
   UserRole,
   WhitelistItem,
 } from '../types';
@@ -26,6 +29,21 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
+});
+
+api.interceptors.request.use((config) => {
+  const rawUser = localStorage.getItem('webguard_dev_user');
+  const headers = config.headers as unknown as Record<string, string>;
+  if (!rawUser) return config;
+  try {
+    const user = JSON.parse(rawUser) as DevelopmentUser;
+    headers['X-WebGuard-User'] = user.username || 'platform-user';
+    headers['X-WebGuard-Role'] = user.role || 'user';
+  } catch {
+    headers['X-WebGuard-User'] = 'platform-user';
+    headers['X-WebGuard-Role'] = 'user';
+  }
+  return config;
 });
 
 async function unwrap<T>(request: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
@@ -60,6 +78,37 @@ export const reportsApi = {
     unwrap(api.get<ApiResponse<AnalysisReport>>(`/api/v1/reports/${id}`)),
   getLatestReport: () =>
     unwrap(api.get<ApiResponse<AnalysisReport>>('/api/v1/reports/latest')),
+  getRecentActions: () =>
+    unwrap(api.get<ApiResponse<ReportActionItem[]>>('/api/v1/reports/actions/recent')),
+  getDomainHistory: (id: number | string) =>
+    unwrap(api.get<ApiResponse<ScanRecordList>>(`/api/v1/reports/${id}/domain-history`)),
+  trustDomain: (id: number | string, data: { note?: string; scope?: 'user' | 'global' } = {}) =>
+    unwrap(api.post<ApiResponse<ReportActionItem>>(`/api/v1/reports/${id}/trust-domain`, data)),
+  blockDomain: (id: number | string, data: { note?: string; scope?: 'user' | 'global' } = {}) =>
+    unwrap(api.post<ApiResponse<ReportActionItem>>(`/api/v1/reports/${id}/block-domain`, data)),
+  markFalsePositive: (id: number | string, data: { note?: string; status?: string } = {}) =>
+    unwrap(api.post<ApiResponse<ReportActionItem>>(`/api/v1/reports/${id}/mark-false-positive`, data)),
+  review: (id: number | string, data: { note?: string; status?: string } = {}) =>
+    unwrap(api.post<ApiResponse<ReportActionItem>>(`/api/v1/reports/${id}/review`, data)),
+  recheck: (id: number | string, data: { note?: string } = {}) =>
+    unwrap(api.post<ApiResponse<{ action: ReportActionItem; result: ScanResult }>>(`/api/v1/reports/${id}/recheck`, data)),
+};
+
+export const userStrategyApi = {
+  getStrategies: () =>
+    unwrap(api.get<ApiResponse<UserStrategyOverview>>('/api/v1/user/strategies')),
+  addTrustedSite: (data: { domain: string; reason?: string; source?: string }) =>
+    unwrap(api.post<ApiResponse<UserSiteStrategyItem>>('/api/v1/user/trusted-sites', data)),
+  addBlockedSite: (data: { domain: string; reason?: string; source?: string }) =>
+    unwrap(api.post<ApiResponse<UserSiteStrategyItem>>('/api/v1/user/blocked-sites', data)),
+  pauseSite: (data: { domain: string; reason?: string; source?: string; minutes?: number }) =>
+    unwrap(api.post<ApiResponse<UserSiteStrategyItem>>('/api/v1/user/site-actions/pause', data)),
+  resumeSite: (data: { domain: string; reason?: string; source?: string }) =>
+    unwrap(api.post<ApiResponse<{ domain: string; resumed: boolean }>>('/api/v1/user/site-actions/resume', data)),
+  removeTrustedSite: (id: number) =>
+    unwrap(api.delete<ApiResponse<void>>(`/api/v1/user/trusted-sites/${id}`)),
+  removeBlockedSite: (id: number) =>
+    unwrap(api.delete<ApiResponse<void>>(`/api/v1/user/blocked-sites/${id}`)),
 };
 
 export const whitelistApi = {

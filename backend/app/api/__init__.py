@@ -9,6 +9,7 @@ from .reports import router as reports_router
 from .rules import router as rules_router
 from .scan import router as scan_router
 from .stats import router as stats_router
+from .user import router as user_router
 from .whitelist import router as whitelist_router
 
 
@@ -24,5 +25,6 @@ api_router.include_router(stats_router)
 api_router.include_router(plugin_router)
 api_router.include_router(auth_router)
 api_router.include_router(reports_router)
+api_router.include_router(user_router)
 
 __all__ = ["api_router"]

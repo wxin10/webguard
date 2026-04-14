@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from ..core import get_db
+from ..models import ReportAction as ReportActionModel
 from ..schemas import ApiResponse, ScanResult
 from ..services import Detector
 
@@ -28,7 +29,11 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/analyze-current", response_model=ApiResponse[ScanResult])
-def analyze_current(request: AnalyzeCurrentRequest, db: Session = Depends(get_db)):
+def analyze_current(
+    request: AnalyzeCurrentRequest,
+    db: Session = Depends(get_db),
+    x_webguard_user: str | None = Header(default=None),
+):
     """分析当前页面"""
     detector = Detector(db)
     page_data = {
@@ -40,7 +45,7 @@ def analyze_current(request: AnalyzeCurrentRequest, db: Session = Depends(get_db
         "form_action_domains": request.form_action_domains,
         "has_password_input": request.has_password_input
     }
-    result = detector.detect_page(page_data, source="plugin")
+    result = detector.detect_page(page_data, source="plugin", username=x_webguard_user or "platform-user")
     return {
         "code": 0,
         "message": "success",
@@ -49,10 +54,23 @@ def analyze_current(request: AnalyzeCurrentRequest, db: Session = Depends(get_db
 
 
 @router.post("/feedback", response_model=ApiResponse[dict])
-def submit_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
+def submit_feedback(
+    request: FeedbackRequest,
+    db: Session = Depends(get_db),
+    x_webguard_user: str | None = Header(default=None),
+    x_webguard_role: str | None = Header(default=None),
+):
     """提交反馈"""
-    # 这里可以实现反馈的处理逻辑，例如保存到数据库
-    # 目前只返回成功
+    action = ReportActionModel(
+        report_id=0,
+        actor=x_webguard_user or "platform-user",
+        actor_role=x_webguard_role or "user",
+        action_type=request.feedback_type,
+        status="pending_review",
+        note=f"{request.url}\n{request.comment or ''}".strip(),
+    )
+    db.add(action)
+    db.commit()
     return {
         "code": 0,
         "message": "反馈提交成功",

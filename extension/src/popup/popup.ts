@@ -1,5 +1,5 @@
 import { checkBackend } from '../utils/api.js';
-import { addTrustedSite, getLastDetectionResult, getSettings, hostFromUrl, pauseHostProtection } from '../utils/storage.js';
+import { addTrustedSite, getLastDetectionResult, getSettings, hostFromUrl, pauseHostProtection, resumeHostProtection } from '../utils/storage.js';
 import type { DetectionResult } from '../utils/storage.js';
 
 const currentUrlElement = document.getElementById('current-url');
@@ -8,6 +8,7 @@ const scanButton = document.getElementById('scan-button') as HTMLButtonElement |
 const reportButton = document.getElementById('report-button') as HTMLButtonElement | null;
 const trustButton = document.getElementById('trust-button') as HTMLButtonElement | null;
 const pauseButton = document.getElementById('pause-button') as HTMLButtonElement | null;
+const resumeButton = document.getElementById('resume-button') as HTMLButtonElement | null;
 const optionsButton = document.getElementById('options-button') as HTMLButtonElement | null;
 const connectionStatus = document.getElementById('connection-status');
 
@@ -37,6 +38,7 @@ async function init() {
   reportButton?.addEventListener('click', openReport);
   trustButton?.addEventListener('click', trustCurrentSite);
   pauseButton?.addEventListener('click', pauseCurrentSite);
+  resumeButton?.addEventListener('click', resumeCurrentSite);
   optionsButton?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 }
 
@@ -103,7 +105,7 @@ async function trustCurrentSite() {
   }
   await addTrustedSite(host);
   const settings = await getSettings();
-  renderMessage(`${host} 已在插件侧加入信任列表。完整策略请到 Web 平台维护。`);
+  renderMessage(`${host} 已同步到后端信任站点。Web 平台与浏览器助手会使用同一套策略。`);
   await chrome.tabs.create({ url: `${settings.frontendBaseUrl}/app/my-domains?domain=${encodeURIComponent(host)}` });
 }
 
@@ -114,7 +116,17 @@ async function pauseCurrentSite() {
     return;
   }
   await pauseHostProtection(host, 30);
-  renderMessage(`${host} 已临时忽略 30 分钟。`);
+  renderMessage(`${host} 已通过后端策略临时忽略 30 分钟。`);
+}
+
+async function resumeCurrentSite() {
+  const host = hostFromUrl(currentTabUrl);
+  if (!host) {
+    renderMessage('当前页面无法恢复保护。');
+    return;
+  }
+  await resumeHostProtection(host);
+  renderMessage(`${host} 已恢复保护，后续访问会继续检测。`);
 }
 
 function firstLine(value?: string) {

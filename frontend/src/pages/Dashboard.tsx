@@ -6,8 +6,8 @@ import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import StatCard from '../components/StatCard';
 import { useAuth } from '../contexts/AuthContext';
-import { modelApi, recordsApi, statsApi } from '../services/api';
-import { ModelStatus, ScanRecordItem, StatsOverview, TrendPoint } from '../types';
+import { modelApi, recordsApi, statsApi, userStrategyApi } from '../services/api';
+import { ModelStatus, ScanRecordItem, StatsOverview, TrendPoint, UserStrategyOverview } from '../types';
 import { formatDate, sourceText } from '../utils';
 
 export default function Dashboard() {
@@ -17,16 +17,23 @@ export default function Dashboard() {
 
 function UserWorkspace() {
   const [records, setRecords] = useState<ScanRecordItem[]>([]);
+  const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    recordsApi.getMyRecords().then((data) => setRecords(data.records || [])).finally(() => setLoading(false));
+    Promise.all([recordsApi.getMyRecords(), userStrategyApi.getStrategies()])
+      .then(([recordData, strategyData]) => {
+        setRecords(recordData.records || []);
+        setStrategies(strategyData);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const latest = records[0];
   const pluginRecords = records.filter((item) => item.source === 'plugin');
   const riskyRecords = records.filter((item) => item.label === 'suspicious' || item.label === 'malicious');
   const pluginStatus = pluginRecords.length > 0 ? '已同步' : '待连接';
+  const strategyCount = (strategies?.trusted_sites.length || 0) + (strategies?.blocked_sites.length || 0);
 
   if (loading) return <LoadingBlock />;
 
@@ -56,6 +63,7 @@ function UserWorkspace() {
           <StatCard title="最近报告" value={records.length} description="Web 检测与助手同步" tone="green" />
           <StatCard title="风险提醒" value={riskyRecords.length} description="可疑或恶意结论" tone="amber" />
           <StatCard title="助手状态" value={pluginStatus} description={`${pluginRecords.length} 条浏览器同步记录`} tone="blue" />
+          <StatCard title="我的策略" value={strategyCount} description={`${strategies?.paused_sites.length || 0} 个站点临时忽略`} tone="slate" />
         </div>
       </section>
 

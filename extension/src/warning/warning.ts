@@ -1,5 +1,5 @@
-import { submitFeedback } from '../utils/api.js';
-import { getSettings } from '../utils/storage.js';
+import { markReportFalsePositive, submitFeedback } from '../utils/api.js';
+import { getSettings, hostFromUrl, pauseHostProtection } from '../utils/storage.js';
 import type { DetectionResult } from '../utils/storage.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -65,16 +65,23 @@ async function openReport() {
 
 async function submitFalsePositive() {
   if (!targetUrl) return;
-  await submitFeedback({
-    url: targetUrl,
-    feedback_type: 'false_positive',
-    comment: feedbackComment?.value || '',
-  });
-  if (feedbackMessage) feedbackMessage.textContent = '反馈已提交，感谢协助优化检测结果。';
+  const comment = feedbackComment?.value || '';
+  if (result?.record_id) {
+    await markReportFalsePositive(result.record_id, comment);
+  } else {
+    await submitFeedback({
+      url: targetUrl,
+      feedback_type: 'false_positive',
+      comment,
+    });
+  }
+  if (feedbackMessage) feedbackMessage.textContent = '误报反馈已写入 Web 平台处理队列。';
 }
 
 async function continueAccess() {
   if (!targetUrl) return;
+  const host = hostFromUrl(targetUrl);
+  if (host) await pauseHostProtection(host, 30);
   await chrome.storage.local.set({ webguardBypassUrl: targetUrl });
   window.location.href = targetUrl;
 }

@@ -1,7 +1,9 @@
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from ..models import ScanRecord, DomainWhitelist, DomainBlacklist
+from datetime import datetime, timezone
+
+from ..models import DomainBlacklist, DomainWhitelist, ScanRecord, UserSiteStrategy
 from ..core.exceptions import DatabaseError, ModelServiceError, RuleEngineError
 from .feature_extractor import FeatureExtractor
 from .rule_engine import RuleEngine
@@ -17,9 +19,30 @@ class Detector:
         self.rule_engine = RuleEngine(db)
         self.model_service = ModelService(db)
     
-    def _check_domain_lists(self, domain: str) -> Optional[Dict[str, Any]]:
+    def _check_domain_lists(self, domain: str, username: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """检查域名黑白名单"""
         try:
+            if username:
+                now = datetime.now(timezone.utc)
+                user_strategy = self.db.query(UserSiteStrategy).filter(
+                    UserSiteStrategy.username == username,
+                    UserSiteStrategy.domain == domain,
+                    UserSiteStrategy.is_active.is_(True),
+                    UserSiteStrategy.strategy_type.in_(["trusted", "blocked", "paused"]),
+                ).filter(
+                    (UserSiteStrategy.expires_at.is_(None)) | (UserSiteStrategy.expires_at > now)
+                ).order_by(UserSiteStrategy.updated_at.desc()).first()
+                if user_strategy:
+                    if user_strategy.strategy_type == "blocked":
+                        return {
+                            'label': 'malicious',
+                            'reason': f'域名在你的阻止站点中: {user_strategy.reason or "用户策略"}'
+                        }
+                    return {
+                        'label': 'safe',
+                        'reason': f'域名在你的{"临时忽略" if user_strategy.strategy_type == "paused" else "信任站点"}中: {user_strategy.reason or "用户策略"}'
+                    }
+
             # 检查黑名单
             blacklist = self.db.query(DomainBlacklist).filter(DomainBlacklist.domain == domain).first()
             if blacklist:
@@ -207,14 +230,14 @@ class Detector:
         else:
             return '建议：网站安全，可以正常访问。'
     
-    def detect_url(self, url: str, source: str = 'manual') -> Dict[str, Any]:
+    def detect_url(self, url: str, source: str = 'manual', username: Optional[str] = None) -> Dict[str, Any]:
         """检测URL"""
         # 提取特征
         features = self.feature_extractor.extract_features(url)
         domain = features['domain']
         
         # 检查黑白名单
-        domain_list_result = self._check_domain_lists(domain)
+        domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
             # 保存记录
@@ -232,7 +255,7 @@ class Detector:
         
         return result
     
-    def detect_page(self, page_data: Dict[str, Any], source: str = 'plugin') -> Dict[str, Any]:
+    def detect_page(self, page_data: Dict[str, Any], source: str = 'plugin', username: Optional[str] = None) -> Dict[str, Any]:
         """检测页面"""
         url = page_data['url']
         title = page_data['title']
@@ -249,7 +272,7 @@ class Detector:
         domain = features['domain']
         
         # 检查黑白名单
-        domain_list_result = self._check_domain_lists(domain)
+        domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
             # 保存记录

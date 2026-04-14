@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from ..core import get_db
 from ..core.exceptions import ParameterError, DatabaseError, ModelServiceError, RuleEngineError
@@ -9,7 +9,11 @@ router = APIRouter(prefix="/api/v1/scan", tags=["scan"])
 
 
 @router.post("/url", response_model=ApiResponse[ScanResult])
-def scan_url(request: UrlScanRequest, db: Session = Depends(get_db)):
+def scan_url(
+    request: UrlScanRequest,
+    db: Session = Depends(get_db),
+    x_webguard_user: str | None = Header(default=None),
+):
     """扫描URL"""
     # 参数验证
     if not request.url:
@@ -17,7 +21,7 @@ def scan_url(request: UrlScanRequest, db: Session = Depends(get_db)):
     
     try:
         detector = Detector(db)
-        result = detector.detect_url(request.url, source="manual")
+        result = detector.detect_url(request.url, source="manual", username=x_webguard_user or "platform-user")
         return {
             "code": 0,
             "message": "success",
@@ -32,7 +36,11 @@ def scan_url(request: UrlScanRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/page", response_model=ApiResponse[ScanResult])
-def scan_page(request: PageScanRequest, db: Session = Depends(get_db)):
+def scan_page(
+    request: PageScanRequest,
+    db: Session = Depends(get_db),
+    x_webguard_user: str | None = Header(default=None),
+):
     """扫描页面"""
     # 参数验证
     if not request.url:
@@ -49,7 +57,7 @@ def scan_page(request: PageScanRequest, db: Session = Depends(get_db)):
             "form_action_domains": request.form_action_domains,
             "has_password_input": request.has_password_input
         }
-        result = detector.detect_page(page_data, source=request.source)
+        result = detector.detect_page(page_data, source=request.source, username=x_webguard_user or "platform-user")
         return {
             "code": 0,
             "message": "success",
