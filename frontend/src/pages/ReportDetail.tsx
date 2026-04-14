@@ -91,7 +91,7 @@ export default function ReportDetail() {
       </section>
 
       <div className="mt-6">
-        <Link to="/" className="text-sm font-semibold text-blue-600">返回控制台</Link>
+        <Link to="/app" className="text-sm font-semibold text-blue-600">返回工作区</Link>
       </div>
     </div>
   );

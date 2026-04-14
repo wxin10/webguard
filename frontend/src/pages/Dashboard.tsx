@@ -34,7 +34,7 @@ function UserWorkspace() {
       <PageHeader
         title="用户安全工作台"
         description="在 Web 平台完成网址检测、报告查看、个人安全策略和插件同步结果管理。插件只负责浏览器侧快速扫描和即时提醒。"
-        action={<Link to="/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">提交网址检测</Link>}
+        action={<Link to="/app/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">提交网址检测</Link>}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -52,10 +52,10 @@ function UserWorkspace() {
             </div>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <ActionCard title="检测一个网址" text="提交 URL 并生成结构化风险报告。" to="/scan" />
-            <ActionCard title="查看我的报告" text="按风险等级和来源追踪历史结果。" to="/my-records" />
-            <ActionCard title="管理个人策略" text="维护自己的信任站点和阻止站点。" to="/my-domains" />
-            <ActionCard title="查看插件同步" text="确认浏览器侧上报的扫描结果。" to="/plugin-sync" />
+            <ActionCard title="检测一个网址" text="提交 URL 并生成结构化风险报告。" to="/app/scan" />
+            <ActionCard title="查看我的报告" text="按风险等级和来源追踪历史结果。" to="/app/my-records" />
+            <ActionCard title="管理个人策略" text="维护自己的信任站点和阻止站点。" to="/app/my-domains" />
+            <ActionCard title="查看插件同步" text="确认浏览器侧上报的扫描结果。" to="/app/plugin-sync" />
           </div>
         </section>
 
@@ -67,7 +67,7 @@ function UserWorkspace() {
               <p className="mt-4 break-all text-sm font-semibold text-slate-900">{latest.url}</p>
               <p className="mt-2 text-sm text-slate-500">风险评分 {latest.risk_score.toFixed(1)} · {sourceText(latest.source)} · {formatDate(latest.created_at)}</p>
               <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">{latest.explanation || '暂无解释信息'}</p>
-              <Link to={`/reports/${latest.id}`} className="mt-5 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">打开详细报告</Link>
+              <Link to={`/app/reports/${latest.id}`} className="mt-5 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">打开详细报告</Link>
             </div>
           ) : (
             <p className="mt-5 text-sm text-slate-500">暂无报告，先提交一次网址检测。</p>
@@ -81,7 +81,7 @@ function UserWorkspace() {
             <h2 className="text-lg font-bold text-slate-950">插件同步结果</h2>
             <p className="text-sm text-slate-500">插件只作为浏览器侧辅助入口，所有报告详情继续在 Web 平台查看。</p>
           </div>
-          <Link to="/plugin-sync" className="text-sm font-semibold text-blue-600">查看全部</Link>
+          <Link to="/app/plugin-sync" className="text-sm font-semibold text-blue-600">查看全部</Link>
         </div>
         <DataTable
           data={pluginRecords.slice(0, 6)}
@@ -91,7 +91,7 @@ function UserWorkspace() {
             { key: 'label', title: '风险', render: (value) => <RiskBadge label={value} size="sm" /> },
             { key: 'risk_score', title: '评分', render: (value) => Number(value).toFixed(1) },
             { key: 'created_at', title: '时间', render: (value) => formatDate(value) },
-            { key: 'id', title: '报告', render: (value) => <Link to={`/reports/${value}`} className="font-semibold text-blue-600">打开</Link> },
+            { key: 'id', title: '报告', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-blue-600">打开</Link> },
           ]}
         />
       </section>
@@ -128,7 +128,7 @@ function AdminDashboard() {
       <PageHeader
         title="运营控制台"
         description="管理员在 Web 平台完成全局态势、样本处理、规则、名单、模型和用户运营。插件只提供浏览器侧事件输入。"
-        action={<Link to="/samples" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">处理样本与误报</Link>}
+        action={<Link to="/app/admin/samples" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">处理样本与误报</Link>}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -146,7 +146,7 @@ function AdminDashboard() {
               <h2 className="text-lg font-bold text-slate-950">风险趋势</h2>
               <p className="text-sm text-slate-500">最近 7 天平台检测量与风险分布。</p>
             </div>
-            <Link to="/stats" className="text-sm font-semibold text-blue-600">统计详情</Link>
+            <Link to="/app/admin/stats" className="text-sm font-semibold text-blue-600">统计详情</Link>
           </div>
           <div className="mt-6 flex h-56 items-end gap-3">
             {trend.map((item) => (
@@ -180,7 +180,7 @@ function AdminDashboard() {
             <h2 className="text-lg font-bold text-slate-950">最新平台报告</h2>
             <p className="text-sm text-slate-500">来自 Web 提交与插件辅助上报的统一报告流。</p>
           </div>
-          <Link to="/records" className="text-sm font-semibold text-blue-600">全部报告</Link>
+          <Link to="/app/admin/records" className="text-sm font-semibold text-blue-600">全部报告</Link>
         </div>
         <DataTable
           data={records.slice(0, 8)}
@@ -190,7 +190,7 @@ function AdminDashboard() {
             { key: 'risk_score', title: '评分', render: (value) => Number(value).toFixed(1) },
             { key: 'source', title: '来源', render: (value) => sourceText(value) },
             { key: 'created_at', title: '时间', render: (value) => formatDate(value) },
-            { key: 'id', title: '操作', render: (value) => <Link className="font-semibold text-blue-600" to={`/reports/${value}`}>报告</Link> },
+            { key: 'id', title: '操作', render: (value) => <Link className="font-semibold text-blue-600" to={`/app/reports/${value}`}>报告</Link> },
           ]}
         />
       </section>

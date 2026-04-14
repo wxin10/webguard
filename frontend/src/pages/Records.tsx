@@ -51,7 +51,7 @@ export default function Records() {
           { key: 'risk_score', title: '风险评分', render: (value) => Number(value).toFixed(2) },
           { key: 'source', title: '来源', render: (value) => sourceText(value) },
           { key: 'created_at', title: '检测时间', render: (value) => formatDate(value) },
-          { key: 'id', title: '操作', render: (value) => <Link to={`/reports/${value}`} className="font-semibold text-blue-600">查看报告</Link> },
+          { key: 'id', title: '操作', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-blue-600">查看报告</Link> },
         ]}
       />
     </div>

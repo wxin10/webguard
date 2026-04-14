@@ -8,34 +8,34 @@
   <body>
     <main class="page">
       <header>
-        <p class="eyebrow">WebGuard Extension</p>
-        <h1>插件设置</h1>
-        <p class="subtitle">配置后端连接、自动检测和恶意网站主动拦截策略。</p>
+        <p class="eyebrow">WebGuard Browser Assistant</p>
+        <h1>浏览器助手设置</h1>
+        <p class="subtitle">仅配置连接地址、自动检测与拦截策略；报告、名单和账户设置在 Web 平台完成。</p>
       </header>
 
       <section class="card">
-        <h2>后台连接</h2>
+        <h2>平台连接</h2>
         <label for="api-base-url">API 地址</label>
         <input id="api-base-url" type="text" />
         <p class="hint">默认 http://127.0.0.1:8000</p>
-        <label for="frontend-base-url">Web 报告页地址</label>
+        <label for="frontend-base-url">Web 平台地址</label>
         <input id="frontend-base-url" type="text" />
         <p class="hint">默认 http://127.0.0.1:5173</p>
       </section>
 
       <section class="card">
-        <h2>检测行为</h2>
+        <h2>浏览器侧保护</h2>
         <label class="switch-row">
           <span>
             <strong>自动检测网页</strong>
-            <small>打开新页面后自动发送页面特征到后台。</small>
+            <small>打开新页面后自动向后端提交当前网址与页面特征。</small>
           </span>
           <input id="auto-detect" type="checkbox" />
         </label>
         <label class="switch-row">
           <span>
             <strong>自动拦截恶意网站</strong>
-            <small>恶意结论会跳转到 WebGuard warning 页面。</small>
+            <small>恶意结论会跳转到 WebGuard warning 页面，并提供 Web 报告入口。</small>
           </span>
           <input id="auto-block" type="checkbox" />
         </label>

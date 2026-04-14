@@ -59,7 +59,7 @@ function firstLine(value?: string) {
 
 async function openReport() {
   const settings = await getSettings();
-  const reportUrl = result?.record_id ? `${settings.frontendBaseUrl}/reports/${result.record_id}` : `${settings.frontendBaseUrl}/report/latest`;
+  const reportUrl = result?.record_id ? `${settings.frontendBaseUrl}/app/reports/${result.record_id}` : `${settings.frontendBaseUrl}/app/report/latest`;
   window.open(reportUrl, '_blank');
 }
 

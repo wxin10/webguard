@@ -18,7 +18,7 @@ export default function LatestReport() {
   }, []);
 
   if (loading) return <LoadingBlock />;
-  if (report) return <Navigate to={`/reports/${report.id}`} replace />;
+  if (report) return <Navigate to={`/app/reports/${report.id}`} replace />;
 
   return (
     <div>

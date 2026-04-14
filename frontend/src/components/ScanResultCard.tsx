@@ -62,7 +62,7 @@ export default function ScanResultCard({ url, result }: ScanResultCardProps) {
       </div>
 
       <div className="mt-6 flex justify-end">
-        <Link className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/reports/${result.record_id}`}>
+        <Link className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/app/reports/${result.record_id}`}>
           查看完整报告
         </Link>
       </div>

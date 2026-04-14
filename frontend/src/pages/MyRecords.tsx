@@ -23,7 +23,7 @@ export default function MyRecords() {
       <PageHeader
         title="我的报告"
         description="普通用户在 Web 平台统一查看手动检测和插件同步的报告，不在插件中完成复杂分析流程。"
-        action={<Link to="/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">提交检测</Link>}
+        action={<Link to="/app/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">提交检测</Link>}
       />
       <DataTable
         data={records}
@@ -34,7 +34,7 @@ export default function MyRecords() {
           { key: 'risk_score', title: '风险评分', render: (value) => Number(value).toFixed(1) },
           { key: 'source', title: '来源', render: (value) => sourceText(value) },
           { key: 'created_at', title: '检测时间', render: (value) => formatDate(value) },
-          { key: 'id', title: '操作', render: (value) => <Link to={`/reports/${value}`} className="font-semibold text-blue-600">查看报告</Link> },
+          { key: 'id', title: '操作', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-blue-600">查看报告</Link> },
         ]}
       />
     </div>

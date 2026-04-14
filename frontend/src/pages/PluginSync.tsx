@@ -34,7 +34,7 @@ export default function PluginSync() {
           { key: 'label', title: '风险', render: (value) => <RiskBadge label={value} size="sm" /> },
           { key: 'risk_score', title: '评分', render: (value) => Number(value).toFixed(1) },
           { key: 'created_at', title: '同步时间', render: (value) => formatDate(value) },
-          { key: 'id', title: '报告', render: (value) => <Link to={`/reports/${value}`} className="font-semibold text-blue-600">打开报告</Link> },
+          { key: 'id', title: '报告', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-blue-600">打开报告</Link> },
         ]}
       />
     </div>

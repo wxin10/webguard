@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter, useParams } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import AppLayout from './layouts/AppLayout';
@@ -26,16 +26,24 @@ import type { UserRole } from './types';
 function RoleGuard({ roles, children }: { roles: UserRole[]; children: ReactElement }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (!roles.includes(user.role)) return <Navigate to="/" replace />;
+  if (!roles.includes(user.role)) return <Navigate to="/app" replace />;
   return children;
 }
 
+function LegacyReportRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/app/reports/${id}` : '/app/report/latest'} replace />;
+}
+
 const router = createBrowserRouter([
-  { path: '/welcome', element: <ProductHome /> },
+  { path: '/', element: <ProductHome /> },
+  { path: '/welcome', element: <Navigate to="/" replace /> },
   { path: '/plugin-install', element: <PluginGuide /> },
   { path: '/login', element: <Login /> },
+  { path: '/reports/:id', element: <LegacyReportRedirect /> },
+  { path: '/report/latest', element: <Navigate to="/app/report/latest" replace /> },
   {
-    path: '/',
+    path: '/app',
     element: <AppLayout />,
     children: [
       { index: true, element: <Dashboard /> },
@@ -43,21 +51,22 @@ const router = createBrowserRouter([
       { path: 'my-records', element: <RoleGuard roles={['user']}><MyRecords /></RoleGuard> },
       { path: 'my-domains', element: <RoleGuard roles={['user']}><UserDomains /></RoleGuard> },
       { path: 'plugin-sync', element: <RoleGuard roles={['user']}><PluginSync /></RoleGuard> },
-      { path: 'account', element: <RoleGuard roles={['user']}><AccountSettings /></RoleGuard> },
-      { path: 'report/latest', element: <RoleGuard roles={['user']}><LatestReport /></RoleGuard> },
+      { path: 'account', element: <RoleGuard roles={['user', 'admin']}><AccountSettings /></RoleGuard> },
+      { path: 'report/latest', element: <RoleGuard roles={['user', 'admin']}><LatestReport /></RoleGuard> },
       { path: 'plugin-guide', element: <RoleGuard roles={['admin', 'user']}><PluginGuide /></RoleGuard> },
 
-      { path: 'records', element: <RoleGuard roles={['admin']}><Records /></RoleGuard> },
-      { path: 'samples', element: <RoleGuard roles={['admin']}><Samples /></RoleGuard> },
-      { path: 'rules', element: <RoleGuard roles={['admin']}><Rules /></RoleGuard> },
-      { path: 'domains', element: <RoleGuard roles={['admin']}><Domains /></RoleGuard> },
-      { path: 'model', element: <RoleGuard roles={['admin']}><Model /></RoleGuard> },
-      { path: 'stats', element: <RoleGuard roles={['admin']}><Stats /></RoleGuard> },
-      { path: 'plugin', element: <RoleGuard roles={['admin']}><Plugin /></RoleGuard> },
+      { path: 'admin/records', element: <RoleGuard roles={['admin']}><Records /></RoleGuard> },
+      { path: 'admin/samples', element: <RoleGuard roles={['admin']}><Samples /></RoleGuard> },
+      { path: 'admin/rules', element: <RoleGuard roles={['admin']}><Rules /></RoleGuard> },
+      { path: 'admin/domains', element: <RoleGuard roles={['admin']}><Domains /></RoleGuard> },
+      { path: 'admin/model', element: <RoleGuard roles={['admin']}><Model /></RoleGuard> },
+      { path: 'admin/stats', element: <RoleGuard roles={['admin']}><Stats /></RoleGuard> },
+      { path: 'admin/plugin', element: <RoleGuard roles={['admin']}><Plugin /></RoleGuard> },
       { path: 'admin/users', element: <RoleGuard roles={['admin']}><Users /></RoleGuard> },
       { path: 'reports/:id', element: <RoleGuard roles={['admin', 'user']}><ReportDetail /></RoleGuard> },
     ],
   },
+  { path: '*', element: <Navigate to="/" replace /> },
 ]);
 
 export default router;

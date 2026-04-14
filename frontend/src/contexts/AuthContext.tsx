@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchRole = async () => {
     const nextRole: UserRole = user?.role === 'admin' ? 'user' : 'admin';
-    await login(user?.username || (nextRole === 'admin' ? 'admin-dev' : 'user-dev'), nextRole);
+    await login(nextRole === 'admin' ? 'platform-admin' : 'platform-user', nextRole);
   };
 
   const value = useMemo(() => ({ user, login, logout, switchRole }), [user]);

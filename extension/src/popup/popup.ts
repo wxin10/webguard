@@ -91,7 +91,7 @@ function renderMessage(message: string) {
 async function openReport() {
   const settings = await getSettings();
   const id = lastResult?.record_id;
-  const url = id ? `${settings.frontendBaseUrl}/reports/${id}` : `${settings.frontendBaseUrl}/report/latest`;
+  const url = id ? `${settings.frontendBaseUrl}/app/reports/${id}` : `${settings.frontendBaseUrl}/app/report/latest`;
   await chrome.tabs.create({ url });
 }
 
@@ -104,7 +104,7 @@ async function trustCurrentSite() {
   await addTrustedSite(host);
   const settings = await getSettings();
   renderMessage(`${host} 已在插件侧加入信任列表。完整策略请到 Web 平台维护。`);
-  await chrome.tabs.create({ url: `${settings.frontendBaseUrl}/my-domains?domain=${encodeURIComponent(host)}` });
+  await chrome.tabs.create({ url: `${settings.frontendBaseUrl}/app/my-domains?domain=${encodeURIComponent(host)}` });
 }
 
 async function pauseCurrentSite() {

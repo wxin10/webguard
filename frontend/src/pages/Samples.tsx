@@ -48,7 +48,7 @@ export default function Samples() {
               { key: 'source', title: '来源', render: (value) => sourceText(value) },
               { key: 'risk_score', title: '评分', render: (value) => Number(value).toFixed(1) },
               { key: 'created_at', title: '进入时间', render: (value) => formatDate(value) },
-              { key: 'id', title: '操作', render: (value) => <Link to={`/reports/${value}`} className="font-semibold text-blue-600">复核报告</Link> },
+              { key: 'id', title: '操作', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-blue-600">复核报告</Link> },
             ]}
           />
         </div>
