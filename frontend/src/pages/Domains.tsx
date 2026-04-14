@@ -49,21 +49,25 @@ export default function Domains() {
 
   return (
     <div>
-      <PageHeader title="黑白名单" description="对白名单域名直接降低风险，对黑名单域名直接触发恶意结论，支持原因留存。" />
-      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <PageHeader
+        title="全局黑白名单"
+        description="管理员在运营控制台维护全局名单策略。普通用户的个人信任站点在“我的安全策略”中管理。"
+      />
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex gap-2">
-          <button onClick={() => setTab('white')} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === 'white' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>白名单</button>
-          <button onClick={() => setTab('black')} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === 'black' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>黑名单</button>
+          <button onClick={() => setTab('white')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === 'white' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>全局白名单</button>
+          <button onClick={() => setTab('black')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === 'black' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>全局黑名单</button>
         </div>
         <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1fr_180px_120px]">
-          <input value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="domain.com" className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-          <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="添加原因" className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-          <input value={riskType} onChange={(event) => setRiskType(event.target.value)} disabled={tab === 'white'} placeholder="风险类型" className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-50" />
-          <button className="rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">添加</button>
+          <input value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="domain.com" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
+          <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="添加原因" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
+          <input value={riskType} onChange={(event) => setRiskType(event.target.value)} disabled={tab === 'white'} placeholder="风险类型" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-50" />
+          <button className="rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">添加</button>
         </form>
       </section>
       <DataTable
         data={data}
+        emptyText="暂无域名策略。"
         columns={[
           { key: 'domain', title: '域名' },
           { key: 'reason', title: '原因', render: (value) => value || '-' },

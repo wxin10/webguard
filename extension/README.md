@@ -1,6 +1,6 @@
 # WebGuard Extension
 
-WebGuard 浏览器插件用于自动检测当前网页、展示 popup 风险结果、在恶意网站时跳转 warning 页面，并联动 Web 前端报告页。
+WebGuard 浏览器插件是 Web 平台的辅助入口，不是主产品。它只负责当前网页的快速扫描、即时提醒、必要拦截、报告跳转和轻量站点信任 / 临时忽略。
 
 ## 启动与加载
 
@@ -15,23 +15,29 @@ npm run build
 ## 默认配置
 
 - 后端 API：`http://127.0.0.1:8000`
-- Web 报告页：`http://127.0.0.1:5173`
+- Web 平台：`http://127.0.0.1:5173`
 - 自动检测：开启
 - 自动拦截恶意网站：开启
 
-这些配置可在插件 options 页面修改并持久化到 `chrome.storage.local`。
+这些配置可在 options 页面修改，并持久化到 `chrome.storage.local`。
 
-## 联动流程
+## 职责边界
 
-1. 用户访问网页。
-2. 插件采集 URL、标题、可见文本、按钮、输入标签、表单 action、密码框等页面特征。
-3. 插件请求 `POST /api/v1/plugin/analyze-current`。
-4. popup 展示风险等级、风险评分、简短解释、后端连接状态。
-5. 恶意网站自动跳转到 `warning.html`。
-6. popup / warning 可跳转到 Web 前端 `/reports/:id` 或 `/report/latest`。
+插件承担：
 
-## 常见检查点
+- 读取当前网页风险状态
+- 快速扫描当前网页
+- 即时风险提示
+- 恶意网站 warning 拦截
+- 打开 Web 平台详细报告
+- 当前站点加入信任列表 / 临时忽略
 
-- popup、options、warning 的 HTML 使用 `type="module"` 加载脚本。
-- TypeScript 源码中的相对导入使用 `.js` 扩展名，确保编译后的 ES module 可被浏览器扩展页加载。
-- `manifest.json` 指向 `dist/background.js`、`dist/content.js` 和 `dist/*/*.html`，加载插件前必须先执行 `npm run build`。
+插件不承担：
+
+- 完整用户管理
+- 复杂分析报表
+- 运营后台能力
+- 全量历史报告管理
+- 规则、模型、用户等后台治理能力
+
+完整检测报告、历史追踪、个人策略和管理员运营都在 Web 平台完成。

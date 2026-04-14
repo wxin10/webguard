@@ -9,8 +9,8 @@
     <main class="popup-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">WebGuard</p>
-          <h1>网站安全状态</h1>
+          <p class="eyebrow">WebGuard 辅助组件</p>
+          <h1>当前网页风险</h1>
         </div>
         <span id="connection-status" class="status unknown">检测中</span>
       </header>
@@ -21,13 +21,15 @@
       </section>
 
       <section id="result-card" class="result-card">
-        <p class="muted">暂无检测结果，可点击下方按钮扫描当前网页。</p>
+        <p class="muted">插件只提供快速扫描和即时提醒，完整报告与策略管理请回到 Web 平台。</p>
       </section>
 
       <div class="actions">
         <button id="scan-button" class="primary">扫描当前页面</button>
-        <button id="report-button" class="secondary">查看详细报告</button>
-        <button id="options-button" class="ghost">设置</button>
+        <button id="report-button" class="secondary">打开 Web 详细报告</button>
+        <button id="trust-button" class="secondary">加入信任列表</button>
+        <button id="pause-button" class="ghost">临时忽略本站</button>
+        <button id="options-button" class="ghost">连接设置</button>
       </div>
     </main>
     <script type="module" src="popup.js"></script>

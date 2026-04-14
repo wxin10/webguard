@@ -30,19 +30,22 @@ export default function Scan() {
 
   return (
     <div>
-      <PageHeader title="单网址检测" description="输入 URL 后调用后端 Detector 主流程，展示风险等级、评分、规则命中、模型概率、解释与建议。" />
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
+      <PageHeader
+        title="网址检测"
+        description="这是普通用户的主要检测入口。输入 URL 后由 Web 平台生成可解释报告；插件仅用于浏览器当前页的快捷扫描。"
+      />
+      <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:flex-row">
           <input
             type="url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://example.com/login"
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            className="min-w-0 flex-1 rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           />
-          <button disabled={loading} className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
-            {loading ? '检测中...' : '开始检测'}
+          <button disabled={loading} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+            {loading ? '检测中...' : '生成报告'}
           </button>
         </form>
       </section>
@@ -51,8 +54,8 @@ export default function Scan() {
         {result ? (
           <ScanResultCard url={url} result={result} />
         ) : (
-          <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-            检测完成后将在这里生成可解释分析摘要。
+          <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+            检测完成后将在这里生成报告摘要，并可进入 Web 报告页查看完整证据链。
           </section>
         )}
       </div>

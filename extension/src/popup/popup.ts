@@ -1,11 +1,13 @@
 import { checkBackend } from '../utils/api.js';
-import { getLastDetectionResult, getSettings } from '../utils/storage.js';
+import { addTrustedSite, getLastDetectionResult, getSettings, hostFromUrl, pauseHostProtection } from '../utils/storage.js';
 import type { DetectionResult } from '../utils/storage.js';
 
 const currentUrlElement = document.getElementById('current-url');
 const resultCard = document.getElementById('result-card');
 const scanButton = document.getElementById('scan-button') as HTMLButtonElement | null;
 const reportButton = document.getElementById('report-button') as HTMLButtonElement | null;
+const trustButton = document.getElementById('trust-button') as HTMLButtonElement | null;
+const pauseButton = document.getElementById('pause-button') as HTMLButtonElement | null;
 const optionsButton = document.getElementById('options-button') as HTMLButtonElement | null;
 const connectionStatus = document.getElementById('connection-status');
 
@@ -15,13 +17,8 @@ let currentTabUrl = '';
 void init().catch((error) => {
   console.error('WebGuard popup init failed', error);
   if (currentUrlElement) currentUrlElement.textContent = '无法读取当前网址';
-  if (connectionStatus) {
-    connectionStatus.textContent = '插件初始化失败';
-    connectionStatus.className = 'status disconnected';
-  }
-  if (resultCard) {
-    resultCard.innerHTML = '<p class="muted">插件初始化失败，请重新加载扩展后再试。</p>';
-  }
+  setConnection(false, '插件初始化失败');
+  renderMessage('插件初始化失败，请重新加载扩展后再试。');
 });
 
 async function init() {
@@ -38,25 +35,27 @@ async function init() {
 
   scanButton?.addEventListener('click', scanCurrentTab);
   reportButton?.addEventListener('click', openReport);
+  trustButton?.addEventListener('click', trustCurrentSite);
+  pauseButton?.addEventListener('click', pauseCurrentSite);
   optionsButton?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 }
 
-function setConnection(online: boolean) {
+function setConnection(online: boolean, text?: string) {
   if (!connectionStatus) return;
-  connectionStatus.textContent = online ? '后端已连接' : '后端离线';
+  connectionStatus.textContent = text || (online ? '后端已连接' : '后端离线');
   connectionStatus.className = `status ${online ? 'connected' : 'disconnected'}`;
 }
 
 async function scanCurrentTab() {
   if (!resultCard || !scanButton) return;
   scanButton.disabled = true;
-  resultCard.innerHTML = '<p class="muted">正在采集页面特征并请求 WebGuard 后台...</p>';
+  renderMessage('正在扫描当前页面...');
   chrome.runtime.sendMessage({ action: 'scan' }, (response: DetectionResult | null) => {
     scanButton.disabled = false;
     if (chrome.runtime.lastError) {
       console.error('WebGuard scan message failed', chrome.runtime.lastError);
       lastResult = null;
-      resultCard.innerHTML = '<p class="muted">扫描请求未完成，请确认后台脚本已加载并重新点击扫描。</p>';
+      renderMessage('扫描请求未完成，请确认后台服务与扩展后台脚本已运行。');
       return;
     }
     lastResult = response;
@@ -65,25 +64,28 @@ async function scanCurrentTab() {
 }
 
 function renderResult(result: DetectionResult | null) {
-  if (!resultCard) return;
   if (!result) {
-    resultCard.innerHTML = '<p class="muted">暂无检测结果，可点击下方按钮扫描当前网页。</p>';
+    renderMessage('暂无当前网页结果。点击扫描后，可在 Web 平台查看完整报告。');
     return;
   }
   const labelText = { safe: '安全', suspicious: '可疑', malicious: '恶意', unknown: '未知' }[result.label] || '未知';
   const barClass = `bar-${result.label}`;
+  if (!resultCard) return;
   resultCard.innerHTML = `
     <div class="result-head">
       <div>
         <span class="status ${result.label}">${labelText}</span>
-        <p class="risk-title">当前网页${labelText}</p>
+        <p class="risk-title">${labelText}</p>
       </div>
       <div class="score">${result.risk_score.toFixed(1)}</div>
     </div>
     <div class="bar"><div class="${barClass}" style="width: ${Math.min(result.risk_score, 100)}%"></div></div>
     <p class="explanation">${escapeHtml(firstLine(result.explanation))}</p>
-    <p class="recommendation">${escapeHtml(result.recommendation || '建议保持谨慎访问。')}</p>
   `;
+}
+
+function renderMessage(message: string) {
+  if (resultCard) resultCard.innerHTML = `<p class="muted">${escapeHtml(message)}</p>`;
 }
 
 async function openReport() {
@@ -91,6 +93,28 @@ async function openReport() {
   const id = lastResult?.record_id;
   const url = id ? `${settings.frontendBaseUrl}/reports/${id}` : `${settings.frontendBaseUrl}/report/latest`;
   await chrome.tabs.create({ url });
+}
+
+async function trustCurrentSite() {
+  const host = hostFromUrl(currentTabUrl);
+  if (!host) {
+    renderMessage('当前页面无法加入信任列表。');
+    return;
+  }
+  await addTrustedSite(host);
+  const settings = await getSettings();
+  renderMessage(`${host} 已在插件侧加入信任列表。完整策略请到 Web 平台维护。`);
+  await chrome.tabs.create({ url: `${settings.frontendBaseUrl}/my-domains?domain=${encodeURIComponent(host)}` });
+}
+
+async function pauseCurrentSite() {
+  const host = hostFromUrl(currentTabUrl);
+  if (!host) {
+    renderMessage('当前页面无法临时忽略。');
+    return;
+  }
+  await pauseHostProtection(host, 30);
+  renderMessage(`${host} 已临时忽略 30 分钟。`);
 }
 
 function firstLine(value?: string) {

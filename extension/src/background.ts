@@ -1,5 +1,5 @@
 import { analyzeCurrentPage } from './utils/api.js';
-import { getSettings, saveDetectionResult } from './utils/storage.js';
+import { getSettings, hostFromUrl, isHostPaused, isTrustedHost, saveDetectionResult } from './utils/storage.js';
 import type { DetectionResult } from './utils/storage.js';
 
 interface PageInfo {
@@ -39,6 +39,10 @@ async function checkPage(tabId: number, originalUrl: string): Promise<DetectionR
       await chrome.storage.local.remove('webguardBypassUrl');
       return null;
     }
+
+    const host = hostFromUrl(originalUrl);
+    if (await isTrustedHost(host)) return null;
+    if (await isHostPaused(host)) return null;
 
     const [injection] = await chrome.scripting.executeScript({
       target: { tabId },

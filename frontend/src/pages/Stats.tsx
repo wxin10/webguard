@@ -27,7 +27,7 @@ export default function Stats() {
 
   return (
     <div>
-      <PageHeader title="统计分析" description="用于答辩展示的风险分布、检测趋势和检测成效概览。" />
+      <PageHeader title="风险统计" description="面向运营控制台的风险分布、检测趋势和检测成效概览。" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard title="总检测数" value={overview?.total_scans || 0} tone="blue" />
         <StatCard title="今日检测数" value={overview?.today_scans || 0} tone="slate" />

@@ -20,6 +20,11 @@ export interface ExtensionSettings {
   autoBlockMalicious: boolean;
 }
 
+export interface TrustedSite {
+  host: string;
+  addedAt: number;
+}
+
 const defaultSettings: ExtensionSettings = {
   apiBaseUrl: 'http://127.0.0.1:8000',
   frontendBaseUrl: 'http://127.0.0.1:5173',
@@ -48,4 +53,62 @@ export async function getSettings(): Promise<ExtensionSettings> {
     ...(result.settings || {}),
     ...(result.apiBaseUrl ? { apiBaseUrl: result.apiBaseUrl } : {}),
   };
+}
+
+export async function addTrustedSite(host: string): Promise<void> {
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedHost) return;
+  const sites = await getTrustedSites();
+  const next = sites.some((site) => site.host === normalizedHost)
+    ? sites
+    : [...sites, { host: normalizedHost, addedAt: Date.now() }];
+  await chrome.storage.local.set({ trustedSites: next });
+}
+
+export async function getTrustedSites(): Promise<TrustedSite[]> {
+  const result = await chrome.storage.local.get('trustedSites');
+  return Array.isArray(result.trustedSites) ? result.trustedSites : [];
+}
+
+export async function isTrustedHost(host: string): Promise<boolean> {
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedHost) return false;
+  const sites = await getTrustedSites();
+  return sites.some((site) => site.host === normalizedHost);
+}
+
+export async function pauseHostProtection(host: string, minutes = 30): Promise<void> {
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedHost) return;
+  const result = await chrome.storage.local.get('pausedHosts');
+  const pausedHosts = result.pausedHosts || {};
+  pausedHosts[normalizedHost] = Date.now() + minutes * 60 * 1000;
+  await chrome.storage.local.set({ pausedHosts });
+}
+
+export async function isHostPaused(host: string): Promise<boolean> {
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedHost) return false;
+  const result = await chrome.storage.local.get('pausedHosts');
+  const pausedHosts = result.pausedHosts || {};
+  const expiresAt = pausedHosts[normalizedHost];
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    delete pausedHosts[normalizedHost];
+    await chrome.storage.local.set({ pausedHosts });
+    return false;
+  }
+  return true;
+}
+
+export function hostFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function normalizeHost(host: string): string {
+  return host.trim().toLowerCase().replace(/^www\./, '');
 }
