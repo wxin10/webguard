@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebGuard 设置</title>
     <link rel="stylesheet" href="options.css" />
   </head>
@@ -9,41 +10,61 @@
     <main class="page">
       <header>
         <p class="eyebrow">WebGuard Browser Assistant</p>
-        <h1>浏览器助手设置</h1>
-        <p class="subtitle">仅配置连接地址、自动检测与拦截策略；报告、名单和账户设置在 Web 平台完成。</p>
+        <h1>浏览器插件设置</h1>
+        <p class="subtitle">配置后端连接、自动扫描和拦截行为。信任、临时忽略和一次性放行记录会保存在浏览器本地。</p>
       </header>
 
       <section class="card">
         <h2>平台连接</h2>
         <label for="api-base-url">API 地址</label>
-        <input id="api-base-url" type="text" />
-        <p class="hint">默认 http://127.0.0.1:8000</p>
-        <label for="frontend-base-url">Web 平台地址</label>
-        <input id="frontend-base-url" type="text" />
-        <p class="hint">默认 http://127.0.0.1:5173</p>
+        <input id="api-base-url" type="url" placeholder="http://127.0.0.1:8000" />
+        <p class="hint">默认 http://127.0.0.1:8000。发布到线上前，请确认 manifest 已包含对应 API 域名权限。</p>
+
+        <label for="web-base-url">Web 地址</label>
+        <input id="web-base-url" type="url" placeholder="http://127.0.0.1:5173" />
+        <p class="hint">用于打开 Web 报告和站点策略页面。</p>
+
+        <button id="test-button" class="secondary">测试后端连接</button>
+        <p id="test-message" class="message" role="status"></p>
       </section>
 
       <section class="card">
-        <h2>浏览器侧保护</h2>
+        <h2>保护行为</h2>
         <label class="switch-row">
           <span>
-            <strong>自动检测网页</strong>
-            <small>打开新页面后自动向后端提交当前网址与页面特征。</small>
+            <strong>自动扫描网页</strong>
+            <small>页面加载完成后自动读取页面特征，并调用后端检测。</small>
           </span>
           <input id="auto-detect" type="checkbox" />
         </label>
         <label class="switch-row">
           <span>
-            <strong>自动拦截恶意网站</strong>
-            <small>恶意结论会跳转到 WebGuard warning 页面，并提供 Web 报告入口。</small>
+            <strong>恶意站点自动拦截</strong>
+            <small>检测为恶意时自动跳转到 WebGuard warning 页面。</small>
           </span>
           <input id="auto-block" type="checkbox" />
         </label>
+        <label class="switch-row">
+          <span>
+            <strong>可疑站点通知</strong>
+            <small>检测为可疑时显示浏览器通知，提醒用户谨慎操作。</small>
+          </span>
+          <input id="notify-suspicious" type="checkbox" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>维护操作</h2>
+        <div class="maintenance-actions">
+          <button id="clear-cache-button" class="secondary">清空本地缓存</button>
+          <button id="reset-settings-button" class="danger">重置插件设置</button>
+        </div>
+        <p class="hint">清空本地缓存只会移除运行时扫描状态和最近错误；重置设置不会删除信任站点和临时忽略记录。</p>
       </section>
 
       <div class="footer">
-        <button id="save-button">保存设置</button>
-        <span id="message"></span>
+        <button id="save-button" class="primary">保存设置</button>
+        <span id="message" role="status"></span>
       </div>
     </main>
     <script type="module" src="options.js"></script>

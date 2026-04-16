@@ -1,93 +1,183 @@
-import { markReportFalsePositive, pauseSite, submitFeedback } from '../utils/api.js';
-import { getSettings, hostFromUrl, pauseHostProtection } from '../utils/storage.js';
-import type { DetectionResult } from '../utils/storage.js';
+import { pauseSite, trustSite } from '../utils/api.js';
+import { buildReportUrl, parseWarningPageParams } from '../utils/navigation.js';
+import { createTemporaryBypass, getSettings, hostFromUrl, isHttpUrl } from '../utils/storage.js';
 
-const params = new URLSearchParams(window.location.search);
-const targetUrl = params.get('url') || '';
-const resultParam = params.get('result') || '';
-const result = parseResult(resultParam);
+const params = parseWarningPageParams(window.location.search);
 
-const title = document.getElementById('warning-title');
+const titleElement = document.getElementById('warning-title');
 const urlElement = document.getElementById('warning-url');
-const scoreElement = document.getElementById('risk-score');
-const reasonElement = document.getElementById('risk-reason');
-const recommendationElement = document.getElementById('recommendation');
-const backButton = document.getElementById('back-button');
-const continueButton = document.getElementById('continue-button');
-const reportButton = document.getElementById('report-button');
-const falsePositiveButton = document.getElementById('false-positive-button');
-const feedbackComment = document.getElementById('feedback-comment') as HTMLTextAreaElement | null;
-const feedbackMessage = document.getElementById('feedback-message');
+const riskLabelElement = document.getElementById('risk-label');
+const riskScoreElement = document.getElementById('risk-score');
+const detectedAtElement = document.getElementById('detected-at');
+const summaryElement = document.getElementById('risk-summary');
+const messageElement = document.getElementById('action-message');
+
+const backButton = document.getElementById('back-button') as HTMLButtonElement | null;
+const continueOnceButton = document.getElementById('continue-once-button') as HTMLButtonElement | null;
+const trustTemporaryButton = document.getElementById('trust-temporary-button') as HTMLButtonElement | null;
+const trustPermanentButton = document.getElementById('trust-permanent-button') as HTMLButtonElement | null;
+const reportButton = document.getElementById('report-button') as HTMLButtonElement | null;
 
 render();
+bindEvents();
 
-backButton?.addEventListener('click', () => {
-  window.location.href = 'about:blank';
-});
+function render(): void {
+  if (!params) {
+    setText(titleElement, 'WebGuard 警告信息无效');
+    setText(urlElement, '缺少原始地址');
+    setText(riskLabelElement, '--');
+    setText(riskScoreElement, '--');
+    setText(detectedAtElement, '--');
+    setText(summaryElement, '当前 warning 页面缺少必要参数。请关闭此页，并从插件弹窗重新扫描。');
+    disableRiskActions();
+    return;
+  }
 
-continueButton?.addEventListener('click', () => {
-  void continueAccess();
-});
-
-reportButton?.addEventListener('click', () => {
-  void openReport();
-});
-
-falsePositiveButton?.addEventListener('click', () => {
-  void submitFalsePositive();
-});
-
-function render() {
-  if (title) title.textContent = result?.label === 'suspicious' ? '检测到可疑网站' : '检测到恶意网站';
-  if (urlElement) urlElement.textContent = targetUrl;
-  if (scoreElement) scoreElement.textContent = result ? result.risk_score.toFixed(1) : '--';
-  if (reasonElement) reasonElement.textContent = firstLine(result?.explanation) || '该页面命中高风险检测策略。';
-  if (recommendationElement) recommendationElement.textContent = result?.recommendation || '建议返回安全页面，不要输入账号、密码或支付信息。';
+  setText(titleElement, params.label === 'suspicious' ? '检测到可疑网站' : '检测到恶意网站');
+  setText(urlElement, params.url);
+  setText(riskLabelElement, riskLabelText(params.label));
+  setText(riskScoreElement, params.riskScore.toFixed(1));
+  setText(detectedAtElement, new Date(params.detectedAt).toLocaleString());
+  setText(summaryElement, params.summary);
 }
 
-function parseResult(value: string): DetectionResult | null {
+function bindEvents(): void {
+  backButton?.addEventListener('click', () => {
+    void leavePage();
+  });
+
+  continueOnceButton?.addEventListener('click', () => {
+    void continueOnce();
+  });
+
+  trustTemporaryButton?.addEventListener('click', () => {
+    void trustTemporarily();
+  });
+
+  trustPermanentButton?.addEventListener('click', () => {
+    void trustPermanently();
+  });
+
+  reportButton?.addEventListener('click', () => {
+    void openReport();
+  });
+}
+
+async function leavePage(): Promise<void> {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
   try {
-    return value ? JSON.parse(value) as DetectionResult : null;
-  } catch {
-    return null;
-  }
-}
-
-function firstLine(value?: string) {
-  return (value || '').split('\n').find(Boolean) || '';
-}
-
-async function openReport() {
-  const settings = await getSettings();
-  const reportUrl = result?.record_id ? `${settings.frontendBaseUrl}/app/reports/${result.record_id}` : `${settings.frontendBaseUrl}/app/report/latest`;
-  window.open(reportUrl, '_blank');
-}
-
-async function submitFalsePositive() {
-  if (!targetUrl) return;
-  const comment = feedbackComment?.value || '';
-  if (result?.record_id) {
-    await markReportFalsePositive(result.record_id, comment);
-  } else {
-    await submitFeedback({
-      url: targetUrl,
-      feedback_type: 'false_positive',
-      comment,
-    });
-  }
-  if (feedbackMessage) feedbackMessage.textContent = '误报反馈已写入 Web 平台处理队列。';
-}
-
-async function continueAccess() {
-  if (!targetUrl) return;
-  const host = hostFromUrl(targetUrl);
-  if (host) {
-    try {
-      await pauseSite(host, 30);
-    } catch {
-      await pauseHostProtection(host, 30);
+    const currentTab = await chrome.tabs.getCurrent();
+    if (currentTab?.id) {
+      await chrome.tabs.remove(currentTab.id);
+      return;
     }
+  } catch {
+    // Some browsers do not allow closing the current extension page here.
   }
-  await chrome.storage.local.set({ webguardBypassUrl: targetUrl });
-  window.location.href = targetUrl;
+
+  window.location.replace('about:blank');
+}
+
+async function continueOnce(): Promise<void> {
+  if (!params || !isHttpUrl(params.url)) {
+    showMessage('原始地址无效，无法继续访问。', true);
+    return;
+  }
+
+  setBusy(continueOnceButton, true);
+  try {
+    await createTemporaryBypass(params.url);
+    window.location.replace(params.url);
+  } catch (error) {
+    showMessage(`继续访问失败：${errorMessage(error)}`, true);
+  } finally {
+    setBusy(continueOnceButton, false);
+  }
+}
+
+async function trustTemporarily(): Promise<void> {
+  if (!params) return;
+  const host = hostFromUrl(params.url);
+  if (!host) {
+    showMessage('无法识别当前站点域名。', true);
+    return;
+  }
+
+  setBusy(trustTemporaryButton, true);
+  try {
+    const status = await pauseSite(host, 30);
+    showMessage(status === 'synced'
+      ? '已临时信任当前站点 30 分钟，并同步到后端。'
+      : '后端暂不可用，已写入本地临时信任 30 分钟。');
+    await createTemporaryBypass(params.url);
+    window.setTimeout(() => window.location.replace(params.url), 450);
+  } catch (error) {
+    showMessage(`临时信任失败：${errorMessage(error)}`, true);
+  } finally {
+    setBusy(trustTemporaryButton, false);
+  }
+}
+
+async function trustPermanently(): Promise<void> {
+  if (!params) return;
+  const host = hostFromUrl(params.url);
+  if (!host) {
+    showMessage('无法识别当前站点域名。', true);
+    return;
+  }
+
+  setBusy(trustPermanentButton, true);
+  try {
+    const status = await trustSite(host);
+    showMessage(status === 'synced'
+      ? '已永久信任当前站点，并同步到后端。'
+      : '后端暂不可用，已写入本地永久信任列表。');
+    await createTemporaryBypass(params.url);
+    window.setTimeout(() => window.location.replace(params.url), 450);
+  } catch (error) {
+    showMessage(`永久信任失败：${errorMessage(error)}`, true);
+  } finally {
+    setBusy(trustPermanentButton, false);
+  }
+}
+
+async function openReport(): Promise<void> {
+  const settings = await getSettings();
+  const reportUrl = buildReportUrl(settings.webBaseUrl, params?.recordId);
+  await chrome.tabs.create({ url: reportUrl });
+}
+
+function disableRiskActions(): void {
+  continueOnceButton?.setAttribute('disabled', 'true');
+  trustTemporaryButton?.setAttribute('disabled', 'true');
+  trustPermanentButton?.setAttribute('disabled', 'true');
+}
+
+function setBusy(button: HTMLButtonElement | null, busy: boolean): void {
+  if (button) button.disabled = busy;
+}
+
+function setText(element: HTMLElement | null, value: string): void {
+  if (element) element.textContent = value;
+}
+
+function showMessage(message: string, isError = false): void {
+  if (!messageElement) return;
+  messageElement.textContent = message;
+  messageElement.className = `message${isError ? ' error' : ''}`;
+}
+
+function riskLabelText(label: string): string {
+  if (label === 'malicious') return '恶意';
+  if (label === 'suspicious') return '可疑';
+  if (label === 'safe') return '安全';
+  return '未知';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '未知错误';
 }

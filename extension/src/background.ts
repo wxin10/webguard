@@ -1,120 +1,284 @@
-import { analyzeCurrentPage, getUserStrategies } from './utils/api.js';
-import { getSettings, hostFromUrl, isHostPaused, isTrustedHost, saveDetectionResult } from './utils/storage.js';
-import type { DetectionResult } from './utils/storage.js';
+import { analyzeCurrentPage } from './utils/api.js';
+import { buildWarningPageUrl } from './utils/navigation.js';
+import {
+  consumeTemporaryBypass,
+  createRuntimeError,
+  getSettings,
+  hostFromUrl,
+  isHostPaused,
+  isHttpUrl,
+  isTrustedHost,
+  setTabState,
+  stateFromRiskLabel,
+  tabStateKey,
+} from './utils/storage.js';
+import type { DetectionResult, PageInfo, RuntimeError, TabRiskRecord } from './utils/storage.js';
 
-interface PageInfo {
-  url: string;
-  title: string;
-  visible_text: string;
-  button_texts: string[];
-  input_labels: string[];
-  form_action_domains: string[];
-  has_password_input: boolean;
+type ScanTrigger = 'auto' | 'manual' | 'warning';
+
+interface ScanResponse {
+  ok: boolean;
+  record: TabRiskRecord | null;
+  error?: RuntimeError;
 }
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !tab.url?.startsWith('http')) return;
-  void getSettings().then((settings) => {
-    if (settings.autoDetect) void checkPage(tabId, tab.url || '');
-  });
+interface ScanMessage {
+  type: 'WEBGUARD_SCAN_TAB';
+  tabId?: number;
+  url?: string;
+}
+
+interface GetStateMessage {
+  type: 'WEBGUARD_GET_TAB_STATE';
+  tabId?: number;
+  url?: string;
+}
+
+interface OpenWarningMessage {
+  type: 'WEBGUARD_OPEN_WARNING';
+  tabId?: number;
+  result?: DetectionResult;
+}
+
+type RuntimeMessage = ScanMessage | GetStateMessage | OpenWarningMessage;
+
+const activeScans = new Set<string>();
+
+chrome.runtime.onInstalled.addListener(() => {
+  logInfo('Installed and ready.');
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.action !== 'scan') return false;
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tab = tabs[0];
-    if (!tab?.id || !tab.url) {
-      sendResponse(null);
-      return;
-    }
-    void checkPage(tab.id, tab.url).then(sendResponse);
-  });
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
+  const url = tab.url;
+  if (!url || !isHttpUrl(url)) return;
+
+  void getSettings()
+    .then(async (settings) => {
+      if (settings.autoDetect) {
+        await scheduleScan(tabId, url, 'auto');
+      } else {
+        await setTabState(tabId, url, 'idle');
+      }
+    })
+    .catch((error) => logError('Auto scan scheduling failed.', error));
+});
+
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  void handleRuntimeMessage(message)
+    .then((response) => sendResponse(response))
+    .catch((error) => {
+      logError('Message handling failed.', error);
+      sendResponse({
+        ok: false,
+        record: null,
+        error: createRuntimeError(errorMessage(error), undefined, 'message_failed'),
+      } satisfies ScanResponse);
+    });
   return true;
 });
 
-async function checkPage(tabId: number, originalUrl: string): Promise<DetectionResult | null> {
+async function handleRuntimeMessage(message: unknown): Promise<unknown> {
+  if (isLegacyScanMessage(message) || isScanMessage(message)) {
+    const tab = await resolveTargetTab(isScanMessage(message) ? message.tabId : undefined);
+    if (!tab?.id || !tab.url) {
+      return {
+        ok: false,
+        record: null,
+        error: createRuntimeError('无法读取当前标签页。', undefined, 'tab_unavailable'),
+      } satisfies ScanResponse;
+    }
+    return scheduleScan(tab.id, tab.url, 'manual');
+  }
+
+  if (isGetStateMessage(message)) {
+    const tab = await resolveTargetTab(message.tabId);
+    const tabId = message.tabId ?? tab?.id;
+    const url = message.url ?? tab?.url;
+    if (!tabId || !url) return null;
+    return getStoredState(tabId, url);
+  }
+
+  if (isOpenWarningMessage(message)) {
+    const tab = await resolveTargetTab(message.tabId);
+    if (!tab?.id || !message.result) return false;
+    await redirectToWarning(tab.id, message.result);
+    return true;
+  }
+
+  return null;
+}
+
+async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): Promise<ScanResponse> {
+  if (!isHttpUrl(url)) {
+    const error = createRuntimeError('当前页面不是可扫描的 http/https 页面。', url, 'unsupported_url');
+    const record = await setTabState(tabId, url, 'error', undefined, error);
+    return { ok: false, record, error };
+  }
+
+  const key = tabStateKey(tabId, url);
+  if (activeScans.has(key)) {
+    const record = await getStoredState(tabId, url);
+    return { ok: true, record };
+  }
+
+  activeScans.add(key);
+  logInfo(`Scan started. trigger=${trigger} tab=${tabId} url=${url}`);
+
   try {
-    const bypass = await chrome.storage.local.get('webguardBypassUrl');
-    if (bypass.webguardBypassUrl === originalUrl) {
-      await chrome.storage.local.remove('webguardBypassUrl');
-      return null;
+    await setTabState(tabId, url, 'scanning');
+
+    const bypassed = await consumeTemporaryBypass(url);
+    if (bypassed) {
+      const record = await setTabState(tabId, url, 'idle');
+      logInfo(`One-time bypass consumed. tab=${tabId} url=${url}`);
+      return { ok: true, record };
     }
 
-    const host = hostFromUrl(originalUrl);
-    await getUserStrategies().catch(() => undefined);
-    if (await isTrustedHost(host)) return null;
-    if (await isHostPaused(host)) return null;
-
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: collectPageInfoFromTab,
-    });
-    const pageInfo = injection?.result as PageInfo | undefined;
-    if (!pageInfo) return null;
-
-    const analysis = await analyzeCurrentPage(pageInfo);
-    const result: DetectionResult = {
-      ...analysis,
-      url: pageInfo.url,
-      timestamp: Date.now(),
-    };
-    await saveDetectionResult(result);
-
-    if (analysis.label === 'malicious') {
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: 'icons/128.png',
-        title: 'WebGuard 安全警告',
-        message: `检测到恶意网站，风险评分 ${analysis.risk_score.toFixed(1)}`,
-      });
-
-      const settings = await getSettings();
-      if (settings.autoBlockMalicious) {
-        const warningUrl = chrome.runtime.getURL('dist/warning/warning.html');
-        await chrome.tabs.update(tabId, {
-          url: `${warningUrl}?url=${encodeURIComponent(originalUrl)}&result=${encodeURIComponent(JSON.stringify(result))}`,
-        });
-      }
+    const host = hostFromUrl(url);
+    if (await isTrustedHost(host)) {
+      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点已在永久信任列表中，本次未调用后端扫描。');
+      const record = await setTabState(tabId, url, 'safe', trustedResult);
+      logInfo(`Trusted host skipped. host=${host}`);
+      return { ok: true, record };
     }
 
-    return result;
+    if (await isHostPaused(host)) {
+      const record = await setTabState(tabId, url, 'idle');
+      logInfo(`Paused host skipped. host=${host}`);
+      return { ok: true, record };
+    }
+
+    const pageInfo = await collectPageInfo(tabId);
+    const result = await analyzeCurrentPage(pageInfo);
+    const record = await handleDetectionResult(tabId, url, result);
+    return { ok: true, record };
   } catch (error) {
-    console.error('WebGuard scan failed', error);
-    return null;
+    const runtimeError = createRuntimeError(errorMessage(error), url, 'scan_failed');
+    const record = await setTabState(tabId, url, 'error', undefined, runtimeError);
+    logError(`Scan failed. tab=${tabId} url=${url}`, error);
+    return { ok: false, record, error: runtimeError };
+  } finally {
+    activeScans.delete(key);
   }
 }
 
-function collectPageInfoFromTab(): PageInfo {
-  const textParts = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, button, label'))
-    .map((node) => node.textContent?.trim() || '')
-    .filter(Boolean);
-  const buttonTexts = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'))
-    .map((node) => node.textContent?.trim() || (node as HTMLInputElement).value?.trim() || '')
-    .filter(Boolean)
-    .slice(0, 30);
-  const inputLabels = Array.from(document.querySelectorAll('label'))
-    .map((node) => node.textContent?.trim() || '')
-    .filter(Boolean)
-    .slice(0, 30);
-  const formActionDomains = Array.from(document.querySelectorAll('form'))
-    .map((form) => form.getAttribute('action'))
-    .filter((action): action is string => Boolean(action))
-    .map((action) => {
-      try {
-        return new URL(action, window.location.origin).hostname;
-      } catch {
-        return '';
-      }
-    })
-    .filter(Boolean);
+async function handleDetectionResult(tabId: number, originalUrl: string, result: DetectionResult): Promise<TabRiskRecord> {
+  const state = stateFromRiskLabel(result.label);
+  const record = await setTabState(tabId, originalUrl, state, result);
+  const settings = await getSettings();
 
+  logInfo(`Scan finished. tab=${tabId} state=${state} score=${result.risk_score}`);
+
+  if (result.label === 'suspicious' && settings.notifySuspicious) {
+    notifyRisk('WebGuard 可疑站点提醒', `风险评分 ${result.risk_score.toFixed(1)}：${result.summary}`);
+  }
+
+  if (result.label === 'malicious') {
+    notifyRisk('WebGuard 安全警告', `检测到恶意站点，风险评分 ${result.risk_score.toFixed(1)}`);
+    if (settings.autoBlockMalicious) {
+      await redirectToWarning(tabId, result);
+    }
+  }
+
+  return record;
+}
+
+async function redirectToWarning(tabId: number, result: DetectionResult): Promise<void> {
+  const warningUrl = buildWarningPageUrl(result);
+  logInfo(`Redirecting to warning page. tab=${tabId} url=${result.url}`);
+  await chrome.tabs.update(tabId, { url: warningUrl });
+}
+
+async function collectPageInfo(tabId: number): Promise<PageInfo> {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: 'WEBGUARD_COLLECT_PAGE_INFO' });
+    if (isPageInfo(response)) return response;
+    throw new Error('页面内容脚本返回了无效数据。');
+  } catch (error) {
+    throw new Error(`无法读取页面内容，请刷新页面后重试：${errorMessage(error)}`);
+  }
+}
+
+async function resolveTargetTab(tabId?: number): Promise<chrome.tabs.Tab | null> {
+  if (typeof tabId === 'number') {
+    try {
+      return await chrome.tabs.get(tabId);
+    } catch {
+      return null;
+    }
+  }
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs[0] ?? null;
+}
+
+async function getStoredState(tabId: number, url: string): Promise<TabRiskRecord | null> {
+  const { getTabRiskRecord } = await import('./utils/storage.js');
+  return getTabRiskRecord(tabId, url);
+}
+
+function createLocalDecisionResult(url: string, label: 'safe', summary: string): DetectionResult {
   return {
-    url: window.location.href,
-    title: document.title || '',
-    visible_text: textParts.join(' ').slice(0, 1500),
-    button_texts: buttonTexts,
-    input_labels: inputLabels,
-    form_action_domains: formActionDomains,
-    has_password_input: document.querySelectorAll('input[type="password"]').length > 0,
+    url,
+    label,
+    risk_score: 0,
+    summary,
+    timestamp: Date.now(),
   };
+}
+
+function notifyRisk(title: string, message: string): void {
+  chrome.notifications.create({
+    type: 'basic',
+    iconUrl: 'icons/128.png',
+    title,
+    message,
+  }, () => {
+    if (chrome.runtime.lastError) {
+      logError('Notification failed.', chrome.runtime.lastError);
+    }
+  });
+}
+
+function isScanMessage(message: unknown): message is ScanMessage {
+  return isRecord(message) && message.type === 'WEBGUARD_SCAN_TAB';
+}
+
+function isLegacyScanMessage(message: unknown): boolean {
+  return isRecord(message) && message.action === 'scan';
+}
+
+function isGetStateMessage(message: unknown): message is GetStateMessage {
+  return isRecord(message) && message.type === 'WEBGUARD_GET_TAB_STATE';
+}
+
+function isOpenWarningMessage(message: unknown): message is OpenWarningMessage {
+  return isRecord(message) && message.type === 'WEBGUARD_OPEN_WARNING';
+}
+
+function isPageInfo(value: unknown): value is PageInfo {
+  return isRecord(value)
+    && typeof value.url === 'string'
+    && typeof value.title === 'string'
+    && typeof value.visible_text === 'string'
+    && Array.isArray(value.button_texts)
+    && Array.isArray(value.input_labels)
+    && Array.isArray(value.form_action_domains)
+    && typeof value.has_password_input === 'boolean';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function logInfo(message: string): void {
+  console.info(`[WebGuard] ${message}`);
+}
+
+function logError(message: string, error: unknown): void {
+  console.error(`[WebGuard] ${message}`, error);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '未知错误';
 }

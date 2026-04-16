@@ -1,37 +1,129 @@
-import { getSettings, saveSettings } from '../utils/storage.js';
+import { testBackendConnection } from '../utils/api.js';
+import {
+  DEFAULT_SETTINGS,
+  clearRuntimeCache,
+  getSettings,
+  normalizeBaseUrl,
+  resetSettings,
+  saveSettings,
+} from '../utils/storage.js';
 
 const apiBaseUrlInput = document.getElementById('api-base-url') as HTMLInputElement | null;
-const frontendBaseUrlInput = document.getElementById('frontend-base-url') as HTMLInputElement | null;
+const webBaseUrlInput = document.getElementById('web-base-url') as HTMLInputElement | null;
 const autoDetectCheckbox = document.getElementById('auto-detect') as HTMLInputElement | null;
 const autoBlockCheckbox = document.getElementById('auto-block') as HTMLInputElement | null;
+const notifySuspiciousCheckbox = document.getElementById('notify-suspicious') as HTMLInputElement | null;
+
+const testButton = document.getElementById('test-button') as HTMLButtonElement | null;
+const clearCacheButton = document.getElementById('clear-cache-button') as HTMLButtonElement | null;
+const resetSettingsButton = document.getElementById('reset-settings-button') as HTMLButtonElement | null;
 const saveButton = document.getElementById('save-button') as HTMLButtonElement | null;
+
 const messageElement = document.getElementById('message');
+const testMessageElement = document.getElementById('test-message');
 
-void init();
+void init().catch((error) => {
+  console.error('[WebGuard] Options init failed.', error);
+  showMessage(`设置页初始化失败：${errorMessage(error)}`, true);
+});
 
-async function init() {
+async function init(): Promise<void> {
+  await renderSettings();
+  saveButton?.addEventListener('click', () => {
+    void saveOptions();
+  });
+  testButton?.addEventListener('click', () => {
+    void testConnection();
+  });
+  clearCacheButton?.addEventListener('click', () => {
+    void clearCache();
+  });
+  resetSettingsButton?.addEventListener('click', () => {
+    void resetOptions();
+  });
+}
+
+async function renderSettings(): Promise<void> {
   const settings = await getSettings();
   if (apiBaseUrlInput) apiBaseUrlInput.value = settings.apiBaseUrl;
-  if (frontendBaseUrlInput) frontendBaseUrlInput.value = settings.frontendBaseUrl;
+  if (webBaseUrlInput) webBaseUrlInput.value = settings.webBaseUrl;
   if (autoDetectCheckbox) autoDetectCheckbox.checked = settings.autoDetect;
   if (autoBlockCheckbox) autoBlockCheckbox.checked = settings.autoBlockMalicious;
-  saveButton?.addEventListener('click', saveOptions);
+  if (notifySuspiciousCheckbox) notifySuspiciousCheckbox.checked = settings.notifySuspicious;
 }
 
-async function saveOptions() {
-  await saveSettings({
-    apiBaseUrl: apiBaseUrlInput?.value.trim() || 'http://127.0.0.1:8000',
-    frontendBaseUrl: frontendBaseUrlInput?.value.trim() || 'http://127.0.0.1:5173',
-    autoDetect: Boolean(autoDetectCheckbox?.checked),
-    autoBlockMalicious: Boolean(autoBlockCheckbox?.checked),
-  });
-  showMessage('设置已保存');
+async function saveOptions(): Promise<void> {
+  try {
+    const apiBaseUrl = readRequiredUrl(apiBaseUrlInput, DEFAULT_SETTINGS.apiBaseUrl);
+    const webBaseUrl = readRequiredUrl(webBaseUrlInput, DEFAULT_SETTINGS.webBaseUrl);
+    await saveSettings({
+      apiBaseUrl,
+      webBaseUrl,
+      autoDetect: Boolean(autoDetectCheckbox?.checked),
+      autoBlockMalicious: Boolean(autoBlockCheckbox?.checked),
+      notifySuspicious: Boolean(notifySuspiciousCheckbox?.checked),
+    });
+    showMessage('设置已保存。');
+  } catch (error) {
+    showMessage(errorMessage(error), true);
+  }
 }
 
-function showMessage(text: string) {
+async function testConnection(): Promise<void> {
+  const apiBaseUrl = readRequiredUrl(apiBaseUrlInput, DEFAULT_SETTINGS.apiBaseUrl);
+  testButton?.setAttribute('disabled', 'true');
+  showTestMessage('正在测试后端连接...');
+  try {
+    const health = await testBackendConnection(apiBaseUrl);
+    showTestMessage(
+      health.ok
+        ? `连接正常，耗时 ${health.latencyMs ?? 0}ms。`
+        : `连接失败：${health.message}`,
+      !health.ok,
+    );
+  } catch (error) {
+    showTestMessage(`连接测试失败：${errorMessage(error)}`, true);
+  } finally {
+    testButton?.removeAttribute('disabled');
+  }
+}
+
+async function clearCache(): Promise<void> {
+  await clearRuntimeCache();
+  showMessage('本地运行时缓存已清空。');
+}
+
+async function resetOptions(): Promise<void> {
+  await resetSettings();
+  await renderSettings();
+  showMessage('插件设置已恢复默认值。');
+}
+
+function readRequiredUrl(input: HTMLInputElement | null, fallback: string): string {
+  const raw = input?.value.trim() || fallback;
+  const normalized = normalizeBaseUrl(raw, '');
+  if (!normalized) {
+    throw new Error('请输入合法的 http/https 地址。');
+  }
+  return normalized;
+}
+
+function showMessage(text: string, isError = false): void {
   if (!messageElement) return;
   messageElement.textContent = text;
+  messageElement.className = isError ? 'error' : '';
   window.setTimeout(() => {
     messageElement.textContent = '';
-  }, 2500);
+    messageElement.className = '';
+  }, 2600);
+}
+
+function showTestMessage(text: string, isError = false): void {
+  if (!testMessageElement) return;
+  testMessageElement.textContent = text;
+  testMessageElement.className = `message${isError ? ' error' : ''}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '未知错误';
 }

@@ -2,9 +2,12 @@
   "manifest_version": 3,
   "name": "WebGuard 恶意网站检测",
   "version": "1.0.0",
-  "description": "基于 WebGuard 后台的恶意网站检测与主动防御浏览器插件",
-  "permissions": ["activeTab", "scripting", "tabs", "storage", "notifications"],
-  "host_permissions": ["<all_urls>", "http://127.0.0.1:8000/*", "http://localhost:8000/*"],
+  "description": "基于 WebGuard 后端的恶意网站检测与主动防护浏览器插件。",
+  "permissions": ["storage", "tabs", "notifications"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
   "background": {
     "service_worker": "dist/background.js",
     "type": "module"
@@ -32,8 +35,8 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["dist/warning/warning.html", "dist/popup/popup.html", "dist/options/options.html"],
-      "matches": ["<all_urls>"]
+      "resources": ["dist/warning/warning.html"],
+      "matches": ["http://*/*", "https://*/*"]
     }
   ]
 }

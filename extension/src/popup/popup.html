@@ -9,28 +9,52 @@
     <main class="popup-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">WebGuard 浏览器助手</p>
-          <h1>当前网站风险</h1>
+          <p class="eyebrow">WebGuard 浏览器插件</p>
+          <h1>当前页面检测</h1>
         </div>
-        <span id="connection-status" class="status unknown">检测中</span>
+        <span id="backend-status" class="badge unknown">连接中</span>
       </header>
 
       <section class="url-card">
-        <span>当前网址</span>
+        <span>当前页面 URL</span>
         <strong id="current-url">读取中...</strong>
       </section>
 
-      <section id="result-card" class="result-card">
-        <p class="muted">浏览器助手只负责快速扫描、即时提醒和跳转，完整报告与策略管理请在 Web 平台完成。</p>
+      <section class="status-card">
+        <div class="status-head">
+          <div>
+            <span id="risk-badge" class="badge unknown">未扫描</span>
+            <p id="status-text" class="status-title">等待检测</p>
+          </div>
+          <div class="score-box">
+            <span>风险分数</span>
+            <strong id="risk-score">--</strong>
+          </div>
+        </div>
+        <div class="bar" aria-hidden="true">
+          <div id="risk-bar"></div>
+        </div>
+        <dl class="meta-grid">
+          <div>
+            <dt>最近扫描时间</dt>
+            <dd id="scan-time">--</dd>
+          </div>
+          <div>
+            <dt>风险标签</dt>
+            <dd id="risk-label">--</dd>
+          </div>
+        </dl>
+        <p id="risk-summary" class="summary">打开 http/https 页面后，WebGuard 会根据设置自动扫描。</p>
+        <p id="page-message" class="message" role="status"></p>
       </section>
 
       <div class="actions">
-        <button id="scan-button" class="primary">扫描当前页面</button>
-        <button id="report-button" class="secondary">打开 Web 详细报告</button>
-        <button id="trust-button" class="secondary">加入信任列表</button>
-        <button id="pause-button" class="ghost">临时忽略本站</button>
-        <button id="resume-button" class="ghost">恢复本站保护</button>
-        <button id="options-button" class="ghost">连接设置</button>
+        <button id="scan-button" class="primary">重新扫描</button>
+        <button id="warning-button" class="secondary">打开 warning 页面</button>
+        <button id="report-button" class="secondary">打开 Web 报告</button>
+        <button id="pause-button" class="secondary">临时忽略本站</button>
+        <button id="trust-button" class="secondary">永久信任本站</button>
+        <button id="options-button" class="ghost">插件设置</button>
       </div>
     </main>
     <script type="module" src="popup.js"></script>

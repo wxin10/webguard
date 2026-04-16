@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebGuard 安全警告</title>
     <link rel="stylesheet" href="warning.css" />
   </head>
@@ -10,35 +11,42 @@
       <section class="panel">
         <p class="eyebrow">WebGuard Active Defense</p>
         <h1 id="warning-title">检测到高风险网站</h1>
-        <p id="warning-url" class="url"></p>
+        <p class="subtitle">该页面可能诱导你提交账号、密码、验证码或支付信息。请确认来源可信后再继续。</p>
 
-        <div class="score-card">
-          <span>风险评分</span>
-          <strong id="risk-score">--</strong>
-        </div>
+        <section class="url-block">
+          <span>原始地址</span>
+          <strong id="warning-url">读取中...</strong>
+        </section>
 
-        <section class="detail">
-          <h2>核心风险原因</h2>
-          <p id="risk-reason">正在读取检测结果...</p>
+        <section class="risk-grid">
+          <div class="metric">
+            <span>风险等级</span>
+            <strong id="risk-label">--</strong>
+          </div>
+          <div class="metric">
+            <span>风险分数</span>
+            <strong id="risk-score">--</strong>
+          </div>
+          <div class="metric">
+            <span>检测时间</span>
+            <strong id="detected-at">--</strong>
+          </div>
         </section>
 
         <section class="detail">
-          <h2>处理建议</h2>
-          <p id="recommendation">建议返回安全页面。</p>
+          <h2>检测摘要</h2>
+          <p id="risk-summary">正在读取检测结果...</p>
         </section>
 
         <div class="actions">
-          <button id="back-button" class="primary">返回安全页面</button>
+          <button id="back-button" class="primary">返回上一页或关闭</button>
           <button id="report-button" class="secondary">打开 Web 详细报告</button>
-          <button id="continue-button" class="weak">继续访问</button>
+          <button id="continue-once-button" class="weak">继续访问一次</button>
+          <button id="trust-temporary-button" class="secondary">临时信任当前站点</button>
+          <button id="trust-permanent-button" class="secondary">永久信任当前站点</button>
         </div>
 
-        <section class="feedback">
-          <h2>误报反馈</h2>
-          <textarea id="feedback-comment" placeholder="可选：说明为什么你认为这是误报"></textarea>
-          <button id="false-positive-button" class="secondary">提交误报反馈</button>
-          <p id="feedback-message"></p>
-        </section>
+        <p id="action-message" class="message" role="status"></p>
       </section>
     </main>
     <script type="module" src="warning.js"></script>
