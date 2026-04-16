@@ -37,6 +37,7 @@ models/
 !backend/app/models/
 backend/app/models/*
 !backend/app/models/__init__.py
+!backend/app/models/rule_config.py
 !backend/app/models/user_strategy.py
 
 # 临时文件

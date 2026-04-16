@@ -8,7 +8,7 @@ from .domain import (
     DomainBlacklistCreate,
     DomainList,
 )
-from .rule import RuleConfig, RuleConfigUpdate, RuleConfigList
+from .rule import RuleConfig, RuleConfigUpdate, RuleConfigList, RuleStats, RuleStatsList
 from .model import ModelVersion, ModelStatus, ModelVersionList
 from .stats import OverviewStats, TrendStats, RiskDistribution
 from .user_strategy import (
@@ -38,6 +38,8 @@ __all__ = [
     "RuleConfig",
     "RuleConfigUpdate",
     "RuleConfigList",
+    "RuleStats",
+    "RuleStatsList",
     "ModelVersion",
     "ModelStatus",
     "ModelVersionList",

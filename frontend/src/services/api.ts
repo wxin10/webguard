@@ -12,6 +12,7 @@ import {
   RiskDistributionResponse,
   RuleConfig,
   RuleConfigList,
+  RuleStatsList,
   ScanRecordItem,
   ScanRecordList,
   ScanResult,
@@ -129,6 +130,7 @@ export const blacklistApi = {
 
 export const rulesApi = {
   getRules: () => unwrap(api.get<ApiResponse<RuleConfigList>>('/api/v1/rules')),
+  getRuleStats: () => unwrap(api.get<ApiResponse<RuleStatsList>>('/api/v1/rules/stats')),
   updateRule: (id: number, data: Partial<RuleConfig>) =>
     unwrap(api.put<ApiResponse<RuleConfig>>(`/api/v1/rules/${id}`, data)),
 };

@@ -31,10 +31,74 @@ export interface PageScanRequest {
 export interface HitRule {
   rule_key: string;
   rule_name: string;
+  name?: string;
+  description?: string;
   matched: boolean;
+  enabled?: boolean;
+  applied?: boolean;
+  weight?: number;
+  threshold?: number;
+  contribution?: number;
   raw_score: number;
   weighted_score: number;
   detail?: string;
+  reason?: string;
+  category?: string;
+  severity?: string;
+  raw_feature?: Record<string, unknown>;
+  observed_value?: number;
+}
+
+export interface RuleStats {
+  rule_id?: number;
+  rule_key: string;
+  recent_hits_7d: number;
+  recent_hit_rate_7d: number;
+  risk_hits_7d: number;
+  suspicious_hits_7d: number;
+  malicious_hits_7d: number;
+  false_positive_feedback_7d: number;
+  last_hit_at?: string;
+  false_positive_tendency: string;
+}
+
+export interface RuleStatsList {
+  total: number;
+  stats: RuleStats[];
+}
+
+export interface ModelBreakdown {
+  safe_prob: number;
+  suspicious_prob: number;
+  malicious_prob: number;
+  dominant_label: RiskLabel;
+  model_score: number;
+  contribution: number;
+  contribution_summary: string;
+}
+
+export interface ScoreBreakdown {
+  rule_score_total: number;
+  rule_score_raw_total?: number;
+  enabled_rule_weight_total?: number;
+  model_score_total: number;
+  final_score: number;
+  label: RiskLabel;
+  fusion_summary: string;
+  rules: HitRule[];
+  model: ModelBreakdown;
+  raw_features: {
+    url?: string;
+    domain?: string;
+    title?: string;
+    has_password_input?: boolean;
+    form_action_domains?: string[];
+    button_texts?: string[];
+    input_labels?: string[];
+    visible_text_length?: number;
+    text_length?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface ScanResult {
@@ -45,6 +109,7 @@ export interface ScanResult {
   model_suspicious_prob: number;
   model_malicious_prob: number;
   hit_rules: HitRule[];
+  score_breakdown?: ScoreBreakdown;
   explanation: string;
   recommendation: string;
   record_id: number;
@@ -79,10 +144,15 @@ export interface RuleConfig {
   id: number;
   rule_key: string;
   rule_name: string;
+  name?: string;
   description?: string;
+  category?: string;
   weight: number;
   threshold: number;
   enabled: boolean;
+  severity?: 'low' | 'medium' | 'high' | 'critical' | string;
+  stats?: RuleStats;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -210,13 +280,17 @@ export interface AnalysisReport {
   label_text: string;
   risk_score: number;
   rule_score: number;
+  model_score?: number;
   model_probs: {
     safe: number;
     suspicious: number;
     malicious: number;
   };
+  model_breakdown?: ModelBreakdown;
+  score_breakdown?: ScoreBreakdown;
   hit_rules: HitRule[];
   matched_rules: HitRule[];
+  applied_rules?: HitRule[];
   explanation?: string;
   recommendation?: string;
   conclusion: string;
