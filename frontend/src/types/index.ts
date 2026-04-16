@@ -170,7 +170,10 @@ export interface WhitelistItem {
   id: number;
   domain: string;
   reason?: string;
+  source?: string;
+  status?: string;
   added_at: string;
+  updated_at?: string;
 }
 
 export interface BlacklistItem {
@@ -178,7 +181,10 @@ export interface BlacklistItem {
   domain: string;
   reason?: string;
   risk_type?: string;
+  source?: string;
+  status?: string;
   added_at: string;
+  updated_at?: string;
 }
 
 export interface UserSiteStrategyItem {
@@ -370,5 +376,26 @@ export interface AnalysisReport {
   conclusion: string;
   evidence: ReportEvidence[];
   raw_features: Record<string, unknown>;
+  actions?: ReportActionItem[];
+  plugin_events?: PluginSyncEventItem[];
   created_at: string;
+}
+
+export interface SourceDistributionResponse {
+  manual: number;
+  plugin: number;
+  web: number;
+  recheck: number;
+  unknown: number;
+  distribution: Record<string, number>;
+}
+
+export interface FeedbackTrendPoint {
+  date: string;
+  count: number;
+  resolved_count: number;
+}
+
+export interface FeedbackTrend {
+  trend: FeedbackTrendPoint[];
 }

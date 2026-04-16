@@ -7,7 +7,7 @@ import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import StatCard from '../components/StatCard';
 import { pluginApi, userStrategyApi } from '../services/api';
-import { PluginEventStats, PluginSyncEventItem, UserStrategyOverview } from '../types';
+import { PluginEventStats, PluginPolicyBundle, PluginSyncEventItem, UserStrategyOverview } from '../types';
 import { formatDate, pluginEventText, strategyText } from '../utils';
 
 type FilterKey = 'all' | 'scan' | 'warning' | 'action' | 'feedback';
@@ -15,6 +15,7 @@ type FilterKey = 'all' | 'scan' | 'warning' | 'action' | 'feedback';
 export default function PluginSync() {
   const [events, setEvents] = useState<PluginSyncEventItem[]>([]);
   const [stats, setStats] = useState<PluginEventStats | null>(null);
+  const [policy, setPolicy] = useState<PluginPolicyBundle | null>(null);
   const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [loading, setLoading] = useState(true);
@@ -22,10 +23,11 @@ export default function PluginSync() {
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([pluginApi.getEvents(), pluginApi.getStats(), userStrategyApi.getStrategies()])
-      .then(([eventData, statsData, strategyData]) => {
+    Promise.all([pluginApi.getEvents(), pluginApi.getStats(), pluginApi.getPolicy(), userStrategyApi.getStrategies()])
+      .then(([eventData, statsData, policyData, strategyData]) => {
         setEvents(eventData.events || []);
         setStats(statsData);
+        setPolicy(policyData);
         setStrategies(strategyData);
       })
       .finally(() => setLoading(false));
@@ -40,6 +42,7 @@ export default function PluginSync() {
     if (filter === 'action') return ['bypass', 'trust', 'temporary_trust'].includes(event.event_type);
     return true;
   }), [events, filter]);
+  const latestEvent = events[0];
 
   const addTrusted = async (event: PluginSyncEventItem) => {
     if (!event.domain) return;
@@ -68,10 +71,10 @@ export default function PluginSync() {
       {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="同步事件" value={stats?.total_events || 0} description="插件上传到主平台的事件数" tone="blue" />
+        <StatCard title="插件版本" value={policy?.plugin_version || '1.0.0'} description={`规则版本 ${policy?.rule_version || '-'}`} tone="blue" />
+        <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent ? '事件回传正常' : '暂无插件事件'} tone={latestEvent ? 'green' : 'slate'} />
         <StatCard title="Warning 拦截" value={stats?.warning_events || 0} description="恶意页面触发的提醒" tone="red" />
-        <StatCard title="继续访问" value={stats?.bypass_events || 0} description="一次性绕过动作" tone="amber" />
-        <StatCard title="信任动作" value={stats?.trust_events || 0} description="临时或永久信任" tone="green" />
+        <StatCard title="继续访问/信任" value={(stats?.bypass_events || 0) + (stats?.trust_events || 0)} description="现场处置动作" tone="amber" />
       </div>
 
       <section className="my-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

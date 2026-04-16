@@ -11,6 +11,7 @@ from ..models import (
     DomainBlacklist as DomainBlacklistModel,
     DomainWhitelist as DomainWhitelistModel,
     FeedbackCase as FeedbackCaseModel,
+    PluginSyncEvent as PluginSyncEventModel,
     ReportAction as ReportActionModel,
     RuleConfig as RuleConfigModel,
     ScanRecord as ScanRecordModel,
@@ -127,6 +128,8 @@ def _build_report(record: ScanRecordModel, db: Session) -> Dict[str, Any]:
     matched_rules = [rule for rule in all_rules if rule.get("matched")]
     applied_rules = [rule for rule in all_rules if rule.get("applied")]
     raw_features = record.raw_features_json or {}
+    actions = db.query(ReportActionModel).filter(ReportActionModel.report_id == record.id).order_by(desc(ReportActionModel.created_at)).all()
+    plugin_events = db.query(PluginSyncEventModel).filter(PluginSyncEventModel.scan_record_id == record.id).order_by(desc(PluginSyncEventModel.created_at)).all()
 
     if record.label == "malicious":
         conclusion = "该网址被判定为恶意，主要依据是规则命中、模型概率和融合评分共同指向高风险。"
@@ -186,6 +189,38 @@ def _build_report(record: ScanRecordModel, db: Session) -> Dict[str, Any]:
         "conclusion": conclusion,
         "evidence": evidence,
         "raw_features": raw_features,
+        "actions": [
+            {
+                "id": action.id,
+                "report_id": action.report_id,
+                "actor": action.actor,
+                "actor_role": action.actor_role,
+                "action_type": action.action_type,
+                "status": action.status,
+                "note": action.note,
+                "created_at": action.created_at,
+            }
+            for action in actions
+        ],
+        "plugin_events": [
+            {
+                "id": event.id,
+                "username": event.username,
+                "event_type": event.event_type,
+                "action": event.action,
+                "url": event.url,
+                "domain": event.domain,
+                "risk_label": event.risk_label,
+                "risk_score": event.risk_score,
+                "summary": event.summary,
+                "scan_record_id": event.scan_record_id,
+                "plugin_version": event.plugin_version,
+                "source": event.source,
+                "metadata_json": event.metadata_json,
+                "created_at": event.created_at,
+            }
+            for event in plugin_events
+        ],
         "created_at": record.created_at,
     }
 
@@ -279,6 +314,12 @@ def get_domain_history(report_id: int, db: Session = Depends(get_db)):
             "records": [ScanRecord.model_validate(item) for item in records],
         },
     }
+
+
+@router.get("/{report_id}/actions", response_model=ApiResponse[list[ReportActionItem]])
+def get_report_actions(report_id: int, db: Session = Depends(get_db)):
+    actions = db.query(ReportActionModel).filter(ReportActionModel.report_id == report_id).order_by(desc(ReportActionModel.created_at)).all()
+    return {"code": 0, "message": "success", "data": [ReportActionItem.model_validate(action) for action in actions]}
 
 
 @router.post("/{report_id}/trust-domain", response_model=ApiResponse[ReportActionItem])

@@ -10,7 +10,7 @@ from .domain import (
 )
 from .rule import RuleConfig, RuleConfigUpdate, RuleConfigList, RuleStats, RuleStatsList
 from .model import ModelVersion, ModelStatus, ModelVersionList
-from .stats import OverviewStats, TrendStats, RiskDistribution
+from .stats import FeedbackTrend, OverviewStats, RiskDistribution, SourceDistribution, TrendStats
 from .user_strategy import (
     ReportActionCreate,
     ReportActionItem,
@@ -57,6 +57,8 @@ __all__ = [
     "OverviewStats",
     "TrendStats",
     "RiskDistribution",
+    "SourceDistribution",
+    "FeedbackTrend",
     "ReportActionCreate",
     "ReportActionItem",
     "UserSiteStrategyCreate",

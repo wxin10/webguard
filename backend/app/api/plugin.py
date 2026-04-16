@@ -1,29 +1,16 @@
-from datetime import datetime, timezone
-from typing import Any, List, Optional
-from urllib.parse import urlparse
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from ..core import get_db
-from ..models import (
-    DomainBlacklist as DomainBlacklistModel,
-    DomainWhitelist as DomainWhitelistModel,
-    FeedbackCase as FeedbackCaseModel,
-    PluginSyncEvent as PluginSyncEventModel,
-    ReportAction as ReportActionModel,
-    RuleConfig as RuleConfigModel,
-    ScanRecord as ScanRecordModel,
-    UserSiteStrategy as UserSiteStrategyModel,
-)
+from ..models import ReportAction as ReportActionModel
 from ..schemas import (
     ApiResponse,
     FeedbackCaseCreate,
     FeedbackCaseItem,
     FeedbackCaseList,
-    PluginDefaultConfig,
     PluginEventStats,
     PluginPolicyBundle,
     PluginSyncEventCreate,
@@ -32,6 +19,7 @@ from ..schemas import (
     ScanResult,
 )
 from ..services import Detector
+from ..services.platform_service import PlatformService, normalize_domain
 
 router = APIRouter(prefix="/api/v1/plugin", tags=["plugin"])
 
@@ -53,6 +41,11 @@ class FeedbackRequest(BaseModel):
     report_id: Optional[int] = None
 
 
+class FeedbackCaseUpdate(BaseModel):
+    status: str
+    comment: Optional[str] = None
+
+
 def current_username(x_webguard_user: str | None = Header(default=None)) -> str:
     return (x_webguard_user or "platform-user").strip() or "platform-user"
 
@@ -61,127 +54,9 @@ def current_role(x_webguard_role: str | None = Header(default=None)) -> str:
     return (x_webguard_role or "user").strip() or "user"
 
 
-def normalize_domain(value: str | None) -> str:
-    if not value:
-        return ""
-    raw = value.strip().lower()
-    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
-    return (parsed.hostname or raw).replace("www.", "", 1)
-
-
-def domain_from_url(url: str | None) -> str:
-    if not url:
-        return ""
-    return normalize_domain(url)
-
-
-def rule_version(db: Session) -> str:
-    total = db.query(func.count(RuleConfigModel.id)).scalar() or 0
-    latest = db.query(func.max(RuleConfigModel.updated_at)).scalar()
-    if latest:
-        return f"rules-{total}-{latest.isoformat()}"
-    return f"rules-{total}-initial"
-
-
-def create_plugin_event(
-    db: Session,
-    username: str,
-    event_type: str,
-    *,
-    action: str | None = None,
-    url: str | None = None,
-    domain: str | None = None,
-    risk_label: str | None = None,
-    risk_score: float | None = None,
-    summary: str | None = None,
-    scan_record_id: int | None = None,
-    plugin_version: str | None = "1.0.0",
-    metadata: dict[str, Any] | None = None,
-) -> PluginSyncEventModel:
-    event = PluginSyncEventModel(
-        username=username,
-        event_type=event_type,
-        action=action,
-        url=url,
-        domain=normalize_domain(domain or domain_from_url(url)),
-        risk_label=risk_label,
-        risk_score=risk_score,
-        summary=summary,
-        scan_record_id=scan_record_id,
-        plugin_version=plugin_version or "1.0.0",
-        source="plugin",
-        metadata_json=metadata or {},
-    )
-    db.add(event)
-    db.commit()
-    db.refresh(event)
-    return event
-
-
-def create_feedback_case(
-    db: Session,
-    username: str,
-    request: FeedbackCaseCreate,
-) -> FeedbackCaseModel:
-    record = None
-    if request.report_id:
-        record = db.query(ScanRecordModel).filter(ScanRecordModel.id == request.report_id).first()
-    url = request.url or (record.url if record else None)
-    case = FeedbackCaseModel(
-        username=username,
-        report_id=request.report_id,
-        url=url,
-        domain=domain_from_url(url),
-        feedback_type=request.feedback_type,
-        status=request.status,
-        comment=request.comment,
-        source=request.source,
-    )
-    db.add(case)
-    db.commit()
-    db.refresh(case)
-    return case
-
-
 @router.get("/policy", response_model=ApiResponse[PluginPolicyBundle])
-def get_plugin_policy(
-    username: str = Depends(current_username),
-    db: Session = Depends(get_db),
-):
-    now = datetime.now(timezone.utc)
-    active_strategies = db.query(UserSiteStrategyModel).filter(
-        UserSiteStrategyModel.username == username,
-        UserSiteStrategyModel.is_active.is_(True),
-    ).filter(
-        (UserSiteStrategyModel.expires_at.is_(None)) | (UserSiteStrategyModel.expires_at > now)
-    ).all()
-    data = PluginPolicyBundle(
-        username=username,
-        rule_version=rule_version(db),
-        defaults=PluginDefaultConfig(),
-        user_trusted_hosts=[
-            item.domain for item in active_strategies if item.strategy_type == "trusted"
-        ],
-        user_blocked_hosts=[
-            item.domain for item in active_strategies if item.strategy_type == "blocked"
-        ],
-        user_paused_hosts=[
-            {
-                "domain": item.domain,
-                "expires_at": item.expires_at.isoformat() if item.expires_at else None,
-                "reason": item.reason,
-            }
-            for item in active_strategies
-            if item.strategy_type == "paused"
-        ],
-        global_trusted_hosts=[
-            item.domain for item in db.query(DomainWhitelistModel).order_by(DomainWhitelistModel.domain.asc()).all()
-        ],
-        global_blocked_hosts=[
-            item.domain for item in db.query(DomainBlacklistModel).order_by(DomainBlacklistModel.domain.asc()).all()
-        ],
-        generated_at=now,
-    )
+def get_plugin_policy(username: str = Depends(current_username), db: Session = Depends(get_db)):
+    data = PlatformService(db).plugin_policy(username)
     return {"code": 0, "message": "success", "data": data}
 
 
@@ -192,31 +67,35 @@ def analyze_current(
     username: str = Depends(current_username),
 ):
     detector = Detector(db)
-    page_data = {
-        "url": request.url,
-        "title": request.title,
-        "visible_text": request.visible_text,
-        "button_texts": request.button_texts,
-        "input_labels": request.input_labels,
-        "form_action_domains": request.form_action_domains,
-        "has_password_input": request.has_password_input,
-    }
-    result = detector.detect_page(page_data, source="plugin", username=username)
-    create_plugin_event(
-        db,
-        username,
-        "scan",
-        url=request.url,
-        domain=domain_from_url(request.url),
-        risk_label=result.get("label"),
-        risk_score=result.get("risk_score"),
-        summary=result.get("explanation"),
-        scan_record_id=result.get("record_id"),
-        metadata={
+    result = detector.detect_page(
+        {
+            "url": request.url,
             "title": request.title,
-            "has_password_input": request.has_password_input,
+            "visible_text": request.visible_text,
+            "button_texts": request.button_texts,
+            "input_labels": request.input_labels,
             "form_action_domains": request.form_action_domains,
+            "has_password_input": request.has_password_input,
         },
+        source="plugin",
+        username=username,
+    )
+    PlatformService(db).record_plugin_event(
+        username,
+        PluginSyncEventCreate(
+            event_type="scan",
+            url=request.url,
+            domain=normalize_domain(request.url),
+            risk_label=result.get("label"),
+            risk_score=result.get("risk_score"),
+            summary=result.get("explanation"),
+            scan_record_id=result.get("record_id"),
+            metadata={
+                "title": request.title,
+                "has_password_input": request.has_password_input,
+                "form_action_domains": request.form_action_domains,
+            },
+        ),
     )
     return {"code": 0, "message": "success", "data": result}
 
@@ -227,20 +106,7 @@ def record_plugin_event(
     db: Session = Depends(get_db),
     username: str = Depends(current_username),
 ):
-    event = create_plugin_event(
-        db,
-        username,
-        request.event_type,
-        action=request.action,
-        url=request.url,
-        domain=request.domain,
-        risk_label=request.risk_label,
-        risk_score=request.risk_score,
-        summary=request.summary,
-        scan_record_id=request.scan_record_id,
-        plugin_version=request.plugin_version,
-        metadata=request.metadata,
-    )
+    event = PlatformService(db).record_plugin_event(username, request)
     return {"code": 0, "message": "success", "data": PluginSyncEventItem.model_validate(event)}
 
 
@@ -250,26 +116,24 @@ def get_plugin_events(
     page_size: int = Query(50, ge=1, le=200),
     event_type: str | None = Query(default=None),
     risk_label: str | None = Query(default=None),
+    scan_record_id: int | None = Query(default=None),
     username: str = Depends(current_username),
     role: str = Depends(current_role),
     db: Session = Depends(get_db),
 ):
-    query = db.query(PluginSyncEventModel)
-    if role != "admin":
-        query = query.filter(PluginSyncEventModel.username == username)
-    if event_type:
-        query = query.filter(PluginSyncEventModel.event_type == event_type)
-    if risk_label:
-        query = query.filter(PluginSyncEventModel.risk_label == risk_label)
-    total = query.count()
-    events = query.order_by(desc(PluginSyncEventModel.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    total, events = PlatformService(db).list_plugin_events(
+        username=username,
+        role=role,
+        page=page,
+        page_size=page_size,
+        event_type=event_type,
+        risk_label=risk_label,
+        scan_record_id=scan_record_id,
+    )
     return {
         "code": 0,
         "message": "success",
-        "data": {
-            "total": total,
-            "events": [PluginSyncEventItem.model_validate(item) for item in events],
-        },
+        "data": {"total": total, "events": [PluginSyncEventItem.model_validate(item) for item in events]},
     }
 
 
@@ -279,21 +143,7 @@ def get_plugin_stats(
     role: str = Depends(current_role),
     db: Session = Depends(get_db),
 ):
-    query = db.query(PluginSyncEventModel)
-    if role != "admin":
-        query = query.filter(PluginSyncEventModel.username == username)
-    events = query.all()
-    data = PluginEventStats(
-        total_events=len(events),
-        scan_events=len([item for item in events if item.event_type == "scan"]),
-        warning_events=len([item for item in events if item.event_type == "warning"]),
-        bypass_events=len([item for item in events if item.event_type == "bypass"]),
-        trust_events=len([item for item in events if item.event_type in ("trust", "temporary_trust")]),
-        feedback_events=len([item for item in events if item.event_type == "feedback"]),
-        malicious_events=len([item for item in events if item.risk_label == "malicious"]),
-        suspicious_events=len([item for item in events if item.risk_label == "suspicious"]),
-    )
-    return {"code": 0, "message": "success", "data": data}
+    return {"code": 0, "message": "success", "data": PlatformService(db).plugin_stats(username, role)}
 
 
 @router.post("/feedback", response_model=ApiResponse[dict])
@@ -303,8 +153,8 @@ def submit_feedback(
     username: str = Depends(current_username),
     role: str = Depends(current_role),
 ):
-    case = create_feedback_case(
-        db,
+    service = PlatformService(db)
+    case = service.create_feedback_case(
         username,
         FeedbackCaseCreate(
             url=request.url,
@@ -325,22 +175,19 @@ def submit_feedback(
     )
     db.add(action)
     db.commit()
-    create_plugin_event(
-        db,
+    service.record_plugin_event(
         username,
-        "feedback",
-        action=request.feedback_type,
-        url=request.url,
-        domain=domain_from_url(request.url),
-        scan_record_id=request.report_id,
-        summary=request.comment,
-        metadata={"feedback_case_id": case.id},
+        PluginSyncEventCreate(
+            event_type="feedback",
+            action=request.feedback_type,
+            url=request.url,
+            domain=normalize_domain(request.url),
+            scan_record_id=request.report_id,
+            summary=request.comment,
+            metadata={"feedback_case_id": case.id},
+        ),
     )
-    return {
-        "code": 0,
-        "message": "feedback submitted",
-        "data": {"case_id": case.id},
-    }
+    return {"code": 0, "message": "feedback submitted", "data": {"case_id": case.id}}
 
 
 @router.get("/feedback-cases", response_model=ApiResponse[FeedbackCaseList])
@@ -352,18 +199,30 @@ def get_feedback_cases(
     role: str = Depends(current_role),
     db: Session = Depends(get_db),
 ):
-    query = db.query(FeedbackCaseModel)
-    if role != "admin":
-        query = query.filter(FeedbackCaseModel.username == username)
-    if status:
-        query = query.filter(FeedbackCaseModel.status == status)
-    total = query.count()
-    cases = query.order_by(desc(FeedbackCaseModel.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    total, cases = PlatformService(db).list_feedback_cases(
+        username=username,
+        role=role,
+        page=page,
+        page_size=page_size,
+        status=status,
+    )
     return {
         "code": 0,
         "message": "success",
-        "data": {
-            "total": total,
-            "cases": [FeedbackCaseItem.model_validate(item) for item in cases],
-        },
+        "data": {"total": total, "cases": [FeedbackCaseItem.model_validate(item) for item in cases]},
     }
+
+
+@router.put("/feedback-cases/{case_id}", response_model=ApiResponse[FeedbackCaseItem])
+def update_feedback_case(
+    case_id: int,
+    request: FeedbackCaseUpdate,
+    role: str = Depends(current_role),
+    db: Session = Depends(get_db),
+):
+    if role != "admin":
+        return {"code": 403, "message": "仅管理员可处理反馈案件", "data": None}
+    case = PlatformService(db).update_feedback_case(case_id, request.status, request.comment)
+    if not case:
+        return {"code": 404, "message": "反馈案件不存在", "data": None}
+    return {"code": 0, "message": "success", "data": FeedbackCaseItem.model_validate(case)}

@@ -10,11 +10,13 @@ import { ScanRecordItem, UserStrategyOverview } from '../types';
 import { formatDate, sourceText, strategyText } from '../utils';
 
 type FilterKey = 'all' | 'malicious' | 'suspicious' | 'safe' | 'plugin';
+type TimeFilter = 'all' | '7d' | '30d';
 
 export default function MyRecords() {
   const [records, setRecords] = useState<ScanRecordItem[]>([]);
   const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,9 +31,12 @@ export default function MyRecords() {
   if (loading) return <LoadingBlock />;
 
   const filteredRecords = records.filter((item) => {
-    if (filter === 'plugin') return item.source === 'plugin';
-    if (filter === 'all') return true;
-    return item.label === filter;
+    const riskMatched = filter === 'plugin' ? item.source === 'plugin' : filter === 'all' ? true : item.label === filter;
+    if (!riskMatched) return false;
+    if (timeFilter === 'all') return true;
+    const age = Date.now() - new Date(item.created_at).getTime();
+    const maxAge = timeFilter === '7d' ? 7 : 30;
+    return age <= maxAge * 24 * 60 * 60 * 1000;
   });
 
   return (
@@ -49,6 +54,10 @@ export default function MyRecords() {
           <FilterButton active={filter === 'suspicious'} onClick={() => setFilter('suspicious')}>可疑</FilterButton>
           <FilterButton active={filter === 'safe'} onClick={() => setFilter('safe')}>安全</FilterButton>
           <FilterButton active={filter === 'plugin'} onClick={() => setFilter('plugin')}>插件上传</FilterButton>
+          <span className="mx-1 h-9 border-l border-slate-200" />
+          <FilterButton active={timeFilter === 'all'} onClick={() => setTimeFilter('all')}>全部时间</FilterButton>
+          <FilterButton active={timeFilter === '7d'} onClick={() => setTimeFilter('7d')}>最近 7 天</FilterButton>
+          <FilterButton active={timeFilter === '30d'} onClick={() => setTimeFilter('30d')}>最近 30 天</FilterButton>
         </div>
       </section>
 

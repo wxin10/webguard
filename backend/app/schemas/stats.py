@@ -31,3 +31,22 @@ class RiskDistribution(BaseModel):
     suspicious: int
     malicious: int
     distribution: Dict[str, float]
+
+
+class SourceDistribution(BaseModel):
+    manual: int = 0
+    plugin: int = 0
+    web: int = 0
+    recheck: int = 0
+    unknown: int = 0
+    distribution: Dict[str, int]
+
+
+class FeedbackTrendPoint(BaseModel):
+    date: str
+    count: int
+    resolved_count: int
+
+
+class FeedbackTrend(BaseModel):
+    trend: List[FeedbackTrendPoint]

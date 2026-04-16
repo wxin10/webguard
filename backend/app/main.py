@@ -6,6 +6,7 @@ from .api import api_router
 from .core import settings
 from .core.database import Base, engine
 from .core.exceptions import WebGuardException
+from .core.schema_migrations import ensure_runtime_schema
 
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    ensure_runtime_schema(engine)
 
 
 @app.exception_handler(WebGuardException)

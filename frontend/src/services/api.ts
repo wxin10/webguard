@@ -7,6 +7,7 @@ import {
   DevelopmentUser,
   DomainList,
   FeedbackCaseList,
+  FeedbackTrend,
   ModelStatus,
   ModelVersionList,
   PageScanRequest,
@@ -20,6 +21,7 @@ import {
   ScanRecordItem,
   ScanRecordList,
   ScanResult,
+  SourceDistributionResponse,
   StatsOverview,
   TrendStats,
   UrlScanRequest,
@@ -72,8 +74,10 @@ export const scanApi = {
 };
 
 export const recordsApi = {
-  getRecords: () => unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records')),
-  getMyRecords: () => unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records/me')),
+  getRecords: (params: { label?: string; source?: string; q?: string } = {}) =>
+    unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records', { params })),
+  getMyRecords: (params: { label?: string; source?: string; q?: string } = {}) =>
+    unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records/me', { params })),
   getRecordById: (id: number) =>
     unwrap(api.get<ApiResponse<ScanRecordItem>>(`/api/v1/records/${id}`)),
 };
@@ -137,12 +141,14 @@ export const pluginApi = {
   }) => unwrap(api.post<ApiResponse<unknown>>('/api/v1/plugin/events', data)),
   getFeedbackCases: (params: { status?: string } = {}) =>
     unwrap(api.get<ApiResponse<FeedbackCaseList>>('/api/v1/plugin/feedback-cases', { params })),
+  updateFeedbackCase: (id: number, data: { status: string; comment?: string }) =>
+    unwrap(api.put<ApiResponse<unknown>>(`/api/v1/plugin/feedback-cases/${id}`, data)),
 };
 
 export const whitelistApi = {
   getWhitelist: () =>
     unwrap(api.get<ApiResponse<DomainList<WhitelistItem>>>('/api/v1/whitelist')),
-  addToWhitelist: (data: { domain: string; reason: string }) =>
+  addToWhitelist: (data: { domain: string; reason?: string; source?: string; status?: string }) =>
     unwrap(api.post<ApiResponse<WhitelistItem>>('/api/v1/whitelist', data)),
   removeFromWhitelist: (id: number) => api.delete<ApiResponse<void>>(`/api/v1/whitelist/${id}`),
 };
@@ -150,7 +156,7 @@ export const whitelistApi = {
 export const blacklistApi = {
   getBlacklist: () =>
     unwrap(api.get<ApiResponse<DomainList<BlacklistItem>>>('/api/v1/blacklist')),
-  addToBlacklist: (data: { domain: string; reason: string; risk_type: string }) =>
+  addToBlacklist: (data: { domain: string; reason?: string; risk_type?: string; source?: string; status?: string }) =>
     unwrap(api.post<ApiResponse<BlacklistItem>>('/api/v1/blacklist', data)),
   removeFromBlacklist: (id: number) => api.delete<ApiResponse<void>>(`/api/v1/blacklist/${id}`),
 };
@@ -173,6 +179,10 @@ export const statsApi = {
   getTrend: () => unwrap(api.get<ApiResponse<TrendStats>>('/api/v1/stats/trend')),
   getRiskDistribution: () =>
     unwrap(api.get<ApiResponse<RiskDistributionResponse>>('/api/v1/stats/risk-distribution')),
+  getSourceDistribution: () =>
+    unwrap(api.get<ApiResponse<SourceDistributionResponse>>('/api/v1/stats/source-distribution')),
+  getFeedbackTrend: () =>
+    unwrap(api.get<ApiResponse<FeedbackTrend>>('/api/v1/stats/feedback-trend')),
 };
 
 export default api;

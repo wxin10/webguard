@@ -46,14 +46,20 @@ class Detector:
                         "reason": f"域名命中你的{policy_name}策略：{user_strategy.reason or '用户策略'}",
                     }
 
-            blacklist = self.db.query(DomainBlacklist).filter(DomainBlacklist.domain == domain).first()
+            blacklist = self.db.query(DomainBlacklist).filter(
+                DomainBlacklist.domain == domain,
+                DomainBlacklist.status == "active",
+            ).first()
             if blacklist:
                 return {
                     "label": "malicious",
                     "reason": f"域名在全局黑名单中：{blacklist.reason or '未填写原因'}",
                 }
 
-            whitelist = self.db.query(DomainWhitelist).filter(DomainWhitelist.domain == domain).first()
+            whitelist = self.db.query(DomainWhitelist).filter(
+                DomainWhitelist.domain == domain,
+                DomainWhitelist.status == "active",
+            ).first()
             if whitelist:
                 return {
                     "label": "safe",
