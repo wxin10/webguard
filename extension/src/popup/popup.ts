@@ -1,4 +1,4 @@
-import { pauseSite, testBackendConnection, trustSite } from '../utils/api.js';
+import { pauseSite, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
 import { buildReportUrl } from '../utils/navigation.js';
 import {
   getSettings,
@@ -204,6 +204,18 @@ async function openWarningPage(): Promise<void> {
 async function openReport(): Promise<void> {
   const settings = await getSettings();
   const reportUrl = buildReportUrl(settings.webBaseUrl, currentRecord?.result?.record_id);
+  if (currentTab?.url) {
+    await syncPluginEvent({
+      event_type: 'scan',
+      action: 'open_report_from_popup',
+      url: currentTab.url,
+      domain: hostFromUrl(currentTab.url),
+      risk_label: currentRecord?.result?.label,
+      risk_score: currentRecord?.result?.risk_score,
+      summary: currentRecord?.result?.summary,
+      scan_record_id: currentRecord?.result?.record_id,
+    });
+  }
   await chrome.tabs.create({ url: reportUrl });
 }
 

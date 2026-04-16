@@ -3,8 +3,9 @@ import {
   getSettings,
   pauseHostProtection,
   resumeHostProtection,
+  savePluginPolicySnapshot,
 } from './storage.js';
-import type { DetectionResult, PageInfo, RiskLabel } from './storage.js';
+import type { DetectionResult, PageInfo, PausedHostRecord, PluginPolicySnapshot, RiskLabel } from './storage.js';
 
 export interface FeedbackRequest {
   url: string;
@@ -19,6 +20,30 @@ export interface BackendHealth {
 }
 
 export type UserDecisionSyncStatus = 'synced' | 'offline-cache';
+
+export interface PluginSyncEventRequest {
+  event_type: 'scan' | 'warning' | 'bypass' | 'trust' | 'temporary_trust' | 'feedback' | 'error';
+  action?: string;
+  url?: string;
+  domain?: string;
+  risk_label?: RiskLabel;
+  risk_score?: number;
+  summary?: string;
+  scan_record_id?: number;
+  plugin_version?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface PluginPolicyResponse {
+  username: string;
+  plugin_version: string;
+  rule_version: string;
+  user_trusted_hosts: string[];
+  user_blocked_hosts: string[];
+  user_paused_hosts: Array<{ domain: string; expires_at?: string | null; reason?: string | null }>;
+  global_trusted_hosts: string[];
+  global_blocked_hosts: string[];
+}
 
 interface RequestOptions {
   timeoutMs?: number;
@@ -49,6 +74,38 @@ export async function testBackendConnection(apiBaseUrl?: string): Promise<Backen
       ok: false,
       message: error instanceof Error ? error.message : '后端连接失败',
     };
+  }
+}
+
+export async function syncPluginPolicy(): Promise<PluginPolicySnapshot | null> {
+  try {
+    const payload = await requestApi<unknown>('/api/v1/plugin/policy', {
+      method: 'GET',
+      headers: webGuardHeaders(),
+    });
+    const data = unwrapData(payload);
+    const policy = normalizePluginPolicy(data);
+    await savePluginPolicySnapshot(policy);
+    return policy;
+  } catch (error) {
+    console.warn('[WebGuard] Plugin policy sync failed.', error);
+    return null;
+  }
+}
+
+export async function syncPluginEvent(data: PluginSyncEventRequest): Promise<void> {
+  try {
+    await requestApi<unknown>('/api/v1/plugin/events', {
+      method: 'POST',
+      headers: webGuardHeaders(),
+      body: JSON.stringify({
+        ...data,
+        plugin_version: data.plugin_version || '1.0.0',
+        metadata: data.metadata || {},
+      }),
+    });
+  } catch (error) {
+    console.warn('[WebGuard] Plugin event sync failed.', error);
   }
 }
 
@@ -88,10 +145,22 @@ export async function trustSite(host: string): Promise<UserDecisionSyncStatus> {
       }),
     });
     await addTrustedHost(host);
+    await syncPluginEvent({
+      event_type: 'trust',
+      action: 'permanent_trust',
+      domain: host,
+      summary: '用户在插件中永久信任当前站点',
+    });
     return 'synced';
   } catch (error) {
     console.warn('[WebGuard] Trust-site sync failed, using local decision.', error);
     await addTrustedHost(host);
+    await syncPluginEvent({
+      event_type: 'trust',
+      action: 'permanent_trust_offline_cached',
+      domain: host,
+      summary: '后端策略同步失败，插件已写入本地永久信任缓存',
+    });
     return 'offline-cache';
   }
 }
@@ -109,10 +178,24 @@ export async function pauseSite(host: string, minutes = 30): Promise<UserDecisio
       }),
     });
     await pauseHostProtection(host, minutes);
+    await syncPluginEvent({
+      event_type: 'temporary_trust',
+      action: 'pause_site',
+      domain: host,
+      summary: `用户在插件中临时信任 ${minutes} 分钟`,
+      metadata: { minutes },
+    });
     return 'synced';
   } catch (error) {
     console.warn('[WebGuard] Pause-site sync failed, using local decision.', error);
     await pauseHostProtection(host, minutes);
+    await syncPluginEvent({
+      event_type: 'temporary_trust',
+      action: 'pause_site_offline_cached',
+      domain: host,
+      summary: `后端策略同步失败，插件已写入本地临时信任 ${minutes} 分钟`,
+      metadata: { minutes },
+    });
     return 'offline-cache';
   }
 }
@@ -177,6 +260,46 @@ async function requestApi<T>(
 function unwrapData(payload: unknown): unknown {
   if (isRecord(payload) && 'data' in payload) return payload.data;
   return payload;
+}
+
+function normalizePluginPolicy(value: unknown): PluginPolicySnapshot {
+  if (!isRecord(value)) {
+    throw new Error('后端策略响应无效');
+  }
+  const policy = value as unknown as PluginPolicyResponse;
+  return {
+    username: typeof policy.username === 'string' ? policy.username : 'platform-user',
+    pluginVersion: typeof policy.plugin_version === 'string' ? policy.plugin_version : '1.0.0',
+    ruleVersion: typeof policy.rule_version === 'string' ? policy.rule_version : 'unknown',
+    userTrustedHosts: normalizeHostArray(policy.user_trusted_hosts),
+    userBlockedHosts: normalizeHostArray(policy.user_blocked_hosts),
+    userPausedHosts: normalizePausedPolicy(policy.user_paused_hosts),
+    globalTrustedHosts: normalizeHostArray(policy.global_trusted_hosts),
+    globalBlockedHosts: normalizeHostArray(policy.global_blocked_hosts),
+    syncedAt: Date.now(),
+  };
+}
+
+function normalizeHostArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
+function normalizePausedPolicy(value: unknown): PausedHostRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!isRecord(item) || typeof item.domain !== 'string') return null;
+      const expiresAt = typeof item.expires_at === 'string' ? Date.parse(item.expires_at) : 0;
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+      return {
+        host: item.domain.trim().toLowerCase().replace(/^www\./, ''),
+        addedAt: Date.now(),
+        expiresAt,
+      };
+    })
+    .filter((item): item is PausedHostRecord => Boolean(item));
 }
 
 function validateDetectionResult(value: unknown, fallbackUrl: string): DetectionResult {

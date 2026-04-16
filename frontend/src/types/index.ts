@@ -200,6 +200,80 @@ export interface UserStrategyOverview {
   paused_sites: UserSiteStrategyItem[];
 }
 
+export interface PluginDefaultConfig {
+  api_base_url: string;
+  web_base_url: string;
+  auto_detect: boolean;
+  auto_block_malicious: boolean;
+  notify_suspicious: boolean;
+  event_upload_enabled: boolean;
+}
+
+export interface PluginPolicyBundle {
+  username: string;
+  plugin_version: string;
+  rule_version: string;
+  defaults: PluginDefaultConfig;
+  user_trusted_hosts: string[];
+  user_blocked_hosts: string[];
+  user_paused_hosts: Array<{ domain: string; expires_at?: string; reason?: string }>;
+  global_trusted_hosts: string[];
+  global_blocked_hosts: string[];
+  generated_at: string;
+}
+
+export interface PluginSyncEventItem {
+  id: number;
+  username: string;
+  event_type: 'scan' | 'warning' | 'bypass' | 'trust' | 'temporary_trust' | 'feedback' | 'error' | string;
+  action?: string;
+  url?: string;
+  domain?: string;
+  risk_label?: RiskLabel;
+  risk_score?: number;
+  summary?: string;
+  scan_record_id?: number;
+  plugin_version?: string;
+  source?: string;
+  metadata_json?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PluginSyncEventList {
+  total: number;
+  events: PluginSyncEventItem[];
+}
+
+export interface PluginEventStats {
+  total_events: number;
+  scan_events: number;
+  warning_events: number;
+  bypass_events: number;
+  trust_events: number;
+  feedback_events: number;
+  malicious_events: number;
+  suspicious_events: number;
+}
+
+export interface FeedbackCaseItem {
+  id: number;
+  username: string;
+  report_id?: number;
+  url?: string;
+  domain?: string;
+  feedback_type: string;
+  status: string;
+  comment?: string;
+  source: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface FeedbackCaseList {
+  total: number;
+  cases: FeedbackCaseItem[];
+}
+
 export interface ReportActionItem {
   id: number;
   report_id: number;

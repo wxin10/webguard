@@ -1,44 +1,53 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
-import { userStrategyApi } from '../services/api';
-import { UserSiteStrategyItem } from '../types';
-import { formatDate } from '../utils';
+import StatCard from '../components/StatCard';
+import { pluginApi, userStrategyApi } from '../services/api';
+import { PluginPolicyBundle, UserSiteStrategyItem } from '../types';
+import { formatDate, sourceText, strategyText } from '../utils';
+
+type StrategyTab = 'trusted' | 'blocked' | 'paused';
 
 export default function UserDomains() {
   const location = useLocation();
-  const [tab, setTab] = useState<'trusted' | 'blocked' | 'paused'>('trusted');
+  const [tab, setTab] = useState<StrategyTab>('trusted');
   const [trusted, setTrusted] = useState<UserSiteStrategyItem[]>([]);
   const [blocked, setBlocked] = useState<UserSiteStrategyItem[]>([]);
   const [paused, setPaused] = useState<UserSiteStrategyItem[]>([]);
+  const [policy, setPolicy] = useState<PluginPolicyBundle | null>(null);
   const [domain, setDomain] = useState(() => new URLSearchParams(location.search).get('domain') || '');
   const [reason, setReason] = useState('');
+  const [minutes, setMinutes] = useState('30');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
   const loadData = () => {
     setLoading(true);
-    userStrategyApi.getStrategies()
-      .then((data) => {
-        setTrusted(data.trusted_sites || []);
-        setBlocked(data.blocked_sites || []);
-        setPaused(data.paused_sites || []);
+    Promise.all([userStrategyApi.getStrategies(), pluginApi.getPolicy()])
+      .then(([strategies, policyData]) => {
+        setTrusted(strategies.trusted_sites || []);
+        setBlocked(strategies.blocked_sites || []);
+        setPaused(strategies.paused_sites || []);
+        setPolicy(policyData);
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(loadData, []);
 
+  const data = useMemo(() => tab === 'trusted' ? trusted : tab === 'blocked' ? blocked : paused, [blocked, paused, tab, trusted]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!domain.trim()) return;
-    if (tab === 'trusted') await userStrategyApi.addTrustedSite({ domain, reason, source: 'web' });
-    if (tab === 'blocked') await userStrategyApi.addBlockedSite({ domain, reason, source: 'web' });
-    if (tab === 'paused') await userStrategyApi.pauseSite({ domain, reason, source: 'web', minutes: 30 });
-    setMessage(`${domain} 已保存到${tab === 'trusted' ? '信任站点' : tab === 'blocked' ? '阻止站点' : '临时忽略'}。`);
+    const cleanDomain = domain.trim();
+    if (!cleanDomain) return;
+    if (tab === 'trusted') await userStrategyApi.addTrustedSite({ domain: cleanDomain, reason, source: 'web' });
+    if (tab === 'blocked') await userStrategyApi.addBlockedSite({ domain: cleanDomain, reason, source: 'web' });
+    if (tab === 'paused') await userStrategyApi.pauseSite({ domain: cleanDomain, reason, source: 'web', minutes: Number(minutes) || 30 });
+    setMessage(`${cleanDomain} 已保存到${strategyText(tab)}策略。`);
     setDomain('');
     setReason('');
     loadData();
@@ -52,28 +61,34 @@ export default function UserDomains() {
     loadData();
   };
 
-  const data = tab === 'trusted' ? trusted : tab === 'blocked' ? blocked : paused;
-
   if (loading) return <LoadingBlock />;
 
   return (
     <div>
       <PageHeader
         title="我的安全策略"
-        description="这里是你的个人站点策略主数据源。Web 平台和浏览器助手都会优先使用这套后端策略，插件本地只做短期缓存或离线兜底。"
+        description="个人信任、阻止和临时放行都以网站为主数据源；插件只拉取策略并保留短期运行缓存。"
       />
 
       {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
 
+      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="个人信任域名" value={trusted.length} tone="green" />
+        <StatCard title="个人阻止域名" value={blocked.length} tone="red" />
+        <StatCard title="临时放行" value={paused.length} tone="amber" />
+        <StatCard title="全局阻止域名" value={policy?.global_blocked_hosts.length || 0} description="由管理员维护并下发给插件" tone="slate" />
+      </div>
+
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex flex-wrap gap-2">
-          <TabButton active={tab === 'trusted'} onClick={() => setTab('trusted')}>信任站点</TabButton>
-          <TabButton active={tab === 'blocked'} onClick={() => setTab('blocked')}>阻止站点</TabButton>
-          <TabButton active={tab === 'paused'} onClick={() => setTab('paused')}>临时忽略</TabButton>
+          <TabButton active={tab === 'trusted'} onClick={() => setTab('trusted')}>信任域名</TabButton>
+          <TabButton active={tab === 'blocked'} onClick={() => setTab('blocked')}>阻止域名</TabButton>
+          <TabButton active={tab === 'paused'} onClick={() => setTab('paused')}>临时放行</TabButton>
         </div>
-        <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-[1fr_1fr_140px]">
+        <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1fr_140px_140px]">
           <input value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="example.com" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" />
           <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="添加原因，插件动作也会同步到这里" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" />
+          <input value={minutes} onChange={(event) => setMinutes(event.target.value)} disabled={tab !== 'paused'} type="number" min="1" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 disabled:bg-slate-50" />
           <button className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700">保存策略</button>
         </form>
       </section>
@@ -84,7 +99,7 @@ export default function UserDomains() {
         columns={[
           { key: 'domain', title: '域名' },
           { key: 'strategy_type', title: '类型', render: (value) => strategyText(value) },
-          { key: 'source', title: '来源', render: (value) => value === 'plugin' ? '浏览器助手' : value === 'report' ? '报告页' : 'Web 平台' },
+          { key: 'source', title: '来源', render: (value) => sourceText(value) },
           { key: 'reason', title: '原因', render: (value) => value || '-' },
           { key: 'expires_at', title: '有效期', render: (value) => value ? formatDate(value) : '长期' },
           { key: 'updated_at', title: '更新时间', render: (value, row) => formatDate(value || row.created_at) },
@@ -101,11 +116,4 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       {children}
     </button>
   );
-}
-
-function strategyText(value: string) {
-  if (value === 'trusted') return '信任';
-  if (value === 'blocked') return '阻止';
-  if (value === 'paused') return '临时忽略';
-  return value;
 }

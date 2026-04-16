@@ -1,26 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
-import { recordsApi, userStrategyApi } from '../services/api';
-import { ScanRecordItem, UserStrategyOverview } from '../types';
-import { formatDate } from '../utils';
+import StatCard from '../components/StatCard';
+import { pluginApi, userStrategyApi } from '../services/api';
+import { PluginEventStats, PluginSyncEventItem, UserStrategyOverview } from '../types';
+import { formatDate, pluginEventText, strategyText } from '../utils';
+
+type FilterKey = 'all' | 'scan' | 'warning' | 'action' | 'feedback';
 
 export default function PluginSync() {
-  const [records, setRecords] = useState<ScanRecordItem[]>([]);
+  const [events, setEvents] = useState<PluginSyncEventItem[]>([]);
+  const [stats, setStats] = useState<PluginEventStats | null>(null);
   const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unhandled' | 'handled'>('all');
+  const [filter, setFilter] = useState<FilterKey>('all');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([recordsApi.getMyRecords(), userStrategyApi.getStrategies()])
-      .then(([recordData, strategyData]) => {
-        setRecords((recordData.records || []).filter((item) => item.source === 'plugin'));
+    Promise.all([pluginApi.getEvents(), pluginApi.getStats(), userStrategyApi.getStrategies()])
+      .then(([eventData, statsData, strategyData]) => {
+        setEvents(eventData.events || []);
+        setStats(statsData);
         setStrategies(strategyData);
       })
       .finally(() => setLoading(false));
@@ -28,62 +33,75 @@ export default function PluginSync() {
 
   useEffect(loadData, []);
 
-  const markTrusted = async (row: ScanRecordItem) => {
-    await userStrategyApi.addTrustedSite({ domain: row.domain, reason: `来自插件同步记录 #${row.id}`, source: 'web' });
-    setMessage(`${row.domain} 已加入我的信任站点。`);
+  const visibleEvents = useMemo(() => events.filter((event) => {
+    if (filter === 'scan') return event.event_type === 'scan';
+    if (filter === 'warning') return event.event_type === 'warning';
+    if (filter === 'feedback') return event.event_type === 'feedback';
+    if (filter === 'action') return ['bypass', 'trust', 'temporary_trust'].includes(event.event_type);
+    return true;
+  }), [events, filter]);
+
+  const addTrusted = async (event: PluginSyncEventItem) => {
+    if (!event.domain) return;
+    await userStrategyApi.addTrustedSite({ domain: event.domain, reason: `来自插件同步事件 #${event.id}`, source: 'web' });
+    setMessage(`${event.domain} 已加入个人信任域名。`);
     loadData();
   };
 
-  const markBlocked = async (row: ScanRecordItem) => {
-    await userStrategyApi.addBlockedSite({ domain: row.domain, reason: `来自插件同步记录 #${row.id}`, source: 'web' });
-    setMessage(`${row.domain} 已加入我的阻止站点。`);
+  const addBlocked = async (event: PluginSyncEventItem) => {
+    if (!event.domain) return;
+    await userStrategyApi.addBlockedSite({ domain: event.domain, reason: `来自插件同步事件 #${event.id}`, source: 'web' });
+    setMessage(`${event.domain} 已加入个人阻止域名。`);
     loadData();
   };
 
   if (loading) return <LoadingBlock />;
 
-  const visibleRecords = records.filter((row) => {
-    const handled = strategyFor(row.domain, strategies) !== '未处理';
-    if (filter === 'handled') return handled;
-    if (filter === 'unhandled') return !handled;
-    return true;
-  });
-
   return (
     <div>
       <PageHeader
-        title="浏览器助手同步"
-        description="这里汇总助手上报到 Web 平台的扫描结果，并标出哪些已经沉淀为个人策略。"
+        title="插件同步记录"
+        description="插件只上传当前页面扫描和用户现场动作，完整记录、策略沉淀和后续处置都在 Web 平台完成。"
+        action={<Link to="/app/my-domains" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">管理个人策略</Link>}
       />
 
       {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="同步事件" value={stats?.total_events || 0} description="插件上传到主平台的事件数" tone="blue" />
+        <StatCard title="Warning 拦截" value={stats?.warning_events || 0} description="恶意页面触发的提醒" tone="red" />
+        <StatCard title="继续访问" value={stats?.bypass_events || 0} description="一次性绕过动作" tone="amber" />
+        <StatCard title="信任动作" value={stats?.trust_events || 0} description="临时或永久信任" tone="green" />
+      </div>
+
+      <section className="my-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap gap-2">
-          <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>全部助手记录</FilterButton>
-          <FilterButton active={filter === 'unhandled'} onClick={() => setFilter('unhandled')}>未处理</FilterButton>
-          <FilterButton active={filter === 'handled'} onClick={() => setFilter('handled')}>已加入策略</FilterButton>
-          <Link to="/app/my-domains" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">查看我的策略</Link>
+          <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>全部事件</FilterButton>
+          <FilterButton active={filter === 'scan'} onClick={() => setFilter('scan')}>扫描事件</FilterButton>
+          <FilterButton active={filter === 'warning'} onClick={() => setFilter('warning')}>Warning</FilterButton>
+          <FilterButton active={filter === 'action'} onClick={() => setFilter('action')}>处置动作</FilterButton>
+          <FilterButton active={filter === 'feedback'} onClick={() => setFilter('feedback')}>反馈</FilterButton>
         </div>
       </section>
 
       <DataTable
-        data={visibleRecords}
-        emptyText="暂无符合条件的浏览器助手同步记录。"
+        data={visibleEvents}
+        emptyText="暂无插件同步事件。"
         columns={[
-          { key: 'url', title: 'URL', render: (value) => <span className="block max-w-lg truncate">{value}</span> },
-          { key: 'label', title: '风险', render: (value) => <RiskBadge label={value} size="sm" /> },
-          { key: 'risk_score', title: '评分', render: (value) => Number(value).toFixed(1) },
-          { key: 'domain', title: '策略状态', render: (value) => strategyFor(value, strategies) },
+          { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },
+          { key: 'url', title: 'URL', render: (value) => <span className="block max-w-lg truncate">{value || '-'}</span> },
+          { key: 'risk_label', title: '风险', render: (value) => value ? <RiskBadge label={value} size="sm" /> : '-' },
+          { key: 'risk_score', title: '分数', render: (value) => typeof value === 'number' ? value.toFixed(1) : '-' },
+          { key: 'domain', title: '策略状态', render: (value) => policyState(value, strategies) },
           { key: 'created_at', title: '同步时间', render: (value) => formatDate(value) },
           {
             key: 'id',
-            title: '操作',
-            render: (value, row) => (
+            title: '处置',
+            render: (_value, row) => (
               <div className="flex flex-wrap gap-2">
-                <Link to={`/app/reports/${value}`} className="font-semibold text-emerald-700">报告</Link>
-                <button onClick={() => markTrusted(row)} className="font-semibold text-slate-700">信任</button>
-                <button onClick={() => markBlocked(row)} className="font-semibold text-rose-700">阻止</button>
+                {row.scan_record_id && <Link to={`/app/reports/${row.scan_record_id}`} className="font-semibold text-emerald-700">报告</Link>}
+                {row.domain && <button onClick={() => addTrusted(row)} className="font-semibold text-slate-700">信任</button>}
+                {row.domain && <button onClick={() => addBlocked(row)} className="font-semibold text-rose-700">阻止</button>}
               </div>
             ),
           },
@@ -93,18 +111,20 @@ export default function PluginSync() {
   );
 }
 
+function policyState(domain: string | undefined, strategies: UserStrategyOverview | null) {
+  if (!domain || !strategies) return '未处理';
+  const matched = [
+    ...strategies.trusted_sites,
+    ...strategies.blocked_sites,
+    ...strategies.paused_sites,
+  ].find((item) => item.domain === domain);
+  return matched ? strategyText(matched.strategy_type) : '未处理';
+}
+
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button onClick={onClick} type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
       {children}
     </button>
   );
-}
-
-function strategyFor(domain: string, strategies: UserStrategyOverview | null) {
-  if (!strategies) return '未处理';
-  if (strategies.trusted_sites.some((item) => item.domain === domain)) return '已信任';
-  if (strategies.blocked_sites.some((item) => item.domain === domain)) return '已阻止';
-  if (strategies.paused_sites.some((item) => item.domain === domain)) return '临时忽略';
-  return '未处理';
 }

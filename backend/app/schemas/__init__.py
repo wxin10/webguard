@@ -18,6 +18,17 @@ from .user_strategy import (
     UserSiteStrategyItem,
     UserStrategyOverview,
 )
+from .plugin import (
+    FeedbackCaseCreate,
+    FeedbackCaseItem,
+    FeedbackCaseList,
+    PluginDefaultConfig,
+    PluginEventStats,
+    PluginPolicyBundle,
+    PluginSyncEventCreate,
+    PluginSyncEventItem,
+    PluginSyncEventList,
+)
 
 __all__ = [
     "BaseResponse",
@@ -51,4 +62,13 @@ __all__ = [
     "UserSiteStrategyCreate",
     "UserSiteStrategyItem",
     "UserStrategyOverview",
+    "FeedbackCaseCreate",
+    "FeedbackCaseItem",
+    "FeedbackCaseList",
+    "PluginDefaultConfig",
+    "PluginEventStats",
+    "PluginPolicyBundle",
+    "PluginSyncEventCreate",
+    "PluginSyncEventItem",
+    "PluginSyncEventList",
 ]

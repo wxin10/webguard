@@ -10,6 +10,7 @@ from ..core import get_db
 from ..models import (
     DomainBlacklist as DomainBlacklistModel,
     DomainWhitelist as DomainWhitelistModel,
+    FeedbackCase as FeedbackCaseModel,
     ReportAction as ReportActionModel,
     RuleConfig as RuleConfigModel,
     ScanRecord as ScanRecordModel,
@@ -330,9 +331,21 @@ def mark_false_positive(
     x_webguard_user: str | None = Header(default=None),
     x_webguard_role: str | None = Header(default=None),
 ):
-    if not _get_record_or_none(db, report_id):
+    record = _get_record_or_none(db, report_id)
+    if not record:
         return {"code": 404, "message": "报告不存在", "data": None}
     username, role = _actor(x_webguard_user, x_webguard_role)
+    feedback = FeedbackCaseModel(
+        username=username,
+        report_id=report_id,
+        url=record.url,
+        domain=record.domain,
+        feedback_type="false_positive",
+        status=request.status or "pending_review",
+        comment=request.note,
+        source="report",
+    )
+    db.add(feedback)
     action = _save_action(db, report_id, username, role, "mark_false_positive", request)
     return {"code": 0, "message": "success", "data": ReportActionItem.model_validate(action)}
 

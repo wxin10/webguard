@@ -1,4 +1,4 @@
-import { analyzeCurrentPage } from './utils/api.js';
+import { analyzeCurrentPage, syncPluginEvent, syncPluginPolicy } from './utils/api.js';
 import { buildWarningPageUrl } from './utils/navigation.js';
 import {
   consumeTemporaryBypass,
@@ -7,6 +7,7 @@ import {
   hostFromUrl,
   isHostPaused,
   isHttpUrl,
+  isBlockedByPolicy,
   isTrustedHost,
   setTabState,
   stateFromRiskLabel,
@@ -127,6 +128,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
   try {
     await setTabState(tabId, url, 'scanning');
+    await syncPluginPolicy();
 
     const bypassed = await consumeTemporaryBypass(url);
     if (bypassed) {
@@ -136,6 +138,12 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
     }
 
     const host = hostFromUrl(url);
+    if (await isBlockedByPolicy(host)) {
+      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中后端下发的阻止策略或全局恶意域名。');
+      const record = await handleDetectionResult(tabId, url, blockedResult);
+      return { ok: true, record };
+    }
+
     if (await isTrustedHost(host)) {
       const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点已在永久信任列表中，本次未调用后端扫描。');
       const record = await setTabState(tabId, url, 'safe', trustedResult);
@@ -156,6 +164,14 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
   } catch (error) {
     const runtimeError = createRuntimeError(errorMessage(error), url, 'scan_failed');
     const record = await setTabState(tabId, url, 'error', undefined, runtimeError);
+    await syncPluginEvent({
+      event_type: 'error',
+      action: 'scan_failed',
+      url,
+      domain: hostFromUrl(url),
+      summary: runtimeError.message,
+      metadata: { code: runtimeError.code },
+    });
     logError(`Scan failed. tab=${tabId} url=${url}`, error);
     return { ok: false, record, error: runtimeError };
   } finally {
@@ -187,6 +203,16 @@ async function handleDetectionResult(tabId: number, originalUrl: string, result:
 async function redirectToWarning(tabId: number, result: DetectionResult): Promise<void> {
   const warningUrl = buildWarningPageUrl(result);
   logInfo(`Redirecting to warning page. tab=${tabId} url=${result.url}`);
+  await syncPluginEvent({
+    event_type: 'warning',
+    action: 'auto_block',
+    url: result.url,
+    domain: hostFromUrl(result.url),
+    risk_label: result.label,
+    risk_score: result.risk_score,
+    summary: result.summary || result.explanation,
+    scan_record_id: result.record_id,
+  });
   await chrome.tabs.update(tabId, { url: warningUrl });
 }
 
@@ -217,11 +243,11 @@ async function getStoredState(tabId: number, url: string): Promise<TabRiskRecord
   return getTabRiskRecord(tabId, url);
 }
 
-function createLocalDecisionResult(url: string, label: 'safe', summary: string): DetectionResult {
+function createLocalDecisionResult(url: string, label: 'safe' | 'malicious', summary: string): DetectionResult {
   return {
     url,
     label,
-    risk_score: 0,
+    risk_score: label === 'malicious' ? 100 : 0,
     summary,
     timestamp: Date.now(),
   };

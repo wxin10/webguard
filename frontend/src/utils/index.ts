@@ -50,6 +50,30 @@ export function sourceText(source?: string) {
     manual: '手动检测',
     plugin: '浏览器插件',
     web: 'Web 页面',
+    report: '报告处置',
+    recheck: '重新检测',
   };
   return sourceMap[source || ''] || source || '-';
+}
+
+export function pluginEventText(eventType?: string, action?: string) {
+  const eventMap: Record<string, string> = {
+    scan: '扫描事件',
+    warning: 'Warning 拦截',
+    bypass: '继续访问一次',
+    trust: '永久信任',
+    temporary_trust: '临时信任',
+    feedback: '误报反馈',
+    error: '插件错误',
+  };
+  return eventMap[eventType || ''] || action || eventType || '-';
+}
+
+export function strategyText(value?: string) {
+  const strategyMap: Record<string, string> = {
+    trusted: '信任',
+    blocked: '阻止',
+    paused: '临时放行',
+  };
+  return strategyMap[value || ''] || value || '-';
 }

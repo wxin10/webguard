@@ -6,9 +6,13 @@ import {
   BlacklistItem,
   DevelopmentUser,
   DomainList,
+  FeedbackCaseList,
   ModelStatus,
   ModelVersionList,
   PageScanRequest,
+  PluginEventStats,
+  PluginPolicyBundle,
+  PluginSyncEventList,
   RiskDistributionResponse,
   RuleConfig,
   RuleConfigList,
@@ -110,6 +114,29 @@ export const userStrategyApi = {
     unwrap(api.delete<ApiResponse<void>>(`/api/v1/user/trusted-sites/${id}`)),
   removeBlockedSite: (id: number) =>
     unwrap(api.delete<ApiResponse<void>>(`/api/v1/user/blocked-sites/${id}`)),
+};
+
+export const pluginApi = {
+  getPolicy: () =>
+    unwrap(api.get<ApiResponse<PluginPolicyBundle>>('/api/v1/plugin/policy')),
+  getEvents: (params: { event_type?: string; risk_label?: string } = {}) =>
+    unwrap(api.get<ApiResponse<PluginSyncEventList>>('/api/v1/plugin/events', { params })),
+  getStats: () =>
+    unwrap(api.get<ApiResponse<PluginEventStats>>('/api/v1/plugin/stats')),
+  recordEvent: (data: {
+    event_type: string;
+    action?: string;
+    url?: string;
+    domain?: string;
+    risk_label?: string;
+    risk_score?: number;
+    summary?: string;
+    scan_record_id?: number;
+    plugin_version?: string;
+    metadata?: Record<string, unknown>;
+  }) => unwrap(api.post<ApiResponse<unknown>>('/api/v1/plugin/events', data)),
+  getFeedbackCases: (params: { status?: string } = {}) =>
+    unwrap(api.get<ApiResponse<FeedbackCaseList>>('/api/v1/plugin/feedback-cases', { params })),
 };
 
 export const whitelistApi = {

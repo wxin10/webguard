@@ -4,7 +4,7 @@ from .rule_config import RuleConfig
 from .model_version import ModelVersion
 from .training_run import TrainingRun
 from .keyword import BrandKeyword, RiskKeyword
-from .user_strategy import ReportAction, UserSiteStrategy
+from .user_strategy import FeedbackCase, PluginSyncEvent, ReportAction, User, UserSiteStrategy
 
 __all__ = [
     "ScanRecord",
@@ -17,4 +17,7 @@ __all__ = [
     "RiskKeyword",
     "ReportAction",
     "UserSiteStrategy",
+    "FeedbackCase",
+    "PluginSyncEvent",
+    "User",
 ]

@@ -56,6 +56,7 @@ export interface RuntimeCache {
   tabRiskStates: Record<string, TabRiskRecord>;
   lastScanResult: DetectionResult | null;
   lastError: RuntimeError | null;
+  policySnapshot: PluginPolicySnapshot | null;
 }
 
 export interface TrustedHostRecord {
@@ -82,6 +83,18 @@ export interface UserDecisions {
   trustedHosts: TrustedHostRecord[];
   pausedHosts: PausedHostRecord[];
   temporaryBypassRecords: TemporaryBypassRecord[];
+}
+
+export interface PluginPolicySnapshot {
+  username: string;
+  pluginVersion: string;
+  ruleVersion: string;
+  userTrustedHosts: string[];
+  userBlockedHosts: string[];
+  userPausedHosts: PausedHostRecord[];
+  globalTrustedHosts: string[];
+  globalBlockedHosts: string[];
+  syncedAt: number;
 }
 
 interface StoredSettingsV1 {
@@ -117,6 +130,7 @@ const DEFAULT_RUNTIME_CACHE: RuntimeCache = {
   tabRiskStates: {},
   lastScanResult: null,
   lastError: null,
+  policySnapshot: null,
 };
 
 const DEFAULT_USER_DECISIONS: UserDecisions = {
@@ -171,6 +185,7 @@ export async function getRuntimeCache(): Promise<RuntimeCache> {
     tabRiskStates: isRecordOfTabStates(cache.tabRiskStates) ? cache.tabRiskStates : {},
     lastScanResult: isDetectionResult(cache.lastScanResult) ? cache.lastScanResult : legacyResult,
     lastError: isRuntimeError(cache.lastError) ? cache.lastError : null,
+    policySnapshot: isPluginPolicySnapshot(cache.policySnapshot) ? cache.policySnapshot : null,
   };
 }
 
@@ -274,6 +289,28 @@ export async function saveLastScanResult(result: DetectionResult): Promise<void>
 
 export async function saveLastError(error: RuntimeError): Promise<void> {
   await updateRuntimeCache((cache) => ({ ...cache, lastError: error }));
+}
+
+export async function savePluginPolicySnapshot(policy: PluginPolicySnapshot): Promise<void> {
+  await updateRuntimeCache((cache) => ({ ...cache, policySnapshot: policy }));
+  await updateUserDecisions((decisions) => ({
+    ...decisions,
+    trustedHosts: mergeTrustedHosts(decisions.trustedHosts, policy.userTrustedHosts),
+    pausedHosts: mergePausedHosts(decisions.pausedHosts, policy.userPausedHosts),
+  }));
+}
+
+export async function getPluginPolicySnapshot(): Promise<PluginPolicySnapshot | null> {
+  const cache = await getRuntimeCache();
+  return cache.policySnapshot;
+}
+
+export async function isBlockedByPolicy(host: string): Promise<boolean> {
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedHost) return false;
+  const policy = await getPluginPolicySnapshot();
+  if (!policy) return false;
+  return [...policy.userBlockedHosts, ...policy.globalBlockedHosts].some((item) => normalizeHost(item) === normalizedHost);
 }
 
 export async function isTrustedHost(host: string): Promise<boolean> {
@@ -520,6 +557,23 @@ function upsertPausedHost(records: PausedHostRecord[], next: PausedHostRecord): 
   return [...records.filter((record) => record.host !== next.host), next];
 }
 
+function mergeTrustedHosts(records: TrustedHostRecord[], hosts: string[]): TrustedHostRecord[] {
+  let next = records;
+  for (const host of hosts.map(normalizeHost).filter(Boolean)) {
+    next = upsertTrustedHost(next, host);
+  }
+  return next;
+}
+
+function mergePausedHosts(records: PausedHostRecord[], pausedHosts: PausedHostRecord[]): PausedHostRecord[] {
+  let next = records;
+  for (const paused of pausedHosts) {
+    if (!paused.host || paused.expiresAt <= Date.now()) continue;
+    next = upsertPausedHost(next, paused);
+  }
+  return next;
+}
+
 function uniqueByHost<T extends { host: string }>(records: T[]): T[] {
   const seen = new Set<string>();
   const result: T[] = [];
@@ -564,6 +618,19 @@ function isRuntimeError(value: unknown): value is RuntimeError {
   return isRecord(value)
     && typeof value.message === 'string'
     && typeof value.timestamp === 'number';
+}
+
+function isPluginPolicySnapshot(value: unknown): value is PluginPolicySnapshot {
+  return isRecord(value)
+    && typeof value.username === 'string'
+    && typeof value.pluginVersion === 'string'
+    && typeof value.ruleVersion === 'string'
+    && Array.isArray(value.userTrustedHosts)
+    && Array.isArray(value.userBlockedHosts)
+    && Array.isArray(value.userPausedHosts)
+    && Array.isArray(value.globalTrustedHosts)
+    && Array.isArray(value.globalBlockedHosts)
+    && typeof value.syncedAt === 'number';
 }
 
 function isRiskLabel(value: unknown): value is RiskLabel {

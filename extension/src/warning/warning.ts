@@ -1,4 +1,4 @@
-import { pauseSite, trustSite } from '../utils/api.js';
+import { pauseSite, syncPluginEvent, trustSite } from '../utils/api.js';
 import { buildReportUrl, parseWarningPageParams } from '../utils/navigation.js';
 import { createTemporaryBypass, getSettings, hostFromUrl, isHttpUrl } from '../utils/storage.js';
 
@@ -91,6 +91,16 @@ async function continueOnce(): Promise<void> {
   setBusy(continueOnceButton, true);
   try {
     await createTemporaryBypass(params.url);
+    await syncPluginEvent({
+      event_type: 'bypass',
+      action: 'continue_once',
+      url: params.url,
+      domain: hostFromUrl(params.url),
+      risk_label: params.label,
+      risk_score: params.riskScore,
+      summary: params.summary,
+      scan_record_id: params.recordId,
+    });
     window.location.replace(params.url);
   } catch (error) {
     showMessage(`继续访问失败：${errorMessage(error)}`, true);
@@ -110,6 +120,16 @@ async function trustTemporarily(): Promise<void> {
   setBusy(trustTemporaryButton, true);
   try {
     const status = await pauseSite(host, 30);
+    await syncPluginEvent({
+      event_type: 'temporary_trust',
+      action: 'warning_temporary_trust',
+      url: params.url,
+      domain: host,
+      risk_label: params.label,
+      risk_score: params.riskScore,
+      summary: params.summary,
+      scan_record_id: params.recordId,
+    });
     showMessage(status === 'synced'
       ? '已临时信任当前站点 30 分钟，并同步到后端。'
       : '后端暂不可用，已写入本地临时信任 30 分钟。');
@@ -133,6 +153,16 @@ async function trustPermanently(): Promise<void> {
   setBusy(trustPermanentButton, true);
   try {
     const status = await trustSite(host);
+    await syncPluginEvent({
+      event_type: 'trust',
+      action: 'warning_permanent_trust',
+      url: params.url,
+      domain: host,
+      risk_label: params.label,
+      risk_score: params.riskScore,
+      summary: params.summary,
+      scan_record_id: params.recordId,
+    });
     showMessage(status === 'synced'
       ? '已永久信任当前站点，并同步到后端。'
       : '后端暂不可用，已写入本地永久信任列表。');
@@ -148,6 +178,18 @@ async function trustPermanently(): Promise<void> {
 async function openReport(): Promise<void> {
   const settings = await getSettings();
   const reportUrl = buildReportUrl(settings.webBaseUrl, params?.recordId);
+  if (params) {
+    await syncPluginEvent({
+      event_type: 'warning',
+      action: 'open_report',
+      url: params.url,
+      domain: hostFromUrl(params.url),
+      risk_label: params.label,
+      risk_score: params.riskScore,
+      summary: params.summary,
+      scan_record_id: params.recordId,
+    });
+  }
   await chrome.tabs.create({ url: reportUrl });
 }
 
