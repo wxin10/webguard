@@ -48,3 +48,4 @@ class ScanResult(BaseModel):
     explanation: str
     recommendation: str
     record_id: int
+    report_id: Optional[int] = None

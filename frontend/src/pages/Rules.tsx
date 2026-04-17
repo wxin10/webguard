@@ -1,65 +1,69 @@
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
-import { rulesApi } from '../services/api';
-import { RuleConfig } from '../types';
+import StatCard from '../components/StatCard';
+import { adminRulesService } from '../services/api';
+import { AdminRuleItem } from '../types';
 import { formatDate } from '../utils';
 
-type EnabledFilter = 'all' | 'enabled' | 'disabled';
-
 export default function Rules() {
-  const [rules, setRules] = useState<RuleConfig[]>([]);
+  const [rules, setRules] = useState<AdminRuleItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('all');
-  const [enabled, setEnabled] = useState<EnabledFilter>('all');
-  const [severity, setSeverity] = useState('all');
+  const [draft, setDraft] = useState({
+    name: '',
+    type: 'heuristic',
+    scope: 'global',
+    version: 'v1',
+    pattern: '',
+    content: '',
+  });
 
   const loadRules = () => {
     setLoading(true);
-    rulesApi.getRules()
-      .then((ruleData) => setRules(ruleData.rules || []))
+    adminRulesService.getRules()
+      .then((data) => setRules(data.rules || []))
       .finally(() => setLoading(false));
   };
 
   useEffect(loadRules, []);
 
-  const categories = useMemo(() => uniqueOptions(rules.map((rule) => rule.category || 'general')), [rules]);
-  const severities = useMemo(() => uniqueOptions(rules.map((rule) => rule.severity || 'medium')), [rules]);
-
-  const filteredRules = useMemo(() => {
+  const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    return rules.filter((rule) => {
-      const haystack = `${rule.rule_name} ${rule.name || ''} ${rule.rule_key} ${rule.description || ''}`.toLowerCase();
-      if (keyword && !haystack.includes(keyword)) return false;
-      if (category !== 'all' && (rule.category || 'general') !== category) return false;
-      if (severity !== 'all' && (rule.severity || 'medium') !== severity) return false;
-      if (enabled === 'enabled' && !rule.enabled) return false;
-      if (enabled === 'disabled' && rule.enabled) return false;
-      return true;
+    if (!keyword) return rules;
+    return rules.filter((rule) => `${rule.name} ${rule.rule_key} ${rule.type} ${rule.scope} ${rule.pattern || ''}`.toLowerCase().includes(keyword));
+  }, [query, rules]);
+
+  const createRule = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.name.trim()) return;
+    await adminRulesService.createRule({
+      name: draft.name.trim(),
+      type: draft.type,
+      scope: draft.scope,
+      version: draft.version,
+      pattern: draft.pattern || draft.name.trim().toLowerCase().replace(/\s+/g, '_'),
+      content: draft.content,
+      status: 'active',
     });
-  }, [rules, query, category, enabled, severity]);
+    setMessage('规则已创建，后续检测会读取新的规则配置。');
+    setDraft({ name: '', type: 'heuristic', scope: 'global', version: 'v1', pattern: '', content: '' });
+    loadRules();
+  };
 
-  const summary = useMemo(() => {
-    const enabledRules = rules.filter((rule) => rule.enabled).length;
-    const hotRules = rules.filter((rule) => (rule.stats?.recent_hits_7d || 0) >= 3).length;
-    const fpWatch = rules.filter((rule) => (rule.stats?.false_positive_feedback_7d || 0) > 0).length;
-    return { enabledRules, hotRules, fpWatch };
-  }, [rules]);
+  const toggleRule = async (rule: AdminRuleItem) => {
+    const status = rule.status === 'active' ? 'disabled' : 'active';
+    await adminRulesService.updateRule(rule.id, { status });
+    setMessage(`规则 ${rule.name} 已${status === 'active' ? '启用' : '停用'}。`);
+    loadRules();
+  };
 
-  const updateRule = async (rule: RuleConfig, patch: Partial<RuleConfig>) => {
-    setSaving(rule.id);
-    setMessage('');
-    try {
-      await rulesApi.updateRule(rule.id, patch);
-      const data = await rulesApi.getRules();
-      setRules(data.rules || []);
-      setMessage(`已保存规则 ${rule.rule_key}，后续检测会按新配置计算。`);
-    } finally {
-      setSaving(null);
-    }
+  const deleteRule = async (rule: AdminRuleItem) => {
+    await adminRulesService.deleteRule(rule.id);
+    setMessage(`规则 ${rule.name} 已停用。`);
+    loadRules();
   };
 
   if (loading) return <LoadingBlock />;
@@ -68,184 +72,65 @@ export default function Rules() {
     <div>
       <PageHeader
         title="规则管理"
-        description="直接维护规则权重、阈值、启用状态和说明；这些配置会被后端规则引擎读取，并影响后续判定。"
+        description="管理员维护本地/远端规则、版本、作用域和启用状态；插件只读取规则版本摘要，不承担规则管理。"
       />
 
       {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="规则总数" value={rules.length} />
-        <SummaryCard label="启用中" value={summary.enabledRules} />
-        <SummaryCard label="7 天高频命中" value={summary.hotRules} />
-        <SummaryCard label="存在误报反馈" value={summary.fpWatch} />
-      </section>
-
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr]">
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索规则名称、key 或描述"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-          />
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-            <option value="all">全部类别</option>
-            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select value={enabled} onChange={(event) => setEnabled(event.target.value as EnabledFilter)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-            <option value="all">全部状态</option>
-            <option value="enabled">仅启用</option>
-            <option value="disabled">仅停用</option>
-          </select>
-          <select value={severity} onChange={(event) => setSeverity(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-            <option value="all">全部严重级别</option>
-            {severities.map((item) => <option key={item} value={item}>{severityText(item)}</option>)}
-          </select>
-        </div>
-      </section>
-
-      <section className="mt-6 space-y-4">
-        {filteredRules.length === 0 && (
-          <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">没有匹配的规则。</div>
-        )}
-        {filteredRules.map((rule) => (
-          <RuleEditor
-            key={rule.id}
-            rule={rule}
-            saving={saving === rule.id}
-            onSave={(patch) => updateRule(rule, patch)}
-          />
-        ))}
-      </section>
-    </div>
-  );
-}
-
-function RuleEditor({ rule, saving, onSave }: { rule: RuleConfig; saving: boolean; onSave: (patch: Partial<RuleConfig>) => Promise<void> }) {
-  const [draft, setDraft] = useState({
-    name: rule.name || rule.rule_name,
-    description: rule.description || '',
-    weight: String(rule.weight),
-    threshold: String(rule.threshold),
-    severity: rule.severity || 'medium',
-    enabled: rule.enabled,
-  });
-
-  useEffect(() => {
-    setDraft({
-      name: rule.name || rule.rule_name,
-      description: rule.description || '',
-      weight: String(rule.weight),
-      threshold: String(rule.threshold),
-      severity: rule.severity || 'medium',
-      enabled: rule.enabled,
-    });
-  }, [rule]);
-
-  const stats = rule.stats;
-  const save = () => onSave({
-    name: draft.name,
-    description: draft.description,
-    weight: Number(draft.weight),
-    threshold: Number(draft.threshold),
-    severity: draft.severity,
-    enabled: draft.enabled,
-  });
-
-  return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${draft.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{draft.enabled ? '启用' : '停用'}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{rule.category || 'general'}</span>
-            <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">{severityText(draft.severity)}</span>
-            <span className="text-xs font-semibold text-slate-500">{rule.rule_key}</span>
-          </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.5fr]">
-            <label className="text-sm font-semibold text-slate-700">
-              规则名称
-              <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500" />
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              描述
-              <input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500" />
-            </label>
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={save}
-          className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-        >
-          {saving ? '保存中...' : '保存规则'}
-        </button>
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <StatCard title="规则总数" value={rules.length} />
+        <StatCard title="启用规则" value={rules.filter((rule) => rule.status === 'active' || rule.enabled).length} tone="green" />
+        <StatCard title="插件作用域" value={rules.filter((rule) => rule.scope === 'plugin').length} tone="blue" />
+        <StatCard title="全局规则" value={rules.filter((rule) => rule.scope === 'global').length} tone="slate" />
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <label className="text-sm font-semibold text-slate-700">
-          权重
-          <input value={draft.weight} type="number" min="0" max="100" step="0.1" onChange={(event) => setDraft({ ...draft, weight: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500" />
-        </label>
-        <label className="text-sm font-semibold text-slate-700">
-          阈值
-          <input value={draft.threshold} type="number" min="0" step="0.01" onChange={(event) => setDraft({ ...draft, threshold: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500" />
-        </label>
-        <label className="text-sm font-semibold text-slate-700">
-          严重级别
-          <select value={draft.severity} onChange={(event) => setDraft({ ...draft, severity: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500">
-            <option value="low">低</option>
-            <option value="medium">中</option>
-            <option value="high">高</option>
-            <option value="critical">严重</option>
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <form onSubmit={createRule} className="grid gap-3 xl:grid-cols-[1fr_140px_140px_120px_1fr_120px]">
+          <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="规则名称" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500" />
+          <select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500">
+            <option value="heuristic">本地规则</option>
+            <option value="remote">远端规则</option>
+            <option value="keyword">关键词</option>
           </select>
-        </label>
-        <label className="flex items-end gap-3 text-sm font-semibold text-slate-700">
-          <input checked={draft.enabled} type="checkbox" onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} className="mb-3 h-4 w-4 rounded border-slate-300 text-emerald-600" />
-          <span className="pb-2">启用规则</span>
-        </label>
-        <Metric label="7 天命中" value={`${stats?.recent_hits_7d || 0} 次`} />
-        <Metric label="误报反馈" value={`${stats?.false_positive_feedback_7d || 0} 次`} />
-      </div>
+          <select value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500">
+            <option value="global">global</option>
+            <option value="user">user</option>
+            <option value="plugin">plugin</option>
+          </select>
+          <input value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} placeholder="版本" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500" />
+          <input value={draft.pattern} onChange={(event) => setDraft({ ...draft, pattern: event.target.value })} placeholder="pattern / key" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500" />
+          <button className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">新增规则</button>
+        </form>
+        <textarea value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} placeholder="规则内容或说明" className="mt-3 h-24 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500" />
+      </section>
 
-      <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-4">
-        <Metric label="7 天命中占比" value={`${(((stats?.recent_hit_rate_7d || 0) * 100)).toFixed(1)}%`} />
-        <Metric label="可疑/恶意命中" value={`${stats?.risk_hits_7d || 0} 次`} />
-        <Metric label="最近一次命中" value={stats?.last_hit_at ? formatDate(stats.last_hit_at) : '暂无'} />
-        <Metric label="误报倾向" value={stats?.false_positive_tendency || '暂无明显误报信号'} />
-      </div>
-    </article>
-  );
-}
+      <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索规则名称、类型、作用域或 pattern" className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500" />
+      </section>
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-slate-950">{value}</p>
+      <DataTable
+        data={filtered}
+        emptyText="暂无规则。"
+        columns={[
+          { key: 'name', title: '规则' },
+          { key: 'type', title: '类型' },
+          { key: 'scope', title: '作用域' },
+          { key: 'status', title: '状态', render: (value, row) => value || (row.enabled ? 'active' : 'disabled') },
+          { key: 'version', title: '版本' },
+          { key: 'pattern', title: 'Pattern', render: (value) => value || '-' },
+          { key: 'updated_at', title: '更新时间', render: (value) => value ? formatDate(value) : '-' },
+          {
+            key: 'id',
+            title: '操作',
+            render: (_value, row) => (
+              <div className="flex gap-2">
+                <button onClick={() => toggleRule(row)} className="font-semibold text-emerald-700">{row.status === 'active' ? '停用' : '启用'}</button>
+                <button onClick={() => deleteRule(row)} className="font-semibold text-red-600">删除</button>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 break-words font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function uniqueOptions(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
-}
-
-function severityText(value?: string) {
-  return {
-    low: '低',
-    medium: '中',
-    high: '高',
-    critical: '严重',
-  }[value || ''] || value || '未设置';
 }

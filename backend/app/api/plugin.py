@@ -60,6 +60,12 @@ def get_plugin_policy(username: str = Depends(current_username), db: Session = D
     return {"code": 0, "message": "success", "data": data}
 
 
+@router.get("/bootstrap")
+def get_plugin_bootstrap(username: str = Depends(current_username), db: Session = Depends(get_db)):
+    data = PlatformService(db).plugin_bootstrap(username)
+    return {"success": True, "code": 0, "message": "success", "data": data}
+
+
 @router.post("/analyze-current", response_model=ApiResponse[ScanResult])
 def analyze_current(
     request: AnalyzeCurrentRequest,

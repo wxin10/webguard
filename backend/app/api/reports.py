@@ -18,6 +18,7 @@ from ..models import (
 )
 from ..schemas import ApiResponse, ReportActionCreate, ReportActionItem, ScanRecord, ScanRecordList, UserSiteStrategyCreate
 from ..services import Detector
+from ..services.platform_service import PlatformService
 from ..services.rule_engine import build_model_breakdown, build_score_breakdown, ensure_default_rules
 from .user import normalize_domain, upsert_strategy
 
@@ -123,12 +124,15 @@ def _build_score_breakdown_from_record(record: ScanRecordModel, db: Session) -> 
 
 
 def _build_report(record: ScanRecordModel, db: Session) -> Dict[str, Any]:
+    materialized_report = PlatformService(db).ensure_report_for_record(record)
     score_breakdown = _build_score_breakdown_from_record(record, db)
     all_rules: List[Dict[str, Any]] = score_breakdown.get("rules") or []
     matched_rules = [rule for rule in all_rules if rule.get("matched")]
     applied_rules = [rule for rule in all_rules if rule.get("applied")]
     raw_features = record.raw_features_json or {}
-    actions = db.query(ReportActionModel).filter(ReportActionModel.report_id == record.id).order_by(desc(ReportActionModel.created_at)).all()
+    actions = db.query(ReportActionModel).filter(
+        ReportActionModel.report_id.in_([record.id, materialized_report.id])
+    ).order_by(desc(ReportActionModel.created_at)).all()
     plugin_events = db.query(PluginSyncEventModel).filter(PluginSyncEventModel.scan_record_id == record.id).order_by(desc(PluginSyncEventModel.created_at)).all()
 
     if record.label == "malicious":
@@ -157,12 +161,16 @@ def _build_report(record: ScanRecordModel, db: Session) -> Dict[str, Any]:
     ]
 
     return {
-        "id": record.id,
+        "id": materialized_report.id,
+        "scan_record_id": record.id,
+        "record_id": record.id,
         "url": record.url,
         "domain": record.domain,
+        "host": record.domain,
         "title": record.title,
         "source": record.source,
         "label": record.label,
+        "risk_level": record.label,
         "label_text": _risk_text(record.label),
         "risk_score": record.risk_score,
         "rule_score": record.rule_score,
@@ -226,7 +234,7 @@ def _build_report(record: ScanRecordModel, db: Session) -> Dict[str, Any]:
 
 
 def _get_record_or_none(db: Session, report_id: int):
-    return db.query(ScanRecordModel).filter(ScanRecordModel.id == report_id).first()
+    return PlatformService(db).record_for_report_id(report_id)
 
 
 def _save_action(
@@ -291,7 +299,7 @@ def get_latest_report(db: Session = Depends(get_db)):
 
 @router.get("/{report_id}", response_model=ApiResponse[dict])
 def get_report(report_id: int, db: Session = Depends(get_db)):
-    record = db.query(ScanRecordModel).filter(ScanRecordModel.id == report_id).first()
+    record = _get_record_or_none(db, report_id)
     if not record:
         return {"code": 404, "message": "报告不存在", "data": None}
     return {"code": 0, "message": "success", "data": _build_report(record, db)}

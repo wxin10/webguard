@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import DatabaseError, ModelServiceError, RuleEngineError
-from ..models import DomainBlacklist, DomainWhitelist, ScanRecord, UserSiteStrategy
+from ..models import DomainBlacklist, DomainWhitelist, Report, ScanRecord, User, UserSiteStrategy
 from .feature_extractor import FeatureExtractor
 from .model_service import ModelService
 from .rule_engine import RuleEngine, build_score_breakdown
@@ -176,9 +176,51 @@ class Detector:
             "recommendation": "建议：当前未发现明显风险信号。",
         }
 
-    def _save_record(self, url: str, domain: str, features: Dict[str, Any], result: Dict[str, Any], source: str) -> ScanRecord:
+    def _resolve_user_id(self, username: Optional[str]) -> Optional[int]:
+        if not username:
+            return None
+        user = self.db.query(User).filter(User.username == username).first()
+        if not user:
+            user = User(username=username, display_name=username, role="user")
+            self.db.add(user)
+            self.db.flush()
+        return user.id
+
+    def _create_report_for_record(self, record: ScanRecord, user_id: Optional[int]) -> Report:
+        existing = self.db.query(Report).filter(Report.scan_record_id == record.id).first()
+        if existing:
+            return existing
+        report = Report(
+            scan_record_id=record.id,
+            user_id=user_id,
+            url=record.url,
+            host=record.domain,
+            risk_level=record.label,
+            risk_score=record.risk_score,
+            summary=record.explanation,
+            reasons=record.hit_rules_json or [],
+            matched_rules=[rule for rule in (record.hit_rules_json or []) if rule.get("matched")],
+            page_signals=record.raw_features_json or {},
+            recommendation=record.recommendation,
+        )
+        self.db.add(report)
+        self.db.flush()
+        record.report_id = report.id
+        return report
+
+    def _save_record(
+        self,
+        url: str,
+        domain: str,
+        features: Dict[str, Any],
+        result: Dict[str, Any],
+        source: str,
+        username: Optional[str],
+    ) -> ScanRecord:
         try:
+            user_id = self._resolve_user_id(username)
             record = ScanRecord(
+                user_id=user_id,
                 url=url,
                 domain=domain,
                 title=features["raw_features"].get("title"),
@@ -196,6 +238,8 @@ class Detector:
                 recommendation=result["recommendation"],
             )
             self.db.add(record)
+            self.db.flush()
+            self._create_report_for_record(record, user_id)
             self.db.commit()
             self.db.refresh(record)
             return record
@@ -267,14 +311,16 @@ class Detector:
         domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
-            record = self._save_record(url, domain, features, result, source)
+            record = self._save_record(url, domain, features, result, source, username)
             result["record_id"] = record.id
+            result["report_id"] = record.report_id or record.id
             return result
 
         pipeline_result = self._run_detection_pipeline(features)
         result = self._build_result(None, pipeline_result)
-        record = self._save_record(url, domain, features, result, source)
+        record = self._save_record(url, domain, features, result, source, username)
         result["record_id"] = record.id
+        result["report_id"] = record.report_id or record.id
         return result
 
     def detect_page(self, page_data: Dict[str, Any], source: str = "plugin", username: Optional[str] = None) -> Dict[str, Any]:
@@ -293,12 +339,14 @@ class Detector:
         domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
-            record = self._save_record(url, domain, features, result, source)
+            record = self._save_record(url, domain, features, result, source, username)
             result["record_id"] = record.id
+            result["report_id"] = record.report_id or record.id
             return result
 
         pipeline_result = self._run_detection_pipeline(features)
         result = self._build_result(None, pipeline_result)
-        record = self._save_record(url, domain, features, result, source)
+        record = self._save_record(url, domain, features, result, source, username)
         result["record_id"] = record.id
+        result["report_id"] = record.report_id or record.id
         return result

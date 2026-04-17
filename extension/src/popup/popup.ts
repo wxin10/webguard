@@ -203,7 +203,7 @@ async function openWarningPage(): Promise<void> {
 
 async function openReport(): Promise<void> {
   const settings = await getSettings();
-  const reportUrl = buildReportUrl(settings.webBaseUrl, currentRecord?.result?.record_id);
+  const reportUrl = buildReportUrl(settings.webBaseUrl, currentRecord?.result?.report_id || currentRecord?.result?.record_id);
   if (currentTab?.url) {
     await syncPluginEvent({
       event_type: 'scan',

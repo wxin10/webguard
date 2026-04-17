@@ -5,7 +5,7 @@ import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
-import { recordsApi, userStrategyApi } from '../services/api';
+import { recordsService, userStrategyApi } from '../services/api';
 import { ScanRecordItem, UserStrategyOverview } from '../types';
 import { formatDate, sourceText, strategyText } from '../utils';
 
@@ -20,7 +20,7 @@ export default function MyRecords() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([recordsApi.getMyRecords(), userStrategyApi.getStrategies()])
+    Promise.all([recordsService.getMyRecords(), userStrategyApi.getStrategies()])
       .then(([recordData, strategyData]) => {
         setRecords(recordData.records || []);
         setStrategies(strategyData);
@@ -71,7 +71,7 @@ export default function MyRecords() {
           { key: 'source', title: '来源', render: (value) => sourceText(value) },
           { key: 'domain', title: '策略状态', render: (value) => policyState(value, strategies) },
           { key: 'created_at', title: '检测时间', render: (value) => formatDate(value) },
-          { key: 'id', title: '报告', render: (value) => <Link to={`/app/reports/${value}`} className="font-semibold text-emerald-700">打开报告</Link> },
+          { key: 'id', title: '报告', render: (value, row) => <Link to={`/app/reports/${row.report_id || value}`} className="font-semibold text-emerald-700">打开报告</Link> },
         ]}
       />
     </div>

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..core import get_db
 from ..models import ScanRecord as ScanRecordModel
 from ..schemas import ApiResponse, ScanRecord, ScanRecordList
+from ..services.platform_service import PlatformService
 
 router = APIRouter(prefix="/api/v1/records", tags=["records"])
 
@@ -49,9 +50,13 @@ def get_my_records(
     label: str | None = Query(default=None),
     source: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    x_webguard_user: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    query = db.query(ScanRecordModel).filter(ScanRecordModel.source.in_(["plugin", "manual", "web", "recheck"]))
+    user = PlatformService(db).get_or_create_user(x_webguard_user or "platform-user")
+    query = db.query(ScanRecordModel).filter(
+        (ScanRecordModel.user_id == user.id) | (ScanRecordModel.user_id.is_(None))
+    ).filter(ScanRecordModel.source.in_(["plugin", "manual", "web", "recheck"]))
     query = _apply_filters(query, label, source, q)
     return {"code": 0, "message": "success", "data": _record_page(query, page, page_size)}
 

@@ -1,16 +1,22 @@
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import {
+  AdminPluginConfig,
+  AdminRuleItem,
+  AdminRuleList,
   AnalysisReport,
   ApiResponse,
   BlacklistItem,
   DevelopmentUser,
   DomainList,
+  DomainListItem,
+  DomainListItemList,
   FeedbackCaseList,
   FeedbackTrend,
   ModelStatus,
   ModelVersionList,
   PageScanRequest,
+  PluginBootstrap,
   PluginEventStats,
   PluginPolicyBundle,
   PluginSyncEventList,
@@ -26,9 +32,10 @@ import {
   TrendStats,
   UrlScanRequest,
   ReportActionItem,
+  UserPolicy,
+  UserRole,
   UserSiteStrategyItem,
   UserStrategyOverview,
-  UserRole,
   WhitelistItem,
 } from '../types';
 
@@ -55,8 +62,8 @@ api.interceptors.request.use((config) => {
 
 async function unwrap<T>(request: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
   const response = await request;
-  if (response.data.code !== 0) {
-    throw new Error(response.data.message || '请求失败');
+  if (response.data.success === false || response.data.code !== 0) {
+    throw new Error(response.data.message || 'Request failed');
   }
   return response.data.data;
 }
@@ -66,23 +73,27 @@ export const authApi = {
     unwrap(api.post<ApiResponse<DevelopmentUser>>('/api/v1/auth/mock-login', data)),
 };
 
-export const scanApi = {
+export const scanService = {
   scanUrl: (data: UrlScanRequest) =>
     unwrap(api.post<ApiResponse<ScanResult>>('/api/v1/scan/url', data)),
   scanPage: (data: PageScanRequest) =>
     unwrap(api.post<ApiResponse<ScanResult>>('/api/v1/scan/page', data)),
 };
+export const scanApi = scanService;
 
-export const recordsApi = {
+export const recordsService = {
   getRecords: (params: { label?: string; source?: string; q?: string } = {}) =>
     unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records', { params })),
   getMyRecords: (params: { label?: string; source?: string; q?: string } = {}) =>
     unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records/me', { params })),
+  getMine: (params: { label?: string; source?: string; q?: string } = {}) =>
+    unwrap(api.get<ApiResponse<ScanRecordList>>('/api/v1/records/me', { params })),
   getRecordById: (id: number) =>
     unwrap(api.get<ApiResponse<ScanRecordItem>>(`/api/v1/records/${id}`)),
 };
+export const recordsApi = recordsService;
 
-export const reportsApi = {
+export const reportsService = {
   getReport: (id: number | string) =>
     unwrap(api.get<ApiResponse<AnalysisReport>>(`/api/v1/reports/${id}`)),
   getLatestReport: () =>
@@ -102,6 +113,30 @@ export const reportsApi = {
   recheck: (id: number | string, data: { note?: string } = {}) =>
     unwrap(api.post<ApiResponse<{ action: ReportActionItem; result: ScanResult }>>(`/api/v1/reports/${id}/recheck`, data)),
 };
+export const reportsApi = reportsService;
+
+export const domainsService = {
+  getMyDomains: (params: { list_type?: string } = {}) =>
+    unwrap(api.get<ApiResponse<DomainListItemList>>('/api/v1/my/domains', { params })),
+  createMyDomain: (data: {
+    host: string;
+    list_type: 'trusted' | 'blocked' | 'temp_bypass';
+    source?: string;
+    reason?: string;
+    expires_at?: string;
+    minutes?: number;
+  }) => unwrap(api.post<ApiResponse<DomainListItem>>('/api/v1/my/domains', data)),
+  updateMyDomain: (id: number, data: Partial<DomainListItem>) =>
+    unwrap(api.patch<ApiResponse<DomainListItem>>(`/api/v1/my/domains/${id}`, data)),
+  deleteMyDomain: (id: number) =>
+    unwrap(api.delete<ApiResponse<{ id: number }>>(`/api/v1/my/domains/${id}`)),
+};
+
+export const policyService = {
+  getMyPolicy: () => unwrap(api.get<ApiResponse<UserPolicy>>('/api/v1/my/policy')),
+  updateMyPolicy: (data: Partial<UserPolicy>) =>
+    unwrap(api.patch<ApiResponse<UserPolicy>>('/api/v1/my/policy', data)),
+};
 
 export const userStrategyApi = {
   getStrategies: () =>
@@ -120,29 +155,51 @@ export const userStrategyApi = {
     unwrap(api.delete<ApiResponse<void>>(`/api/v1/user/blocked-sites/${id}`)),
 };
 
-export const pluginApi = {
+export const pluginService = {
   getPolicy: () =>
     unwrap(api.get<ApiResponse<PluginPolicyBundle>>('/api/v1/plugin/policy')),
+  getBootstrap: () =>
+    unwrap(api.get<ApiResponse<PluginBootstrap>>('/api/v1/plugin/bootstrap')),
   getEvents: (params: { event_type?: string; risk_label?: string } = {}) =>
     unwrap(api.get<ApiResponse<PluginSyncEventList>>('/api/v1/plugin/events', { params })),
+  getMyEvents: (params: { event_type?: string; risk_level?: string } = {}) =>
+    unwrap(api.get<ApiResponse<PluginSyncEventList>>('/api/v1/my/plugin-events', { params })),
   getStats: () =>
     unwrap(api.get<ApiResponse<PluginEventStats>>('/api/v1/plugin/stats')),
   recordEvent: (data: {
     event_type: string;
     action?: string;
     url?: string;
+    host?: string;
     domain?: string;
+    risk_level?: string;
     risk_label?: string;
     risk_score?: number;
     summary?: string;
     scan_record_id?: number;
     plugin_version?: string;
+    payload?: Record<string, unknown>;
     metadata?: Record<string, unknown>;
   }) => unwrap(api.post<ApiResponse<unknown>>('/api/v1/plugin/events', data)),
   getFeedbackCases: (params: { status?: string } = {}) =>
     unwrap(api.get<ApiResponse<FeedbackCaseList>>('/api/v1/plugin/feedback-cases', { params })),
   updateFeedbackCase: (id: number, data: { status: string; comment?: string }) =>
     unwrap(api.put<ApiResponse<unknown>>(`/api/v1/plugin/feedback-cases/${id}`, data)),
+};
+export const pluginApi = pluginService;
+
+export const feedbackService = {
+  createFeedback: (data: {
+    url?: string;
+    related_report_id?: number;
+    report_id?: number;
+    related_event_id?: number;
+    feedback_type?: 'false_positive' | 'false_negative' | 'other';
+    content?: string;
+    source?: string;
+  }) => unwrap(api.post<ApiResponse<unknown>>('/api/v1/feedback', data)),
+  getMyFeedback: (params: { status?: string } = {}) =>
+    unwrap(api.get<ApiResponse<FeedbackCaseList>>('/api/v1/my/feedback', { params })),
 };
 
 export const whitelistApi = {
@@ -168,6 +225,40 @@ export const rulesApi = {
     unwrap(api.put<ApiResponse<RuleConfig>>(`/api/v1/rules/${id}`, data)),
 };
 
+export const adminRulesService = {
+  getRules: () => unwrap(api.get<ApiResponse<AdminRuleList>>('/api/v1/admin/rules')),
+  createRule: (data: Partial<AdminRuleItem> & { name: string }) =>
+    unwrap(api.post<ApiResponse<AdminRuleItem>>('/api/v1/admin/rules', data)),
+  updateRule: (id: number, data: Partial<AdminRuleItem>) =>
+    unwrap(api.patch<ApiResponse<AdminRuleItem>>(`/api/v1/admin/rules/${id}`, data)),
+  deleteRule: (id: number) =>
+    unwrap(api.delete<ApiResponse<{ id: number }>>(`/api/v1/admin/rules/${id}`)),
+};
+
+export const adminDomainsService = {
+  getDomains: (params: { list_type?: string } = {}) =>
+    unwrap(api.get<ApiResponse<DomainListItemList>>('/api/v1/admin/domains', { params })),
+  createDomain: (data: { host: string; list_type: 'trusted' | 'blocked'; source?: string; reason?: string; status?: string }) =>
+    unwrap(api.post<ApiResponse<DomainListItem>>('/api/v1/admin/domains', data)),
+  updateDomain: (id: number, data: Partial<DomainListItem>) =>
+    unwrap(api.patch<ApiResponse<DomainListItem>>(`/api/v1/admin/domains/${id}`, data)),
+  deleteDomain: (id: number) =>
+    unwrap(api.delete<ApiResponse<{ id: number }>>(`/api/v1/admin/domains/${id}`)),
+};
+
+export const adminPluginService = {
+  getConfig: () => unwrap(api.get<ApiResponse<AdminPluginConfig>>('/api/v1/admin/plugin/config')),
+  updateConfig: (data: Partial<AdminPluginConfig['config']>) =>
+    unwrap(api.patch<ApiResponse<AdminPluginConfig['config']>>('/api/v1/admin/plugin/config', data)),
+};
+
+export const adminFeedbackService = {
+  getFeedback: (params: { status?: string } = {}) =>
+    unwrap(api.get<ApiResponse<FeedbackCaseList>>('/api/v1/admin/feedback', { params })),
+  updateFeedback: (id: number, data: { status: string; comment?: string }) =>
+    unwrap(api.patch<ApiResponse<unknown>>(`/api/v1/admin/feedback/${id}`, data)),
+};
+
 export const modelApi = {
   getModelStatus: () => unwrap(api.get<ApiResponse<ModelStatus>>('/api/v1/model/status')),
   getModelVersions: () =>
@@ -184,5 +275,6 @@ export const statsApi = {
   getFeedbackTrend: () =>
     unwrap(api.get<ApiResponse<FeedbackTrend>>('/api/v1/stats/feedback-trend')),
 };
+export const adminStatsService = statsApi;
 
 export default api;

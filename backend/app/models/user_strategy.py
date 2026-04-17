@@ -43,10 +43,76 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True)
     display_name = Column(String(100), nullable=False)
     role = Column(String(20), default="user", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class UserPolicy(Base):
+    """User-owned browser execution policy managed by the web platform."""
+
+    __tablename__ = "user_policies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    auto_detect = Column(Boolean, default=True)
+    auto_block_malicious = Column(Boolean, default=True)
+    notify_suspicious = Column(Boolean, default=True)
+    bypass_duration_minutes = Column(Integer, default=30)
+    plugin_enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Report(Base):
+    """Materialized report owned by the web platform and linked to a scan record."""
+
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scan_record_id = Column(Integer, ForeignKey("scan_records.id"), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    url = Column(String(1024), nullable=False)
+    host = Column(String(255), index=True, nullable=False)
+    risk_level = Column(String(20), index=True, nullable=False)
+    risk_score = Column(Float, nullable=False)
+    summary = Column(Text)
+    reasons = Column(JSON)
+    matched_rules = Column(JSON)
+    page_signals = Column(JSON)
+    recommendation = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DomainListItem(Base):
+    """Unified domain-list item for global and user policy center views."""
+
+    __tablename__ = "domain_list_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_type = Column(String(20), index=True, nullable=False)  # global/user
+    owner_id = Column(Integer, index=True)
+    host = Column(String(255), index=True, nullable=False)
+    list_type = Column(String(30), index=True, nullable=False)  # trusted/blocked/temp_bypass
+    source = Column(String(30), default="manual", index=True)  # manual/plugin/system
+    status = Column(String(20), default="active", index=True)
+    reason = Column(Text)
+    expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PlatformSetting(Base):
+    """Small key-value store for platform-level defaults such as plugin config."""
+
+    __tablename__ = "platform_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value_json = Column(JSON)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -56,17 +122,21 @@ class PluginSyncEvent(Base):
     __tablename__ = "plugin_sync_events"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     username = Column(String(100), index=True, nullable=False)
     event_type = Column(String(50), index=True, nullable=False)
     action = Column(String(50), index=True)
     url = Column(String(1024))
+    host = Column(String(255), index=True)
     domain = Column(String(255), index=True)
+    risk_level = Column(String(20), index=True)
     risk_label = Column(String(20), index=True)
     risk_score = Column(Float)
     summary = Column(Text)
     scan_record_id = Column(Integer, ForeignKey("scan_records.id"), index=True)
     plugin_version = Column(String(50))
     source = Column(String(20), default="plugin")
+    payload = Column(JSON)
     metadata_json = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -77,12 +147,16 @@ class FeedbackCase(Base):
     __tablename__ = "feedback_cases"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     username = Column(String(100), index=True, nullable=False)
+    related_report_id = Column(Integer, ForeignKey("reports.id"), index=True)
+    related_event_id = Column(Integer, ForeignKey("plugin_sync_events.id"), index=True)
     report_id = Column(Integer, ForeignKey("scan_records.id"), index=True)
     url = Column(String(1024))
     domain = Column(String(255), index=True)
     feedback_type = Column(String(50), index=True, nullable=False)
     status = Column(String(50), default="pending_review", index=True)
+    content = Column(Text)
     comment = Column(Text)
     source = Column(String(20), default="web", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

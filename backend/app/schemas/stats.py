@@ -1,10 +1,17 @@
-from pydantic import BaseModel
 from typing import Dict, List
+
+from pydantic import BaseModel
 
 
 class OverviewStats(BaseModel):
-    """概览统计响应模式"""
     total_scans: int
+    high_risk_count: int = 0
+    plugin_event_count: int = 0
+    warning_count: int = 0
+    bypass_count: int = 0
+    trust_count: int = 0
+    feedback_count: int = 0
+    source_distribution: Dict[str, int] = {}
     safe_count: int
     suspicious_count: int
     malicious_count: int
@@ -12,7 +19,6 @@ class OverviewStats(BaseModel):
 
 
 class TrendData(BaseModel):
-    """趋势数据点"""
     date: str
     count: int
     safe_count: int
@@ -21,12 +27,10 @@ class TrendData(BaseModel):
 
 
 class TrendStats(BaseModel):
-    """趋势统计响应模式"""
     trend: List[TrendData]
 
 
 class RiskDistribution(BaseModel):
-    """风险分布响应模式"""
     safe: int
     suspicious: int
     malicious: int

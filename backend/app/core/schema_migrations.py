@@ -5,7 +5,20 @@ from sqlalchemy.engine import Engine
 
 
 RUNTIME_COLUMNS: dict[str, dict[str, str]] = {
+    "users": {
+        "email": "VARCHAR(255) NULL",
+    },
+    "scan_records": {
+        "user_id": "INTEGER NULL",
+        "report_id": "INTEGER NULL",
+    },
     "rule_configs": {
+        "type": "VARCHAR(50) DEFAULT 'heuristic'",
+        "scope": "VARCHAR(20) DEFAULT 'global'",
+        "status": "VARCHAR(20) DEFAULT 'active'",
+        "version": "VARCHAR(50) DEFAULT 'v1'",
+        "pattern": "VARCHAR(255) NULL",
+        "content": "TEXT NULL",
         "category": "VARCHAR(50) DEFAULT 'general'",
         "severity": "VARCHAR(20) DEFAULT 'medium'",
     },
@@ -18,6 +31,18 @@ RUNTIME_COLUMNS: dict[str, dict[str, str]] = {
         "source": "VARCHAR(50) DEFAULT 'admin'",
         "status": "VARCHAR(20) DEFAULT 'active'",
         "updated_at": "DATETIME NULL",
+    },
+    "plugin_sync_events": {
+        "user_id": "INTEGER NULL",
+        "host": "VARCHAR(255) NULL",
+        "risk_level": "VARCHAR(20) NULL",
+        "payload": "JSON NULL",
+    },
+    "feedback_cases": {
+        "user_id": "INTEGER NULL",
+        "related_report_id": "INTEGER NULL",
+        "related_event_id": "INTEGER NULL",
+        "content": "TEXT NULL",
     },
 }
 

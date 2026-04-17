@@ -45,6 +45,13 @@ interface PluginPolicyResponse {
   global_blocked_hosts: string[];
 }
 
+interface PluginBootstrapResponse {
+  trusted_hosts?: string[];
+  blocked_hosts?: string[];
+  temp_bypass_records?: Array<{ domain: string; expires_at?: string | null; reason?: string | null }>;
+  current_rule_version?: string;
+}
+
 interface RequestOptions {
   timeoutMs?: number;
 }
@@ -79,7 +86,7 @@ export async function testBackendConnection(apiBaseUrl?: string): Promise<Backen
 
 export async function syncPluginPolicy(): Promise<PluginPolicySnapshot | null> {
   try {
-    const payload = await requestApi<unknown>('/api/v1/plugin/policy', {
+    const payload = await requestApi<unknown>('/api/v1/plugin/bootstrap', {
       method: 'GET',
       headers: webGuardHeaders(),
     });
@@ -135,11 +142,12 @@ export async function markReportFalsePositive(recordId: number, comment: string)
 
 export async function trustSite(host: string): Promise<UserDecisionSyncStatus> {
   try {
-    await requestApi<unknown>('/api/v1/user/trusted-sites', {
+    await requestApi<unknown>('/api/v1/my/domains', {
       method: 'POST',
       headers: webGuardHeaders(),
       body: JSON.stringify({
-        domain: host,
+        host,
+        list_type: 'trusted',
         reason: '浏览器插件加入信任站点',
         source: 'plugin',
       }),
@@ -167,11 +175,12 @@ export async function trustSite(host: string): Promise<UserDecisionSyncStatus> {
 
 export async function pauseSite(host: string, minutes = 30): Promise<UserDecisionSyncStatus> {
   try {
-    await requestApi<unknown>('/api/v1/user/site-actions/pause', {
+    await requestApi<unknown>('/api/v1/my/domains', {
       method: 'POST',
       headers: webGuardHeaders(),
       body: JSON.stringify({
-        domain: host,
+        host,
+        list_type: 'temp_bypass',
         reason: `浏览器插件临时忽略 ${minutes} 分钟`,
         source: 'plugin',
         minutes,
@@ -266,6 +275,20 @@ function normalizePluginPolicy(value: unknown): PluginPolicySnapshot {
   if (!isRecord(value)) {
     throw new Error('后端策略响应无效');
   }
+  if ('current_rule_version' in value || 'trusted_hosts' in value || 'plugin_default_config' in value) {
+    const bootstrap = value as unknown as PluginBootstrapResponse;
+    return {
+      username: 'platform-user',
+      pluginVersion: '1.0.0',
+      ruleVersion: typeof bootstrap.current_rule_version === 'string' ? bootstrap.current_rule_version : 'unknown',
+      userTrustedHosts: normalizeHostArray(bootstrap.trusted_hosts),
+      userBlockedHosts: normalizeHostArray(bootstrap.blocked_hosts),
+      userPausedHosts: normalizePausedPolicy(bootstrap.temp_bypass_records),
+      globalTrustedHosts: [],
+      globalBlockedHosts: [],
+      syncedAt: Date.now(),
+    };
+  }
   const policy = value as unknown as PluginPolicyResponse;
   return {
     username: typeof policy.username === 'string' ? policy.username : 'platform-user',
@@ -323,6 +346,7 @@ function validateDetectionResult(value: unknown, fallbackUrl: string): Detection
   }
 
   const recordId = parseOptionalNumber(value.record_id);
+  const reportId = parseOptionalNumber(value.report_id);
 
   return {
     url: typeof value.url === 'string' && value.url ? value.url : fallbackUrl,
@@ -333,6 +357,7 @@ function validateDetectionResult(value: unknown, fallbackUrl: string): Detection
     explanation: firstNonEmptyString(value.explanation),
     recommendation: firstNonEmptyString(value.recommendation),
     ...(typeof recordId === 'number' ? { record_id: recordId } : {}),
+    ...(typeof reportId === 'number' ? { report_id: reportId } : {}),
     rule_score: parseOptionalNumber(value.rule_score),
     model_safe_prob: parseOptionalNumber(value.model_safe_prob),
     model_suspicious_prob: parseOptionalNumber(value.model_suspicious_prob),

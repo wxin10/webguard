@@ -20,6 +20,7 @@ export interface DetectionResult {
   explanation?: string;
   recommendation?: string;
   record_id?: number;
+  report_id?: number;
   rule_score?: number;
   model_safe_prob?: number;
   model_suspicious_prob?: number;

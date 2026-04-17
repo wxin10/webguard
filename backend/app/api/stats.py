@@ -13,6 +13,7 @@ def get_stats_overview(db: Session = Depends(get_db)):
     """获取概览统计"""
     stats_service = StatsService(db)
     overview = stats_service.get_overview()
+    overview.update(PlatformService(db).platform_overview())
     return {
         "code": 0,
         "message": "success",

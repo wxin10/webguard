@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import RuleHitList from '../components/RuleHitList';
-import { scanApi } from '../services/api';
+import { scanService } from '../services/api';
 import { ScanResult } from '../types';
 import { riskBar } from '../utils';
 
@@ -22,7 +22,7 @@ export default function Scan() {
     setLoading(true);
     setError('');
     try {
-      const data = await scanApi.scanUrl({ url: url.trim() });
+      const data = await scanService.scanUrl({ url: url.trim() });
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '检测失败，请确认后端服务可用。');
@@ -62,7 +62,7 @@ export default function Scan() {
               <div>
                 <p className="text-sm font-semibold text-blue-600">检测结果摘要</p>
                 <h2 className="mt-2 break-all text-xl font-bold text-slate-950">{url}</h2>
-                <p className="mt-1 text-sm text-slate-500">报告编号 #{result.record_id}</p>
+                <p className="mt-1 text-sm text-slate-500">报告编号 #{result.report_id || result.record_id}</p>
               </div>
               <RiskBadge label={result.label} size="lg" />
             </div>
@@ -90,7 +90,7 @@ export default function Scan() {
             </div>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <Link className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/app/my-records">返回记录</Link>
-              <Link className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/app/reports/${result.record_id}`}>查看完整报告</Link>
+              <Link className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/app/reports/${result.report_id || result.record_id}`}>查看完整报告</Link>
             </div>
           </section>
         ) : (

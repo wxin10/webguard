@@ -6,7 +6,7 @@ import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import StatCard from '../components/StatCard';
-import { pluginApi, userStrategyApi } from '../services/api';
+import { pluginService, userStrategyApi } from '../services/api';
 import { PluginEventStats, PluginPolicyBundle, PluginSyncEventItem, UserStrategyOverview } from '../types';
 import { formatDate, pluginEventText, strategyText } from '../utils';
 
@@ -23,7 +23,7 @@ export default function PluginSync() {
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([pluginApi.getEvents(), pluginApi.getStats(), pluginApi.getPolicy(), userStrategyApi.getStrategies()])
+    Promise.all([pluginService.getMyEvents(), pluginService.getStats(), pluginService.getPolicy(), userStrategyApi.getStrategies()])
       .then(([eventData, statsData, policyData, strategyData]) => {
         setEvents(eventData.events || []);
         setStats(statsData);
@@ -93,7 +93,7 @@ export default function PluginSync() {
         columns={[
           { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },
           { key: 'url', title: 'URL', render: (value) => <span className="block max-w-lg truncate">{value || '-'}</span> },
-          { key: 'risk_label', title: '风险', render: (value) => value ? <RiskBadge label={value} size="sm" /> : '-' },
+          { key: 'risk_label', title: '风险', render: (value, row) => (value || row.risk_level) ? <RiskBadge label={value || row.risk_level} size="sm" /> : '-' },
           { key: 'risk_score', title: '分数', render: (value) => typeof value === 'number' ? value.toFixed(1) : '-' },
           { key: 'domain', title: '策略状态', render: (value) => policyState(value, strategies) },
           { key: 'created_at', title: '同步时间', render: (value) => formatDate(value) },

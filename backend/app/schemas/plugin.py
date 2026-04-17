@@ -31,11 +31,15 @@ class PluginSyncEventCreate(BaseModel):
     action: Optional[str] = Field(default=None, max_length=50)
     url: Optional[str] = None
     domain: Optional[str] = None
+    host: Optional[str] = None
+    risk_level: Optional[str] = None
     risk_label: Optional[str] = None
     risk_score: Optional[float] = None
     summary: Optional[str] = None
     scan_record_id: Optional[int] = None
+    related_report_id: Optional[int] = None
     plugin_version: Optional[str] = "1.0.0"
+    payload: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,17 +47,21 @@ class PluginSyncEventItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: Optional[int] = None
     username: str
     event_type: str
     action: Optional[str] = None
     url: Optional[str] = None
+    host: Optional[str] = None
     domain: Optional[str] = None
+    risk_level: Optional[str] = None
     risk_label: Optional[str] = None
     risk_score: Optional[float] = None
     summary: Optional[str] = None
     scan_record_id: Optional[int] = None
     plugin_version: Optional[str] = None
     source: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
     metadata_json: Optional[Dict[str, Any]] = None
     created_at: datetime
 
@@ -77,8 +85,11 @@ class PluginEventStats(BaseModel):
 class FeedbackCaseCreate(BaseModel):
     url: Optional[str] = None
     report_id: Optional[int] = None
+    related_report_id: Optional[int] = None
+    related_event_id: Optional[int] = None
     feedback_type: str = "false_positive"
     status: str = "pending_review"
+    content: Optional[str] = None
     comment: Optional[str] = None
     source: str = "web"
 
@@ -87,12 +98,16 @@ class FeedbackCaseItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: Optional[int] = None
     username: str
     report_id: Optional[int] = None
+    related_report_id: Optional[int] = None
+    related_event_id: Optional[int] = None
     url: Optional[str] = None
     domain: Optional[str] = None
     feedback_type: str
     status: str
+    content: Optional[str] = None
     comment: Optional[str] = None
     source: str
     created_at: datetime

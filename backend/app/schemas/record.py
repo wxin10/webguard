@@ -1,15 +1,19 @@
-from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class ScanRecordBase(BaseModel):
-    """扫描记录基础模式"""
+    user_id: Optional[int] = None
+    report_id: Optional[int] = None
     url: str
     domain: str
+    host: Optional[str] = None
     title: Optional[str] = None
     source: str
     label: str
+    risk_level: Optional[str] = None
     risk_score: float
     rule_score: float
     model_safe_prob: float
@@ -19,23 +23,30 @@ class ScanRecordBase(BaseModel):
     hit_rules_json: Optional[List[Dict[str, Any]]] = None
     raw_features_json: Optional[Dict[str, Any]] = None
     explanation: Optional[str] = None
+    summary: Optional[str] = None
     recommendation: Optional[str] = None
 
 
 class ScanRecordCreate(ScanRecordBase):
-    """创建扫描记录模式"""
     pass
 
 
 class ScanRecord(ScanRecordBase):
-    """扫描记录响应模式"""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     created_at: datetime
 
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        item = super().model_validate(obj, *args, **kwargs)
+        item.host = item.host or item.domain
+        item.risk_level = item.risk_level or item.label
+        item.summary = item.summary or item.explanation
+        item.report_id = item.report_id or item.id
+        return item
+
 
 class ScanRecordList(BaseModel):
-    """扫描记录列表响应模式"""
     total: int
     records: List[ScanRecord]

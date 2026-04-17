@@ -2,6 +2,7 @@ export type UserRole = 'admin' | 'user';
 export type RiskLabel = 'safe' | 'suspicious' | 'malicious' | 'unknown';
 
 export interface ApiResponse<T> {
+  success?: boolean;
   code: number;
   message: string;
   data: T;
@@ -113,6 +114,7 @@ export interface ScanResult {
   explanation: string;
   recommendation: string;
   record_id: number;
+  report_id?: number;
 }
 
 export interface ScanRecordList {
@@ -122,11 +124,15 @@ export interface ScanRecordList {
 
 export interface ScanRecordItem {
   id: number;
+  user_id?: number;
+  report_id?: number;
   url: string;
   domain: string;
+  host?: string;
   title?: string;
   source: string;
   label: RiskLabel;
+  risk_level?: RiskLabel;
   risk_score: number;
   rule_score: number;
   model_safe_prob: number;
@@ -136,6 +142,7 @@ export interface ScanRecordItem {
   hit_rules_json?: HitRule[];
   raw_features_json?: Record<string, unknown>;
   explanation?: string;
+  summary?: string;
   recommendation?: string;
   created_at: string;
 }
@@ -206,6 +213,37 @@ export interface UserStrategyOverview {
   paused_sites: UserSiteStrategyItem[];
 }
 
+export interface DomainListItem {
+  id: number;
+  owner_type: 'global' | 'user';
+  owner_id?: number;
+  host: string;
+  list_type: 'trusted' | 'blocked' | 'temp_bypass';
+  source: 'manual' | 'plugin' | 'system' | string;
+  status?: string;
+  reason?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DomainListItemList {
+  total: number;
+  items: DomainListItem[];
+}
+
+export interface UserPolicy {
+  id: number;
+  user_id: number;
+  username: string;
+  auto_detect: boolean;
+  auto_block_malicious: boolean;
+  notify_suspicious: boolean;
+  bypass_duration_minutes: number;
+  plugin_enabled: boolean;
+  updated_at: string;
+}
+
 export interface PluginDefaultConfig {
   api_base_url: string;
   web_base_url: string;
@@ -228,19 +266,33 @@ export interface PluginPolicyBundle {
   generated_at: string;
 }
 
+export interface PluginBootstrap {
+  user_policy: UserPolicy;
+  trusted_hosts: string[];
+  blocked_hosts: string[];
+  temp_bypass_records: Array<{ domain: string; expires_at?: string; reason?: string }>;
+  plugin_default_config: PluginDefaultConfig;
+  current_rule_version: string;
+  generated_at: string;
+}
+
 export interface PluginSyncEventItem {
   id: number;
+  user_id?: number;
   username: string;
   event_type: 'scan' | 'warning' | 'bypass' | 'trust' | 'temporary_trust' | 'feedback' | 'error' | string;
   action?: string;
   url?: string;
+  host?: string;
   domain?: string;
+  risk_level?: RiskLabel;
   risk_label?: RiskLabel;
   risk_score?: number;
   summary?: string;
   scan_record_id?: number;
   plugin_version?: string;
   source?: string;
+  payload?: Record<string, unknown>;
   metadata_json?: Record<string, unknown>;
   created_at: string;
 }
@@ -263,12 +315,16 @@ export interface PluginEventStats {
 
 export interface FeedbackCaseItem {
   id: number;
+  user_id?: number;
   username: string;
   report_id?: number;
+  related_report_id?: number;
+  related_event_id?: number;
   url?: string;
   domain?: string;
   feedback_type: string;
   status: string;
+  content?: string;
   comment?: string;
   source: string;
   created_at: string;
@@ -319,6 +375,13 @@ export interface ModelStatus {
 
 export interface StatsOverview {
   total_scans: number;
+  high_risk_count?: number;
+  plugin_event_count?: number;
+  warning_count?: number;
+  bypass_count?: number;
+  trust_count?: number;
+  feedback_count?: number;
+  source_distribution?: Record<string, number>;
   today_scans: number;
   safe_count: number;
   suspicious_count: number;
@@ -352,11 +415,15 @@ export interface ReportEvidence {
 
 export interface AnalysisReport {
   id: number;
+  scan_record_id?: number;
+  record_id?: number;
   url: string;
   domain: string;
+  host?: string;
   title?: string;
   source: string;
   label: RiskLabel;
+  risk_level?: RiskLabel;
   label_text: string;
   risk_score: number;
   rule_score: number;
@@ -372,6 +439,8 @@ export interface AnalysisReport {
   matched_rules: HitRule[];
   applied_rules?: HitRule[];
   explanation?: string;
+  summary?: string;
+  reasons?: Record<string, unknown>[];
   recommendation?: string;
   conclusion: string;
   evidence: ReportEvidence[];
@@ -379,6 +448,36 @@ export interface AnalysisReport {
   actions?: ReportActionItem[];
   plugin_events?: PluginSyncEventItem[];
   created_at: string;
+}
+
+export interface AdminRuleItem {
+  id: number;
+  name: string;
+  rule_key: string;
+  type: string;
+  scope: 'global' | 'user' | 'plugin' | string;
+  status: 'active' | 'disabled' | string;
+  version: string;
+  pattern?: string;
+  content?: string;
+  description?: string;
+  category?: string;
+  severity?: string;
+  enabled?: boolean;
+  weight?: number;
+  threshold?: number;
+  updated_at?: string;
+}
+
+export interface AdminRuleList {
+  total: number;
+  rules: AdminRuleItem[];
+}
+
+export interface AdminPluginConfig {
+  config: PluginDefaultConfig;
+  rule_version: string;
+  stats: PluginEventStats;
 }
 
 export interface SourceDistributionResponse {

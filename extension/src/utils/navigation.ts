@@ -17,8 +17,9 @@ export function buildWarningPageUrl(result: DetectionResult): string {
   warningUrl.searchParams.set('risk_score', String(result.risk_score));
   warningUrl.searchParams.set('summary', result.summary || result.reason || result.explanation || '检测到高风险页面。');
   warningUrl.searchParams.set('detected_at', String(result.timestamp));
-  if (typeof result.record_id === 'number') {
-    warningUrl.searchParams.set('record_id', String(result.record_id));
+  const reportId = result.report_id || result.record_id;
+  if (typeof reportId === 'number') {
+    warningUrl.searchParams.set('record_id', String(reportId));
   }
   return warningUrl.toString();
 }
