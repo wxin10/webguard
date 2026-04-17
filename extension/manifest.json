@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "WebGuard 恶意网站检测",
+  "name": "WebGuard Malicious Site Guard",
   "version": "1.0.0",
-  "description": "基于 WebGuard 后端的恶意网站检测与主动防护浏览器插件。",
+  "description": "Browser-side execution agent for WebGuard malicious site detection, warning, and action sync.",
   "permissions": ["storage", "tabs", "notifications"],
   "host_permissions": [
     "http://127.0.0.1:8000/*",

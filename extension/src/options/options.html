@@ -9,9 +9,9 @@
   <body>
     <main class="page">
       <header>
-        <p class="eyebrow">WebGuard Browser Assistant</p>
+        <p class="eyebrow">WebGuard Browser Agent</p>
         <h1>浏览器插件设置</h1>
-        <p class="subtitle">配置后端连接、自动扫描和拦截行为。信任、临时忽略和一次性放行记录会保存在浏览器本地。</p>
+        <p class="subtitle">插件只负责当前页面扫描、warning、即时处置和事件回传；策略、报告和历史记录以网站主平台为准。</p>
       </header>
 
       <section class="card">
@@ -22,18 +22,18 @@
 
         <label for="web-base-url">Web 地址</label>
         <input id="web-base-url" type="url" placeholder="http://127.0.0.1:5173" />
-        <p class="hint">用于打开 Web 报告和站点策略页面。</p>
+        <p class="hint">用于打开网站报告和站点策略页面。</p>
 
-        <button id="test-button" class="secondary">测试后端连接</button>
+        <button id="test-button" class="secondary">测试后端连接并同步配置</button>
         <p id="test-message" class="message" role="status"></p>
       </section>
 
       <section class="card">
-        <h2>保护行为</h2>
+        <h2>执行行为</h2>
         <label class="switch-row">
           <span>
             <strong>自动扫描网页</strong>
-            <small>页面加载完成后自动读取页面特征，并调用后端检测。</small>
+            <small>页面加载完成后读取轻量页面特征，并调用后端正式检测。</small>
           </span>
           <input id="auto-detect" type="checkbox" />
         </label>
@@ -56,10 +56,10 @@
       <section class="card">
         <h2>维护操作</h2>
         <div class="maintenance-actions">
-          <button id="clear-cache-button" class="secondary">清空本地缓存</button>
+          <button id="clear-cache-button" class="secondary">清空本地运行缓存</button>
           <button id="reset-settings-button" class="danger">重置插件设置</button>
         </div>
-        <p class="hint">清空本地缓存只会移除运行时扫描状态和最近错误；重置设置不会删除信任站点和临时忽略记录。</p>
+        <p class="hint">清空缓存只会移除当前 tab 状态、最近扫描结果、最近错误和 bootstrap 快照；长期策略以主平台为准。</p>
       </section>
 
       <div class="footer">

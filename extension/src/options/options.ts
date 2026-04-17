@@ -1,4 +1,4 @@
-import { testBackendConnection } from '../utils/api.js';
+import { syncPluginBootstrap, testBackendConnection } from '../utils/api.js';
 import {
   DEFAULT_SETTINGS,
   clearRuntimeCache,
@@ -29,18 +29,10 @@ void init().catch((error) => {
 
 async function init(): Promise<void> {
   await renderSettings();
-  saveButton?.addEventListener('click', () => {
-    void saveOptions();
-  });
-  testButton?.addEventListener('click', () => {
-    void testConnection();
-  });
-  clearCacheButton?.addEventListener('click', () => {
-    void clearCache();
-  });
-  resetSettingsButton?.addEventListener('click', () => {
-    void resetOptions();
-  });
+  saveButton?.addEventListener('click', () => void saveOptions());
+  testButton?.addEventListener('click', () => void testConnection());
+  clearCacheButton?.addEventListener('click', () => void clearCache());
+  resetSettingsButton?.addEventListener('click', () => void resetOptions());
 }
 
 async function renderSettings(): Promise<void> {
@@ -75,9 +67,14 @@ async function testConnection(): Promise<void> {
   showTestMessage('正在测试后端连接...');
   try {
     const health = await testBackendConnection(apiBaseUrl);
+    if (health.ok) {
+      await saveSettings({ apiBaseUrl });
+      await syncPluginBootstrap();
+      await renderSettings();
+    }
     showTestMessage(
       health.ok
-        ? `连接正常，耗时 ${health.latencyMs ?? 0}ms。`
+        ? `连接正常，耗时 ${health.latencyMs ?? 0}ms。已尝试同步主平台 bootstrap。`
         : `连接失败：${health.message}`,
       !health.ok,
     );
@@ -90,7 +87,7 @@ async function testConnection(): Promise<void> {
 
 async function clearCache(): Promise<void> {
   await clearRuntimeCache();
-  showMessage('本地运行时缓存已清空。');
+  showMessage('本地运行态缓存已清空。');
 }
 
 async function resetOptions(): Promise<void> {

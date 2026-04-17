@@ -5,13 +5,7 @@ import {
   resumeHostProtection,
   savePluginPolicySnapshot,
 } from './storage.js';
-import type { DetectionResult, PageInfo, PausedHostRecord, PluginPolicySnapshot, RiskLabel } from './storage.js';
-
-export interface FeedbackRequest {
-  url: string;
-  feedback_type: 'false_positive' | 'unsafe' | 'other';
-  comment: string;
-}
+import type { DetectionResult, ExtensionSettings, PageInfo, PausedHostRecord, PluginPolicySnapshot, RiskLabel } from './storage.js';
 
 export interface BackendHealth {
   ok: boolean;
@@ -25,38 +19,55 @@ export interface PluginSyncEventRequest {
   event_type: 'scan' | 'warning' | 'bypass' | 'trust' | 'temporary_trust' | 'feedback' | 'error';
   action?: string;
   url?: string;
+  host?: string;
   domain?: string;
+  risk_level?: RiskLabel;
   risk_label?: RiskLabel;
   risk_score?: number;
   summary?: string;
   scan_record_id?: number;
   plugin_version?: string;
+  payload?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 }
 
-interface PluginPolicyResponse {
-  username: string;
-  plugin_version: string;
-  rule_version: string;
-  user_trusted_hosts: string[];
-  user_blocked_hosts: string[];
-  user_paused_hosts: Array<{ domain: string; expires_at?: string | null; reason?: string | null }>;
-  global_trusted_hosts: string[];
-  global_blocked_hosts: string[];
+export interface FeedbackRequest {
+  url: string;
+  feedback_type: 'false_positive' | 'false_negative' | 'other';
+  comment: string;
+  report_id?: number;
 }
 
 interface PluginBootstrapResponse {
+  user_policy?: {
+    auto_detect?: boolean;
+    auto_block_malicious?: boolean;
+    notify_suspicious?: boolean;
+    bypass_duration_minutes?: number;
+    plugin_enabled?: boolean;
+  };
   trusted_hosts?: string[];
   blocked_hosts?: string[];
-  temp_bypass_records?: Array<{ domain: string; expires_at?: string | null; reason?: string | null }>;
+  temp_bypass_records?: Array<{ domain?: string; host?: string; expires_at?: string | null; reason?: string | null }>;
+  plugin_default_config?: {
+    api_base_url?: string;
+    web_base_url?: string;
+    auto_detect?: boolean;
+    auto_block_malicious?: boolean;
+    notify_suspicious?: boolean;
+    event_upload_enabled?: boolean;
+  };
   current_rule_version?: string;
+  generated_at?: string;
 }
 
 interface RequestOptions {
   timeoutMs?: number;
+  apiBaseUrl?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 5000;
+const PLUGIN_VERSION = chrome.runtime.getManifest().version || '1.0.0';
 
 export async function analyzeCurrentPage(data: PageInfo): Promise<DetectionResult> {
   const payload = await requestApi<unknown>('/api/v1/plugin/analyze-current', {
@@ -70,7 +81,7 @@ export async function analyzeCurrentPage(data: PageInfo): Promise<DetectionResul
 export async function testBackendConnection(apiBaseUrl?: string): Promise<BackendHealth> {
   const startedAt = Date.now();
   try {
-    await requestApi<unknown>('/health', { method: 'GET' }, { timeoutMs: DEFAULT_TIMEOUT_MS }, apiBaseUrl);
+    await requestApi<unknown>('/health', { method: 'GET' }, { timeoutMs: DEFAULT_TIMEOUT_MS, apiBaseUrl });
     return {
       ok: true,
       message: '后端连接正常',
@@ -79,46 +90,49 @@ export async function testBackendConnection(apiBaseUrl?: string): Promise<Backen
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : '后端连接失败',
+      message: errorMessage(error),
     };
   }
 }
 
-export async function syncPluginPolicy(): Promise<PluginPolicySnapshot | null> {
+export async function syncPluginBootstrap(): Promise<PluginPolicySnapshot | null> {
   try {
     const payload = await requestApi<unknown>('/api/v1/plugin/bootstrap', {
       method: 'GET',
       headers: webGuardHeaders(),
     });
-    const data = unwrapData(payload);
-    const policy = normalizePluginPolicy(data);
+    const policy = normalizePluginBootstrap(unwrapData(payload));
     await savePluginPolicySnapshot(policy);
     return policy;
   } catch (error) {
-    console.warn('[WebGuard] Plugin policy sync failed.', error);
+    console.warn('[WebGuard] Bootstrap sync failed.', error);
     return null;
   }
 }
 
+export const syncPluginPolicy = syncPluginBootstrap;
+
 export async function syncPluginEvent(data: PluginSyncEventRequest): Promise<void> {
+  const settings = await getSettings();
+  if (settings.eventUploadEnabled === false) return;
+
   try {
     await requestApi<unknown>('/api/v1/plugin/events', {
       method: 'POST',
       headers: webGuardHeaders(),
       body: JSON.stringify({
         ...data,
-        plugin_version: data.plugin_version || '1.0.0',
-        metadata: data.metadata || {},
+        domain: data.domain || data.host,
+        risk_level: data.risk_level || data.risk_label,
+        risk_label: data.risk_label || data.risk_level,
+        plugin_version: data.plugin_version || PLUGIN_VERSION,
+        payload: data.payload || data.metadata || {},
+        metadata: data.metadata || data.payload || {},
       }),
     });
   } catch (error) {
-    console.warn('[WebGuard] Plugin event sync failed.', error);
+    console.warn('[WebGuard] Plugin event upload failed.', error);
   }
-}
-
-export async function checkBackend(): Promise<boolean> {
-  const health = await testBackendConnection();
-  return health.ok;
 }
 
 export async function submitFeedback(data: FeedbackRequest): Promise<void> {
@@ -127,82 +141,77 @@ export async function submitFeedback(data: FeedbackRequest): Promise<void> {
     headers: webGuardHeaders(),
     body: JSON.stringify(data),
   });
-}
 
-export async function markReportFalsePositive(recordId: number, comment: string): Promise<void> {
-  await requestApi<unknown>(`/api/v1/reports/${encodeURIComponent(String(recordId))}/mark-false-positive`, {
-    method: 'POST',
-    headers: webGuardHeaders(),
-    body: JSON.stringify({
-      note: comment || '浏览器插件提交误报反馈',
-      status: 'pending_review',
-    }),
+  await syncPluginEvent({
+    event_type: 'feedback',
+    action: data.feedback_type,
+    url: data.url,
+    domain: hostFromUrl(data.url),
+    summary: data.comment,
+    scan_record_id: data.report_id,
   });
 }
 
 export async function trustSite(host: string): Promise<UserDecisionSyncStatus> {
-  try {
-    await requestApi<unknown>('/api/v1/my/domains', {
-      method: 'POST',
-      headers: webGuardHeaders(),
-      body: JSON.stringify({
-        host,
-        list_type: 'trusted',
-        reason: '浏览器插件加入信任站点',
-        source: 'plugin',
-      }),
-    });
-    await addTrustedHost(host);
-    await syncPluginEvent({
-      event_type: 'trust',
-      action: 'permanent_trust',
-      domain: host,
-      summary: '用户在插件中永久信任当前站点',
-    });
-    return 'synced';
-  } catch (error) {
-    console.warn('[WebGuard] Trust-site sync failed, using local decision.', error);
-    await addTrustedHost(host);
-    await syncPluginEvent({
-      event_type: 'trust',
-      action: 'permanent_trust_offline_cached',
-      domain: host,
-      summary: '后端策略同步失败，插件已写入本地永久信任缓存',
-    });
-    return 'offline-cache';
-  }
+  const cleanHost = normalizeHost(host);
+  if (!cleanHost) throw new Error('无法识别当前站点域名。');
+
+  await requestApi<unknown>('/api/v1/my/domains', {
+    method: 'POST',
+    headers: webGuardHeaders(),
+    body: JSON.stringify({
+      host: cleanHost,
+      list_type: 'trusted',
+      reason: '浏览器插件永久信任当前站点',
+      source: 'plugin',
+    }),
+  });
+
+  await addTrustedHost(cleanHost);
+  await syncPluginEvent({
+    event_type: 'trust',
+    action: 'permanent_trust',
+    domain: cleanHost,
+    summary: '用户在插件中永久信任当前站点',
+  });
+  void syncPluginBootstrap();
+  return 'synced';
 }
 
 export async function pauseSite(host: string, minutes = 30): Promise<UserDecisionSyncStatus> {
+  const cleanHost = normalizeHost(host);
+  if (!cleanHost) throw new Error('无法识别当前站点域名。');
+
   try {
     await requestApi<unknown>('/api/v1/my/domains', {
       method: 'POST',
       headers: webGuardHeaders(),
       body: JSON.stringify({
-        host,
+        host: cleanHost,
         list_type: 'temp_bypass',
-        reason: `浏览器插件临时忽略 ${minutes} 分钟`,
+        reason: `浏览器插件临时信任 ${minutes} 分钟`,
         source: 'plugin',
         minutes,
       }),
     });
-    await pauseHostProtection(host, minutes);
+    await pauseHostProtection(cleanHost, minutes);
     await syncPluginEvent({
       event_type: 'temporary_trust',
       action: 'pause_site',
-      domain: host,
+      domain: cleanHost,
       summary: `用户在插件中临时信任 ${minutes} 分钟`,
       metadata: { minutes },
     });
+    void syncPluginBootstrap();
     return 'synced';
   } catch (error) {
-    console.warn('[WebGuard] Pause-site sync failed, using local decision.', error);
-    await pauseHostProtection(host, minutes);
+    console.warn('[WebGuard] Temporary trust sync failed, keeping a local runtime fallback.', error);
+    await pauseHostProtection(cleanHost, minutes);
     await syncPluginEvent({
       event_type: 'temporary_trust',
       action: 'pause_site_offline_cached',
-      domain: host,
-      summary: `后端策略同步失败，插件已写入本地临时信任 ${minutes} 分钟`,
+      domain: cleanHost,
+      summary: `后端暂不可用，插件仅保留本地临时信任 ${minutes} 分钟`,
       metadata: { minutes },
     });
     return 'offline-cache';
@@ -210,35 +219,17 @@ export async function pauseSite(host: string, minutes = 30): Promise<UserDecisio
 }
 
 export async function resumeSite(host: string): Promise<UserDecisionSyncStatus> {
-  await resumeHostProtection(host);
-  try {
-    await requestApi<unknown>('/api/v1/user/site-actions/resume', {
-      method: 'POST',
-      headers: webGuardHeaders(),
-      body: JSON.stringify({
-        domain: host,
-        reason: '浏览器插件恢复保护',
-        source: 'plugin',
-      }),
-    });
-    return 'synced';
-  } catch (error) {
-    console.warn('[WebGuard] Resume-site sync failed, local decision was updated.', error);
-    return 'offline-cache';
-  }
+  const cleanHost = normalizeHost(host);
+  await resumeHostProtection(cleanHost);
+  return 'synced';
 }
 
-async function requestApi<T>(
-  path: string,
-  init: RequestInit,
-  options: RequestOptions = {},
-  apiBaseUrlOverride?: string,
-): Promise<T> {
+async function requestApi<T>(path: string, init: RequestInit, options: RequestOptions = {}): Promise<T> {
   const settings = await getSettings();
-  const apiBaseUrl = (apiBaseUrlOverride || settings.apiBaseUrl).replace(/\/+$/, '');
+  const apiBaseUrl = (options.apiBaseUrl || settings.apiBaseUrl).replace(/\/+$/, '');
   const url = new URL(path, `${apiBaseUrl}/`).toString();
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -266,63 +257,42 @@ async function requestApi<T>(
   }
 }
 
-function unwrapData(payload: unknown): unknown {
-  if (isRecord(payload) && 'data' in payload) return payload.data;
-  return payload;
-}
-
-function normalizePluginPolicy(value: unknown): PluginPolicySnapshot {
+function normalizePluginBootstrap(value: unknown): PluginPolicySnapshot {
   if (!isRecord(value)) {
-    throw new Error('后端策略响应无效');
+    throw new Error('后端 bootstrap 响应无效');
   }
-  if ('current_rule_version' in value || 'trusted_hosts' in value || 'plugin_default_config' in value) {
-    const bootstrap = value as unknown as PluginBootstrapResponse;
-    return {
-      username: 'platform-user',
-      pluginVersion: '1.0.0',
-      ruleVersion: typeof bootstrap.current_rule_version === 'string' ? bootstrap.current_rule_version : 'unknown',
-      userTrustedHosts: normalizeHostArray(bootstrap.trusted_hosts),
-      userBlockedHosts: normalizeHostArray(bootstrap.blocked_hosts),
-      userPausedHosts: normalizePausedPolicy(bootstrap.temp_bypass_records),
-      globalTrustedHosts: [],
-      globalBlockedHosts: [],
-      syncedAt: Date.now(),
-    };
-  }
-  const policy = value as unknown as PluginPolicyResponse;
+
+  const bootstrap = value as PluginBootstrapResponse;
+  const defaults = bootstrap.plugin_default_config || {};
+  const userPolicy = bootstrap.user_policy || {};
+  const defaultSettings: Partial<ExtensionSettings> = {
+    ...(typeof defaults.api_base_url === 'string' ? { apiBaseUrl: defaults.api_base_url } : {}),
+    ...(typeof defaults.web_base_url === 'string' ? { webBaseUrl: defaults.web_base_url } : {}),
+    ...(typeof defaults.auto_detect === 'boolean' ? { autoDetect: defaults.auto_detect } : {}),
+    ...(typeof defaults.auto_block_malicious === 'boolean' ? { autoBlockMalicious: defaults.auto_block_malicious } : {}),
+    ...(typeof defaults.notify_suspicious === 'boolean' ? { notifySuspicious: defaults.notify_suspicious } : {}),
+    ...(typeof defaults.event_upload_enabled === 'boolean' ? { eventUploadEnabled: defaults.event_upload_enabled } : {}),
+  };
+
   return {
-    username: typeof policy.username === 'string' ? policy.username : 'platform-user',
-    pluginVersion: typeof policy.plugin_version === 'string' ? policy.plugin_version : '1.0.0',
-    ruleVersion: typeof policy.rule_version === 'string' ? policy.rule_version : 'unknown',
-    userTrustedHosts: normalizeHostArray(policy.user_trusted_hosts),
-    userBlockedHosts: normalizeHostArray(policy.user_blocked_hosts),
-    userPausedHosts: normalizePausedPolicy(policy.user_paused_hosts),
-    globalTrustedHosts: normalizeHostArray(policy.global_trusted_hosts),
-    globalBlockedHosts: normalizeHostArray(policy.global_blocked_hosts),
+    username: 'platform-user',
+    pluginVersion: PLUGIN_VERSION,
+    ruleVersion: typeof bootstrap.current_rule_version === 'string' ? bootstrap.current_rule_version : 'unknown',
+    userTrustedHosts: normalizeHostArray(bootstrap.trusted_hosts),
+    userBlockedHosts: normalizeHostArray(bootstrap.blocked_hosts),
+    userPausedHosts: normalizePausedPolicy(bootstrap.temp_bypass_records),
+    globalTrustedHosts: [],
+    globalBlockedHosts: [],
+    defaultSettings,
+    userPolicy: {
+      autoDetect: userPolicy.auto_detect,
+      autoBlockMalicious: userPolicy.auto_block_malicious,
+      notifySuspicious: userPolicy.notify_suspicious,
+      bypassDurationMinutes: userPolicy.bypass_duration_minutes,
+      pluginEnabled: userPolicy.plugin_enabled,
+    },
     syncedAt: Date.now(),
   };
-}
-
-function normalizeHostArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-    : [];
-}
-
-function normalizePausedPolicy(value: unknown): PausedHostRecord[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (!isRecord(item) || typeof item.domain !== 'string') return null;
-      const expiresAt = typeof item.expires_at === 'string' ? Date.parse(item.expires_at) : 0;
-      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
-      return {
-        host: item.domain.trim().toLowerCase().replace(/^www\./, ''),
-        addedAt: Date.now(),
-        expiresAt,
-      };
-    })
-    .filter((item): item is PausedHostRecord => Boolean(item));
 }
 
 function validateDetectionResult(value: unknown, fallbackUrl: string): DetectionResult {
@@ -367,6 +337,31 @@ function validateDetectionResult(value: unknown, fallbackUrl: string): Detection
   };
 }
 
+function unwrapData(payload: unknown): unknown {
+  if (isRecord(payload) && 'data' in payload) return payload.data;
+  return payload;
+}
+
+function normalizeHostArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.map((item) => typeof item === 'string' ? normalizeHost(item) : '').filter(Boolean))]
+    : [];
+}
+
+function normalizePausedPolicy(value: unknown): PausedHostRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      const rawHost = typeof item.domain === 'string' ? item.domain : typeof item.host === 'string' ? item.host : '';
+      const host = normalizeHost(rawHost);
+      const expiresAt = typeof item.expires_at === 'string' ? Date.parse(item.expires_at) : 0;
+      if (!host || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+      return { host, addedAt: Date.now(), expiresAt };
+    })
+    .filter((item): item is PausedHostRecord => Boolean(item));
+}
+
 function parseRiskLabel(value: unknown): RiskLabel | null {
   if (value === 'safe' || value === 'suspicious' || value === 'malicious' || value === 'unknown') return value;
   return null;
@@ -409,6 +404,18 @@ function webGuardHeaders(): HeadersInit {
     'X-WebGuard-User': 'platform-user',
     'X-WebGuard-Role': 'user',
   };
+}
+
+function hostFromUrl(url: string): string {
+  try {
+    return normalizeHost(new URL(url).hostname);
+  } catch {
+    return '';
+  }
+}
+
+function normalizeHost(host: string): string {
+  return host.trim().toLowerCase().replace(/^www\./, '');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

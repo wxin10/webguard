@@ -7,7 +7,7 @@ export interface WarningPageParams {
   riskScore: number;
   summary: string;
   detectedAt: number;
-  recordId?: number;
+  reportId?: number;
 }
 
 export function buildWarningPageUrl(result: DetectionResult): string {
@@ -19,7 +19,7 @@ export function buildWarningPageUrl(result: DetectionResult): string {
   warningUrl.searchParams.set('detected_at', String(result.timestamp));
   const reportId = result.report_id || result.record_id;
   if (typeof reportId === 'number') {
-    warningUrl.searchParams.set('record_id', String(reportId));
+    warningUrl.searchParams.set('report_id', String(reportId));
   }
   return warningUrl.toString();
 }
@@ -31,7 +31,7 @@ export function parseWarningPageParams(search: string): WarningPageParams | null
   const riskScore = Number(params.get('risk_score'));
   const detectedAt = Number(params.get('detected_at'));
   const summary = params.get('summary') ?? '';
-  const recordIdValue = Number(params.get('record_id'));
+  const reportIdValue = Number(params.get('report_id') ?? params.get('record_id'));
 
   if (!url || !label || !Number.isFinite(riskScore) || !Number.isFinite(detectedAt)) return null;
 
@@ -41,14 +41,14 @@ export function parseWarningPageParams(search: string): WarningPageParams | null
     riskScore,
     summary: summary || '检测到高风险页面。',
     detectedAt,
-    ...(Number.isFinite(recordIdValue) && recordIdValue > 0 ? { recordId: recordIdValue } : {}),
+    ...(Number.isFinite(reportIdValue) && reportIdValue > 0 ? { reportId: reportIdValue } : {}),
   };
 }
 
-export function buildReportUrl(webBaseUrl: string, recordId?: number): string {
+export function buildReportUrl(webBaseUrl: string, reportId?: number): string {
   const base = normalizeBaseUrl(webBaseUrl, DEFAULT_SETTINGS.webBaseUrl);
-  const path = typeof recordId === 'number' && recordId > 0
-    ? `/app/reports/${encodeURIComponent(String(recordId))}`
+  const path = typeof reportId === 'number' && reportId > 0
+    ? `/app/reports/${encodeURIComponent(String(reportId))}`
     : '/app/report/latest';
   return new URL(path, `${base}/`).toString();
 }

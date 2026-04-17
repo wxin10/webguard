@@ -1,4 +1,4 @@
-import { pauseSite, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
+import { pauseSite, syncPluginBootstrap, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
 import { buildReportUrl } from '../utils/navigation.js';
 import {
   getSettings,
@@ -43,12 +43,14 @@ void init().catch((error) => {
 });
 
 async function init(): Promise<void> {
+  bindEvents();
+  void syncPluginBootstrap();
+
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTab = tabs[0] ?? null;
   const currentUrl = currentTab?.url ?? '';
 
   setText(currentUrlElement, currentUrl || '无法读取当前页面 URL');
-  bindEvents();
 
   if (!currentTab?.id || !currentUrl) {
     setActionAvailability(false);
@@ -58,6 +60,7 @@ async function init(): Promise<void> {
 
   if (!isHttpUrl(currentUrl)) {
     setActionAvailability(false);
+    reportButton?.removeAttribute('disabled');
     renderEmptyState('当前页面不是 http/https 页面，WebGuard 不会扫描浏览器内部页、扩展页或本地文件。');
     return;
   }
@@ -69,24 +72,12 @@ async function init(): Promise<void> {
 }
 
 function bindEvents(): void {
-  scanButton?.addEventListener('click', () => {
-    void scanCurrentTab();
-  });
-  warningButton?.addEventListener('click', () => {
-    void openWarningPage();
-  });
-  reportButton?.addEventListener('click', () => {
-    void openReport();
-  });
-  pauseButton?.addEventListener('click', () => {
-    void pauseCurrentSite();
-  });
-  trustButton?.addEventListener('click', () => {
-    void trustCurrentSite();
-  });
-  optionsButton?.addEventListener('click', () => {
-    void chrome.runtime.openOptionsPage();
-  });
+  scanButton?.addEventListener('click', () => void scanCurrentTab());
+  warningButton?.addEventListener('click', () => void openWarningPage());
+  reportButton?.addEventListener('click', () => void openReport());
+  pauseButton?.addEventListener('click', () => void pauseCurrentSite());
+  trustButton?.addEventListener('click', () => void trustCurrentSite());
+  optionsButton?.addEventListener('click', () => void chrome.runtime.openOptionsPage());
 }
 
 async function renderBackendStatus(): Promise<void> {
@@ -105,11 +96,11 @@ async function renderRecordWithDecisions(record: TabRiskRecord | null): Promise<
 
   if (!record) {
     if (await isTrustedHost(host)) {
-      renderEmptyState('当前站点已永久信任，自动扫描会跳过。', 'safe');
+      renderEmptyState('当前站点已在主平台信任策略中，自动扫描会跳过。', 'safe');
       return;
     }
     if (await isHostPaused(host)) {
-      renderEmptyState('当前站点已临时忽略，保护将在到期后恢复。', 'idle');
+      renderEmptyState('当前站点处于临时信任期，保护将在到期后恢复。', 'idle');
       return;
     }
     renderEmptyState('暂无当前页面检测结果。可以点击重新扫描。');
@@ -136,11 +127,8 @@ function renderRecord(record: TabRiskRecord): void {
   updateRiskBar(score ?? 0, state);
 
   currentRecord = record;
-  warningButton?.toggleAttribute(
-    'disabled',
-    !(record.result?.label === 'suspicious' || record.result?.label === 'malicious'),
-  );
-  reportButton?.toggleAttribute('disabled', false);
+  warningButton?.toggleAttribute('disabled', !(record.result?.label === 'suspicious' || record.result?.label === 'malicious'));
+  reportButton?.removeAttribute('disabled');
 }
 
 function renderEmptyState(message: string, state: TabRiskState = 'idle'): void {
@@ -171,7 +159,6 @@ async function scanCurrentTab(): Promise<void> {
     const response = await sendRuntimeMessage<unknown>({
       type: 'WEBGUARD_SCAN_TAB',
       tabId: currentTab.id,
-      url: currentTab.url,
     });
     if (!isScanResponse(response)) throw new Error('后台返回了无效扫描结果。');
     if (response.record) renderRecord(response.record);
@@ -203,7 +190,8 @@ async function openWarningPage(): Promise<void> {
 
 async function openReport(): Promise<void> {
   const settings = await getSettings();
-  const reportUrl = buildReportUrl(settings.webBaseUrl, currentRecord?.result?.report_id || currentRecord?.result?.record_id);
+  const reportId = currentRecord?.result?.report_id || currentRecord?.result?.record_id;
+  const reportUrl = buildReportUrl(settings.webBaseUrl, reportId);
   if (currentTab?.url) {
     await syncPluginEvent({
       event_type: 'scan',
@@ -213,7 +201,7 @@ async function openReport(): Promise<void> {
       risk_label: currentRecord?.result?.label,
       risk_score: currentRecord?.result?.risk_score,
       summary: currentRecord?.result?.summary,
-      scan_record_id: currentRecord?.result?.record_id,
+      scan_record_id: reportId,
     });
   }
   await chrome.tabs.create({ url: reportUrl });
@@ -222,7 +210,7 @@ async function openReport(): Promise<void> {
 async function pauseCurrentSite(): Promise<void> {
   const host = hostFromCurrentTab();
   if (!host) {
-    showMessage('当前页面无法临时忽略。', true);
+    showMessage('当前页面无法临时信任。', true);
     return;
   }
 
@@ -230,10 +218,10 @@ async function pauseCurrentSite(): Promise<void> {
   try {
     const status = await pauseSite(host, 30);
     showMessage(status === 'synced'
-      ? `${host} 已临时忽略 30 分钟，并同步到后端。`
-      : `${host} 已写入本地临时忽略 30 分钟；后端恢复后可在 Web 平台确认。`);
+      ? `${host} 已临时信任 30 分钟，并同步到主平台。`
+      : `${host} 已写入本地临时信任 30 分钟；后端恢复后请在主平台确认。`);
   } catch (error) {
-    showMessage(`临时忽略失败：${errorMessage(error)}`, true);
+    showMessage(`临时信任失败：${errorMessage(error)}`, true);
   } finally {
     pauseButton?.removeAttribute('disabled');
   }
@@ -248,12 +236,10 @@ async function trustCurrentSite(): Promise<void> {
 
   trustButton?.setAttribute('disabled', 'true');
   try {
-    const status = await trustSite(host);
-    showMessage(status === 'synced'
-      ? `${host} 已永久信任，并同步到后端。`
-      : `${host} 已写入本地永久信任列表；后端恢复后可在 Web 平台确认。`);
+    await trustSite(host);
+    showMessage(`${host} 已永久信任，并同步到主平台。`);
   } catch (error) {
-    showMessage(`永久信任失败：${errorMessage(error)}`, true);
+    showMessage(`永久信任需要写入主平台，目前失败：${errorMessage(error)}`, true);
   } finally {
     trustButton?.removeAttribute('disabled');
   }
@@ -342,7 +328,7 @@ function sendRuntimeMessage<T>(message: Record<string, unknown>): Promise<T> {
 function isScanResponse(value: unknown): value is ScanResponse {
   return isRecord(value)
     && typeof value.ok === 'boolean'
-    && ('record' in value)
+    && 'record' in value
     && (value.record === null || isTabRiskRecord(value.record));
 }
 

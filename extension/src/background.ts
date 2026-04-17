@@ -1,13 +1,13 @@
-import { analyzeCurrentPage, syncPluginEvent, syncPluginPolicy } from './utils/api.js';
+import { analyzeCurrentPage, syncPluginBootstrap, syncPluginEvent } from './utils/api.js';
 import { buildWarningPageUrl } from './utils/navigation.js';
 import {
   consumeTemporaryBypass,
   createRuntimeError,
   getSettings,
   hostFromUrl,
+  isBlockedByPolicy,
   isHostPaused,
   isHttpUrl,
-  isBlockedByPolicy,
   isTrustedHost,
   setTabState,
   stateFromRiskLabel,
@@ -15,7 +15,7 @@ import {
 } from './utils/storage.js';
 import type { DetectionResult, PageInfo, RuntimeError, TabRiskRecord } from './utils/storage.js';
 
-type ScanTrigger = 'auto' | 'manual' | 'warning';
+type ScanTrigger = 'auto' | 'manual';
 
 interface ScanResponse {
   ok: boolean;
@@ -26,7 +26,6 @@ interface ScanResponse {
 interface ScanMessage {
   type: 'WEBGUARD_SCAN_TAB';
   tabId?: number;
-  url?: string;
 }
 
 interface GetStateMessage {
@@ -46,7 +45,13 @@ type RuntimeMessage = ScanMessage | GetStateMessage | OpenWarningMessage;
 const activeScans = new Set<string>();
 
 chrome.runtime.onInstalled.addListener(() => {
-  logInfo('Installed and ready.');
+  logInfo('Installed. Syncing platform bootstrap.');
+  void syncPluginBootstrap();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  logInfo('Startup. Syncing platform bootstrap.');
+  void syncPluginBootstrap();
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -103,7 +108,7 @@ async function handleRuntimeMessage(message: unknown): Promise<unknown> {
   if (isOpenWarningMessage(message)) {
     const tab = await resolveTargetTab(message.tabId);
     if (!tab?.id || !message.result) return false;
-    await redirectToWarning(tab.id, message.result);
+    await redirectToWarning(tab.id, message.result, 'manual_open');
     return true;
   }
 
@@ -119,8 +124,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
   const key = tabStateKey(tabId, url);
   if (activeScans.has(key)) {
-    const record = await getStoredState(tabId, url);
-    return { ok: true, record };
+    return { ok: true, record: await getStoredState(tabId, url) };
   }
 
   activeScans.add(key);
@@ -128,32 +132,60 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
   try {
     await setTabState(tabId, url, 'scanning');
-    await syncPluginPolicy();
+    await syncPluginBootstrap();
 
-    const bypassed = await consumeTemporaryBypass(url);
-    if (bypassed) {
+    if (await consumeTemporaryBypass(url)) {
       const record = await setTabState(tabId, url, 'idle');
-      logInfo(`One-time bypass consumed. tab=${tabId} url=${url}`);
+      await syncPluginEvent({
+        event_type: 'bypass',
+        action: 'continue_once_consumed',
+        url,
+        domain: hostFromUrl(url),
+        summary: '一次性继续访问已消费，插件跳过本次扫描',
+      });
       return { ok: true, record };
     }
 
     const host = hostFromUrl(url);
     if (await isBlockedByPolicy(host)) {
-      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中后端下发的阻止策略或全局恶意域名。');
+      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中主平台下发的阻止策略。');
       const record = await handleDetectionResult(tabId, url, blockedResult);
+      await syncPluginEvent({
+        event_type: 'scan',
+        action: 'local_policy_blocked',
+        url,
+        domain: host,
+        risk_level: 'malicious',
+        risk_score: blockedResult.risk_score,
+        summary: blockedResult.summary,
+      });
       return { ok: true, record };
     }
 
     if (await isTrustedHost(host)) {
-      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点已在永久信任列表中，本次未调用后端扫描。');
+      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点命中主平台下发的信任策略，本次未调用后端扫描。');
       const record = await setTabState(tabId, url, 'safe', trustedResult);
-      logInfo(`Trusted host skipped. host=${host}`);
+      await syncPluginEvent({
+        event_type: 'scan',
+        action: 'local_policy_trusted',
+        url,
+        domain: host,
+        risk_level: 'safe',
+        risk_score: 0,
+        summary: trustedResult.summary,
+      });
       return { ok: true, record };
     }
 
     if (await isHostPaused(host)) {
       const record = await setTabState(tabId, url, 'idle');
-      logInfo(`Paused host skipped. host=${host}`);
+      await syncPluginEvent({
+        event_type: 'bypass',
+        action: 'temporary_trust_active',
+        url,
+        domain: host,
+        summary: '当前站点处于临时信任期，插件跳过本次扫描',
+      });
       return { ok: true, record };
     }
 
@@ -193,25 +225,25 @@ async function handleDetectionResult(tabId: number, originalUrl: string, result:
   if (result.label === 'malicious') {
     notifyRisk('WebGuard 安全警告', `检测到恶意站点，风险评分 ${result.risk_score.toFixed(1)}`);
     if (settings.autoBlockMalicious) {
-      await redirectToWarning(tabId, result);
+      await redirectToWarning(tabId, result, 'auto_block');
     }
   }
 
   return record;
 }
 
-async function redirectToWarning(tabId: number, result: DetectionResult): Promise<void> {
+async function redirectToWarning(tabId: number, result: DetectionResult, action: string): Promise<void> {
   const warningUrl = buildWarningPageUrl(result);
   logInfo(`Redirecting to warning page. tab=${tabId} url=${result.url}`);
   await syncPluginEvent({
     event_type: 'warning',
-    action: 'auto_block',
+    action,
     url: result.url,
     domain: hostFromUrl(result.url),
     risk_label: result.label,
     risk_score: result.risk_score,
     summary: result.summary || result.explanation,
-    scan_record_id: result.record_id,
+    scan_record_id: result.report_id || result.record_id,
   });
   await chrome.tabs.update(tabId, { url: warningUrl });
 }

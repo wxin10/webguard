@@ -35,6 +35,7 @@ export interface ExtensionSettings {
   autoDetect: boolean;
   autoBlockMalicious: boolean;
   notifySuspicious: boolean;
+  eventUploadEnabled: boolean;
 }
 
 export interface RuntimeError {
@@ -95,6 +96,14 @@ export interface PluginPolicySnapshot {
   userPausedHosts: PausedHostRecord[];
   globalTrustedHosts: string[];
   globalBlockedHosts: string[];
+  defaultSettings?: Partial<ExtensionSettings>;
+  userPolicy?: {
+    autoDetect?: boolean;
+    autoBlockMalicious?: boolean;
+    notifySuspicious?: boolean;
+    bypassDurationMinutes?: number;
+    pluginEnabled?: boolean;
+  };
   syncedAt: number;
 }
 
@@ -105,6 +114,7 @@ interface StoredSettingsV1 {
   autoDetect?: unknown;
   autoBlockMalicious?: unknown;
   notifySuspicious?: unknown;
+  eventUploadEnabled?: unknown;
 }
 
 interface LocalStorageShape {
@@ -125,6 +135,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   autoDetect: true,
   autoBlockMalicious: true,
   notifySuspicious: true,
+  eventUploadEnabled: true,
 };
 
 const DEFAULT_RUNTIME_CACHE: RuntimeCache = {
@@ -157,6 +168,7 @@ export async function getSettings(): Promise<ExtensionSettings> {
     autoDetect: firstBoolean(settings.autoDetect, DEFAULT_SETTINGS.autoDetect),
     autoBlockMalicious: firstBoolean(settings.autoBlockMalicious, DEFAULT_SETTINGS.autoBlockMalicious),
     notifySuspicious: firstBoolean(settings.notifySuspicious, DEFAULT_SETTINGS.notifySuspicious),
+    eventUploadEnabled: firstBoolean(settings.eventUploadEnabled, DEFAULT_SETTINGS.eventUploadEnabled),
   };
 }
 
@@ -293,6 +305,17 @@ export async function saveLastError(error: RuntimeError): Promise<void> {
 }
 
 export async function savePluginPolicySnapshot(policy: PluginPolicySnapshot): Promise<void> {
+  if (policy.defaultSettings) {
+    await saveSettings({
+      ...policy.defaultSettings,
+      autoDetect: firstBoolean(policy.userPolicy?.autoDetect, policy.defaultSettings.autoDetect ?? DEFAULT_SETTINGS.autoDetect),
+      autoBlockMalicious: firstBoolean(
+        policy.userPolicy?.autoBlockMalicious,
+        policy.defaultSettings.autoBlockMalicious ?? DEFAULT_SETTINGS.autoBlockMalicious,
+      ),
+      notifySuspicious: firstBoolean(policy.userPolicy?.notifySuspicious, policy.defaultSettings.notifySuspicious ?? DEFAULT_SETTINGS.notifySuspicious),
+    });
+  }
   await updateRuntimeCache((cache) => ({ ...cache, policySnapshot: policy }));
   await updateUserDecisions((decisions) => ({
     ...decisions,
@@ -311,14 +334,14 @@ export async function isBlockedByPolicy(host: string): Promise<boolean> {
   if (!normalizedHost) return false;
   const policy = await getPluginPolicySnapshot();
   if (!policy) return false;
-  return [...policy.userBlockedHosts, ...policy.globalBlockedHosts].some((item) => normalizeHost(item) === normalizedHost);
+  return [...policy.userBlockedHosts, ...policy.globalBlockedHosts].some((item) => hostMatches(normalizedHost, item));
 }
 
 export async function isTrustedHost(host: string): Promise<boolean> {
   const normalizedHost = normalizeHost(host);
   if (!normalizedHost) return false;
   const decisions = await getUserDecisions();
-  return decisions.trustedHosts.some((record) => record.host === normalizedHost);
+  return decisions.trustedHosts.some((record) => hostMatches(normalizedHost, record.host));
 }
 
 export async function addTrustedHost(host: string): Promise<void> {
@@ -632,6 +655,11 @@ function isPluginPolicySnapshot(value: unknown): value is PluginPolicySnapshot {
     && Array.isArray(value.globalTrustedHosts)
     && Array.isArray(value.globalBlockedHosts)
     && typeof value.syncedAt === 'number';
+}
+
+function hostMatches(host: string, pattern: string): boolean {
+  const normalizedPattern = normalizeHost(pattern);
+  return host === normalizedPattern || host.endsWith(`.${normalizedPattern}`);
 }
 
 function isRiskLabel(value: unknown): value is RiskLabel {

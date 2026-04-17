@@ -42,25 +42,11 @@ function render(): void {
 }
 
 function bindEvents(): void {
-  backButton?.addEventListener('click', () => {
-    void leavePage();
-  });
-
-  continueOnceButton?.addEventListener('click', () => {
-    void continueOnce();
-  });
-
-  trustTemporaryButton?.addEventListener('click', () => {
-    void trustTemporarily();
-  });
-
-  trustPermanentButton?.addEventListener('click', () => {
-    void trustPermanently();
-  });
-
-  reportButton?.addEventListener('click', () => {
-    void openReport();
-  });
+  backButton?.addEventListener('click', () => void leavePage());
+  continueOnceButton?.addEventListener('click', () => void continueOnce());
+  trustTemporaryButton?.addEventListener('click', () => void trustTemporarily());
+  trustPermanentButton?.addEventListener('click', () => void trustPermanently());
+  reportButton?.addEventListener('click', () => void openReport());
 }
 
 async function leavePage(): Promise<void> {
@@ -99,7 +85,7 @@ async function continueOnce(): Promise<void> {
       risk_label: params.label,
       risk_score: params.riskScore,
       summary: params.summary,
-      scan_record_id: params.recordId,
+      scan_record_id: params.reportId,
     });
     window.location.replace(params.url);
   } catch (error) {
@@ -128,10 +114,10 @@ async function trustTemporarily(): Promise<void> {
       risk_label: params.label,
       risk_score: params.riskScore,
       summary: params.summary,
-      scan_record_id: params.recordId,
+      scan_record_id: params.reportId,
     });
     showMessage(status === 'synced'
-      ? '已临时信任当前站点 30 分钟，并同步到后端。'
+      ? '已临时信任当前站点 30 分钟，并同步到主平台。'
       : '后端暂不可用，已写入本地临时信任 30 分钟。');
     await createTemporaryBypass(params.url);
     window.setTimeout(() => window.location.replace(params.url), 450);
@@ -152,7 +138,7 @@ async function trustPermanently(): Promise<void> {
 
   setBusy(trustPermanentButton, true);
   try {
-    const status = await trustSite(host);
+    await trustSite(host);
     await syncPluginEvent({
       event_type: 'trust',
       action: 'warning_permanent_trust',
@@ -161,15 +147,13 @@ async function trustPermanently(): Promise<void> {
       risk_label: params.label,
       risk_score: params.riskScore,
       summary: params.summary,
-      scan_record_id: params.recordId,
+      scan_record_id: params.reportId,
     });
-    showMessage(status === 'synced'
-      ? '已永久信任当前站点，并同步到后端。'
-      : '后端暂不可用，已写入本地永久信任列表。');
+    showMessage('已永久信任当前站点，并同步到主平台。');
     await createTemporaryBypass(params.url);
     window.setTimeout(() => window.location.replace(params.url), 450);
   } catch (error) {
-    showMessage(`永久信任失败：${errorMessage(error)}`, true);
+    showMessage(`永久信任需要写入主平台，目前失败：${errorMessage(error)}`, true);
   } finally {
     setBusy(trustPermanentButton, false);
   }
@@ -177,7 +161,7 @@ async function trustPermanently(): Promise<void> {
 
 async function openReport(): Promise<void> {
   const settings = await getSettings();
-  const reportUrl = buildReportUrl(settings.webBaseUrl, params?.recordId);
+  const reportUrl = buildReportUrl(settings.webBaseUrl, params?.reportId);
   if (params) {
     await syncPluginEvent({
       event_type: 'warning',
@@ -187,7 +171,7 @@ async function openReport(): Promise<void> {
       risk_label: params.label,
       risk_score: params.riskScore,
       summary: params.summary,
-      scan_record_id: params.recordId,
+      scan_record_id: params.reportId,
     });
   }
   await chrome.tabs.create({ url: reportUrl });
