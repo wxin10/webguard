@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import Principal, ok, principal_from_headers
 from ..models import ScanRecord as ScanRecordModel
 from ..schemas import ApiResponse, ScanRecord, ScanRecordList
-from ..services.platform_service import PlatformService
+from ..services.user_service import UserService
 
 router = APIRouter(prefix="/api/v1/records", tags=["records"])
 
@@ -37,10 +38,15 @@ def get_records(
     label: str | None = Query(default=None),
     source: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    query = _apply_filters(db.query(ScanRecordModel), label, source, q)
-    return {"code": 0, "message": "success", "data": _record_page(query, page, page_size)}
+    query = db.query(ScanRecordModel)
+    if not principal.is_admin:
+        user = UserService(db).get_or_create_user(principal.username)
+        query = query.filter((ScanRecordModel.user_id == user.id) | (ScanRecordModel.user_id.is_(None)))
+    query = _apply_filters(query, label, source, q)
+    return ok(_record_page(query, page, page_size))
 
 
 @router.get("/me", response_model=ApiResponse[ScanRecordList])
@@ -50,20 +56,20 @@ def get_my_records(
     label: str | None = Query(default=None),
     source: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    x_webguard_user: str | None = Header(default=None),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    user = PlatformService(db).get_or_create_user(x_webguard_user or "platform-user")
+    user = UserService(db).get_or_create_user(principal.username)
     query = db.query(ScanRecordModel).filter(
         (ScanRecordModel.user_id == user.id) | (ScanRecordModel.user_id.is_(None))
     ).filter(ScanRecordModel.source.in_(["plugin", "manual", "web", "recheck"]))
     query = _apply_filters(query, label, source, q)
-    return {"code": 0, "message": "success", "data": _record_page(query, page, page_size)}
+    return ok(_record_page(query, page, page_size))
 
 
 @router.get("/{record_id}", response_model=ApiResponse[ScanRecord])
 def get_record(record_id: int, db: Session = Depends(get_db)):
     record = db.query(ScanRecordModel).filter(ScanRecordModel.id == record_id).first()
     if not record:
-        return {"code": 404, "message": "记录不存在", "data": None}
-    return {"code": 0, "message": "success", "data": ScanRecord.model_validate(record)}
+        return {"success": False, "code": 404, "message": "记录不存在", "data": None}
+    return ok(ScanRecord.model_validate(record))

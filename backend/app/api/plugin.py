@@ -1,10 +1,11 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import Principal, fail, ok, principal_from_headers
 from ..models import ReportAction as ReportActionModel
 from ..schemas import (
     ApiResponse,
@@ -18,8 +19,12 @@ from ..schemas import (
     PluginSyncEventList,
     ScanResult,
 )
-from ..services import Detector
-from ..services.platform_service import PlatformService, normalize_domain
+from ..services.domain_service import normalize_domain
+from ..services.feedback_service import FeedbackService
+from ..services.plugin_event_service import PluginEventService
+from ..services.policy_service import PolicyService
+from ..services.report_service import ReportService
+from ..services.scan_service import ScanService
 
 router = APIRouter(prefix="/api/v1/plugin", tags=["plugin"])
 
@@ -46,34 +51,23 @@ class FeedbackCaseUpdate(BaseModel):
     comment: Optional[str] = None
 
 
-def current_username(x_webguard_user: str | None = Header(default=None)) -> str:
-    return (x_webguard_user or "platform-user").strip() or "platform-user"
-
-
-def current_role(x_webguard_role: str | None = Header(default=None)) -> str:
-    return (x_webguard_role or "user").strip() or "user"
-
-
 @router.get("/policy", response_model=ApiResponse[PluginPolicyBundle])
-def get_plugin_policy(username: str = Depends(current_username), db: Session = Depends(get_db)):
-    data = PlatformService(db).plugin_policy(username)
-    return {"code": 0, "message": "success", "data": data}
+def get_plugin_policy(principal: Principal = Depends(principal_from_headers), db: Session = Depends(get_db)):
+    return ok(PolicyService(db).plugin_policy(principal.username))
 
 
 @router.get("/bootstrap")
-def get_plugin_bootstrap(username: str = Depends(current_username), db: Session = Depends(get_db)):
-    data = PlatformService(db).plugin_bootstrap(username)
-    return {"success": True, "code": 0, "message": "success", "data": data}
+def get_plugin_bootstrap(principal: Principal = Depends(principal_from_headers), db: Session = Depends(get_db)):
+    return ok(PolicyService(db).plugin_bootstrap(principal.username))
 
 
 @router.post("/analyze-current", response_model=ApiResponse[ScanResult])
 def analyze_current(
     request: AnalyzeCurrentRequest,
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
-    username: str = Depends(current_username),
 ):
-    detector = Detector(db)
-    result = detector.detect_page(
+    result = ScanService(db).scan_page(
         {
             "url": request.url,
             "title": request.title,
@@ -84,15 +78,16 @@ def analyze_current(
             "has_password_input": request.has_password_input,
         },
         source="plugin",
-        username=username,
+        username=principal.username,
     )
-    PlatformService(db).record_plugin_event(
-        username,
+    PluginEventService(db).record_event(
+        principal.username,
         PluginSyncEventCreate(
             event_type="scan",
             url=request.url,
             domain=normalize_domain(request.url),
             risk_label=result.get("label"),
+            risk_level=result.get("label"),
             risk_score=result.get("risk_score"),
             summary=result.get("explanation"),
             scan_record_id=result.get("record_id"),
@@ -103,17 +98,17 @@ def analyze_current(
             },
         ),
     )
-    return {"code": 0, "message": "success", "data": result}
+    return ok(result)
 
 
 @router.post("/events", response_model=ApiResponse[PluginSyncEventItem])
 def record_plugin_event(
     request: PluginSyncEventCreate,
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
-    username: str = Depends(current_username),
 ):
-    event = PlatformService(db).record_plugin_event(username, request)
-    return {"code": 0, "message": "success", "data": PluginSyncEventItem.model_validate(event)}
+    event = PluginEventService(db).record_event(principal.username, request)
+    return ok(PluginSyncEventItem.model_validate(event))
 
 
 @router.get("/events", response_model=ApiResponse[PluginSyncEventList])
@@ -123,45 +118,36 @@ def get_plugin_events(
     event_type: str | None = Query(default=None),
     risk_label: str | None = Query(default=None),
     scan_record_id: int | None = Query(default=None),
-    username: str = Depends(current_username),
-    role: str = Depends(current_role),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    total, events = PlatformService(db).list_plugin_events(
-        username=username,
-        role=role,
+    total, events = PluginEventService(db).list_events(
+        username=principal.username,
+        role=principal.role,
         page=page,
         page_size=page_size,
         event_type=event_type,
         risk_label=risk_label,
         scan_record_id=scan_record_id,
     )
-    return {
-        "code": 0,
-        "message": "success",
-        "data": {"total": total, "events": [PluginSyncEventItem.model_validate(item) for item in events]},
-    }
+    return ok({"total": total, "events": [PluginSyncEventItem.model_validate(item) for item in events]})
 
 
 @router.get("/stats", response_model=ApiResponse[PluginEventStats])
-def get_plugin_stats(
-    username: str = Depends(current_username),
-    role: str = Depends(current_role),
-    db: Session = Depends(get_db),
-):
-    return {"code": 0, "message": "success", "data": PlatformService(db).plugin_stats(username, role)}
+def get_plugin_stats(principal: Principal = Depends(principal_from_headers), db: Session = Depends(get_db)):
+    return ok(PluginEventService(db).stats(principal.username, principal.role))
 
 
 @router.post("/feedback", response_model=ApiResponse[dict])
 def submit_feedback(
     request: FeedbackRequest,
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
-    username: str = Depends(current_username),
-    role: str = Depends(current_role),
 ):
-    service = PlatformService(db)
-    case = service.create_feedback_case(
-        username,
+    feedback_service = FeedbackService(db)
+    report_service = ReportService(db)
+    case = feedback_service.create_case(
+        principal.username,
         FeedbackCaseCreate(
             url=request.url,
             report_id=request.report_id,
@@ -170,19 +156,20 @@ def submit_feedback(
             comment=request.comment,
             source="plugin",
         ),
+        report_service=report_service,
     )
     action = ReportActionModel(
         report_id=request.report_id or 0,
-        actor=username,
-        actor_role=role,
+        actor=principal.username,
+        actor_role=principal.role,
         action_type=request.feedback_type,
         status="pending_review",
         note=f"{request.url}\n{request.comment or ''}".strip(),
     )
     db.add(action)
     db.commit()
-    service.record_plugin_event(
-        username,
+    PluginEventService(db).record_event(
+        principal.username,
         PluginSyncEventCreate(
             event_type="feedback",
             action=request.feedback_type,
@@ -193,7 +180,7 @@ def submit_feedback(
             metadata={"feedback_case_id": case.id},
         ),
     )
-    return {"code": 0, "message": "feedback submitted", "data": {"case_id": case.id}}
+    return ok({"case_id": case.id}, "feedback submitted")
 
 
 @router.get("/feedback-cases", response_model=ApiResponse[FeedbackCaseList])
@@ -201,34 +188,29 @@ def get_feedback_cases(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     status: str | None = Query(default=None),
-    username: str = Depends(current_username),
-    role: str = Depends(current_role),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    total, cases = PlatformService(db).list_feedback_cases(
-        username=username,
-        role=role,
+    total, cases = FeedbackService(db).list_cases(
+        username=principal.username,
+        role=principal.role,
         page=page,
         page_size=page_size,
         status=status,
     )
-    return {
-        "code": 0,
-        "message": "success",
-        "data": {"total": total, "cases": [FeedbackCaseItem.model_validate(item) for item in cases]},
-    }
+    return ok({"total": total, "cases": [FeedbackCaseItem.model_validate(item) for item in cases]})
 
 
 @router.put("/feedback-cases/{case_id}", response_model=ApiResponse[FeedbackCaseItem])
 def update_feedback_case(
     case_id: int,
     request: FeedbackCaseUpdate,
-    role: str = Depends(current_role),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    if role != "admin":
-        return {"code": 403, "message": "仅管理员可处理反馈案件", "data": None}
-    case = PlatformService(db).update_feedback_case(case_id, request.status, request.comment)
+    if not principal.is_admin:
+        return fail("仅管理员可处理反馈案件", 403)
+    case = FeedbackService(db).update_case(case_id, request.status, request.comment)
     if not case:
-        return {"code": 404, "message": "反馈案件不存在", "data": None}
-    return {"code": 0, "message": "success", "data": FeedbackCaseItem.model_validate(case)}
+        return fail("反馈案件不存在", 404)
+    return ok(FeedbackCaseItem.model_validate(case))

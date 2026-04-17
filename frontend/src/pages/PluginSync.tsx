@@ -6,34 +6,40 @@ import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import StatCard from '../components/StatCard';
-import { pluginService, userStrategyApi } from '../services/api';
-import { PluginEventStats, PluginPolicyBundle, PluginSyncEventItem, UserStrategyOverview } from '../types';
-import { formatDate, pluginEventText, strategyText } from '../utils';
+import StatusNotice from '../components/StatusNotice';
+import { pluginService } from '../services/pluginService';
+import type { PluginBootstrap, PluginSyncEventItem } from '../types';
+import { formatDate, pluginEventText } from '../utils';
 
 type FilterKey = 'all' | 'scan' | 'warning' | 'action' | 'feedback';
 
 export default function PluginSync() {
   const [events, setEvents] = useState<PluginSyncEventItem[]>([]);
-  const [stats, setStats] = useState<PluginEventStats | null>(null);
-  const [policy, setPolicy] = useState<PluginPolicyBundle | null>(null);
-  const [strategies, setStrategies] = useState<UserStrategyOverview | null>(null);
+  const [bootstrap, setBootstrap] = useState<PluginBootstrap | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const loadData = () => {
-    setLoading(true);
-    Promise.all([pluginService.getMyEvents(), pluginService.getStats(), pluginService.getPolicy(), userStrategyApi.getStrategies()])
-      .then(([eventData, statsData, policyData, strategyData]) => {
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [eventData, bootstrapData] = await Promise.all([
+          pluginService.getMyEvents(),
+          pluginService.getBootstrap().catch(() => null),
+        ]);
         setEvents(eventData.events || []);
-        setStats(statsData);
-        setPolicy(policyData);
-        setStrategies(strategyData);
-      })
-      .finally(() => setLoading(false));
-  };
+        setBootstrap(bootstrapData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '插件同步事件加载失败。');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(loadData, []);
+    load();
+  }, []);
 
   const visibleEvents = useMemo(() => events.filter((event) => {
     if (filter === 'scan') return event.event_type === 'scan';
@@ -42,21 +48,10 @@ export default function PluginSync() {
     if (filter === 'action') return ['bypass', 'trust', 'temporary_trust'].includes(event.event_type);
     return true;
   }), [events, filter]);
+
   const latestEvent = events[0];
-
-  const addTrusted = async (event: PluginSyncEventItem) => {
-    if (!event.domain) return;
-    await userStrategyApi.addTrustedSite({ domain: event.domain, reason: `来自插件同步事件 #${event.id}`, source: 'web' });
-    setMessage(`${event.domain} 已加入个人信任域名。`);
-    loadData();
-  };
-
-  const addBlocked = async (event: PluginSyncEventItem) => {
-    if (!event.domain) return;
-    await userStrategyApi.addBlockedSite({ domain: event.domain, reason: `来自插件同步事件 #${event.id}`, source: 'web' });
-    setMessage(`${event.domain} 已加入个人阻止域名。`);
-    loadData();
-  };
+  const warningCount = events.filter((event) => event.event_type === 'warning').length;
+  const actionCount = events.filter((event) => ['bypass', 'trust', 'temporary_trust'].includes(event.event_type)).length;
 
   if (loading) return <LoadingBlock />;
 
@@ -64,17 +59,21 @@ export default function PluginSync() {
     <div>
       <PageHeader
         title="插件同步记录"
-        description="插件只上传当前页面扫描和用户现场动作，完整记录、策略沉淀和后续处置都在 Web 平台完成。"
-        action={<Link to="/app/my-domains" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">管理个人策略</Link>}
+        description="插件只上传当前页扫描和现场处置动作；记录、报告和策略都由网站主平台承接。"
+        action={
+          <Link to="/app/my-domains" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            管理个人策略
+          </Link>
+        }
       />
 
-      {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
+      {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="插件版本" value={policy?.plugin_version || '1.0.0'} description={`规则版本 ${policy?.rule_version || '-'}`} tone="blue" />
-        <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent ? '事件回传正常' : '暂无插件事件'} tone={latestEvent ? 'green' : 'slate'} />
-        <StatCard title="Warning 拦截" value={stats?.warning_events || 0} description="恶意页面触发的提醒" tone="red" />
-        <StatCard title="继续访问/信任" value={(stats?.bypass_events || 0) + (stats?.trust_events || 0)} description="现场处置动作" tone="amber" />
+        <StatCard title="插件配置版本" value={bootstrap?.current_rule_version || '-'} description="来自后端 bootstrap" tone="blue" />
+        <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent?.plugin_version ? `插件 ${latestEvent.plugin_version}` : '暂无插件事件'} tone={latestEvent ? 'green' : 'slate'} />
+        <StatCard title="Warning 触发" value={warningCount} tone="red" />
+        <StatCard title="现场处置动作" value={actionCount} description="bypass / trust / temporary trust" tone="amber" />
       </div>
 
       <section className="my-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -91,22 +90,17 @@ export default function PluginSync() {
         data={visibleEvents}
         emptyText="暂无插件同步事件。"
         columns={[
+          { key: 'created_at', title: '时间', render: (value) => formatDate(String(value || '')) },
           { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },
-          { key: 'url', title: 'URL', render: (value) => <span className="block max-w-lg truncate">{value || '-'}</span> },
-          { key: 'risk_label', title: '风险', render: (value, row) => (value || row.risk_level) ? <RiskBadge label={value || row.risk_level} size="sm" /> : '-' },
+          { key: 'url', title: 'URL / Host', render: (value, row) => <span className="block max-w-lg truncate">{String(value || row.host || row.domain || '-')}</span> },
+          { key: 'risk_level', title: '风险', render: (value, row) => (value || row.risk_label) ? <RiskBadge label={String(value || row.risk_label)} size="sm" /> : '-' },
           { key: 'risk_score', title: '分数', render: (value) => typeof value === 'number' ? value.toFixed(1) : '-' },
-          { key: 'domain', title: '策略状态', render: (value) => policyState(value, strategies) },
-          { key: 'created_at', title: '同步时间', render: (value) => formatDate(value) },
+          { key: 'summary', title: '摘要', render: (value) => <span className="block max-w-md truncate">{String(value || '-')}</span> },
+          { key: 'plugin_version', title: '版本', render: (value) => String(value || '-') },
           {
-            key: 'id',
-            title: '处置',
-            render: (_value, row) => (
-              <div className="flex flex-wrap gap-2">
-                {row.scan_record_id && <Link to={`/app/reports/${row.scan_record_id}`} className="font-semibold text-emerald-700">报告</Link>}
-                {row.domain && <button onClick={() => addTrusted(row)} className="font-semibold text-slate-700">信任</button>}
-                {row.domain && <button onClick={() => addBlocked(row)} className="font-semibold text-rose-700">阻止</button>}
-              </div>
-            ),
+            key: 'scan_record_id',
+            title: '报告',
+            render: (value) => value ? <Link to={`/app/reports/${value}`} className="font-semibold text-blue-700">打开</Link> : '-',
           },
         ]}
       />
@@ -114,19 +108,9 @@ export default function PluginSync() {
   );
 }
 
-function policyState(domain: string | undefined, strategies: UserStrategyOverview | null) {
-  if (!domain || !strategies) return '未处理';
-  const matched = [
-    ...strategies.trusted_sites,
-    ...strategies.blocked_sites,
-    ...strategies.paused_sites,
-  ].find((item) => item.domain === domain);
-  return matched ? strategyText(matched.strategy_type) : '未处理';
-}
-
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button onClick={onClick} type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+    <button onClick={onClick} type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold ${active ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
       {children}
     </button>
   );

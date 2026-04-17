@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import Principal, ok, principal_from_headers
 from ..schemas import FeedbackCaseCreate, FeedbackCaseItem
-from ..services.platform_service import PlatformService
+from ..services.feedback_service import FeedbackService
+from ..services.report_service import ReportService
 
 
 router = APIRouter(prefix="/api/v1", tags=["feedback"])
-
-
-def current_username(x_webguard_user: str | None = Header(default=None)) -> str:
-    return (x_webguard_user or "platform-user").strip() or "platform-user"
 
 
 class FeedbackRequest(BaseModel):
@@ -29,11 +27,11 @@ class FeedbackRequest(BaseModel):
 @router.post("/feedback")
 def create_feedback(
     request: FeedbackRequest,
-    username: str = Depends(current_username),
+    principal: Principal = Depends(principal_from_headers),
     db: Session = Depends(get_db),
 ):
-    case = PlatformService(db).create_feedback_case(
-        username,
+    case = FeedbackService(db).create_case(
+        principal.username,
         FeedbackCaseCreate(
             url=request.url,
             report_id=request.related_report_id or request.report_id,
@@ -45,5 +43,6 @@ def create_feedback(
             comment=request.content,
             source=request.source,
         ),
+        report_service=ReportService(db),
     )
-    return {"success": True, "code": 0, "message": "feedback submitted", "data": FeedbackCaseItem.model_validate(case)}
+    return ok(FeedbackCaseItem.model_validate(case), "feedback submitted")

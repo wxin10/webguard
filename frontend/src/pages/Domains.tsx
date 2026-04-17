@@ -3,49 +3,93 @@ import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
-import { adminDomainsService } from '../services/api';
-import { DomainListItem } from '../types';
+import StatusNotice from '../components/StatusNotice';
+import { adminDomainsService } from '../services/adminDomainsService';
+import type { DomainListItem } from '../types';
 import { formatDate, sourceText, strategyText } from '../utils';
 
 type DomainTab = 'trusted' | 'blocked';
 
+const emptyDraft = {
+  host: '',
+  reason: '',
+  source: 'manual',
+};
+
 export default function Domains() {
   const [tab, setTab] = useState<DomainTab>('trusted');
   const [items, setItems] = useState<DomainListItem[]>([]);
-  const [host, setHost] = useState('');
-  const [reason, setReason] = useState('');
-  const [source, setSource] = useState('manual');
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editing, setEditing] = useState<DomainListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const loadData = () => {
+  const loadData = async () => {
     setLoading(true);
-    adminDomainsService.getDomains()
-      .then((data) => setItems(data.items || []))
-      .finally(() => setLoading(false));
+    setError('');
+    try {
+      const data = await adminDomainsService.getDomains();
+      setItems(data.items || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '全局域名策略加载失败。');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(loadData, []);
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const trusted = useMemo(() => items.filter((item) => item.list_type === 'trusted' && item.status !== 'disabled'), [items]);
   const blocked = useMemo(() => items.filter((item) => item.list_type === 'blocked' && item.status !== 'disabled'), [items]);
   const disabled = useMemo(() => items.filter((item) => item.status === 'disabled'), [items]);
   const data = tab === 'trusted' ? trusted : blocked;
 
+  const startEdit = (item: DomainListItem) => {
+    setEditing(item);
+    setTab(item.list_type === 'blocked' ? 'blocked' : 'trusted');
+    setDraft({
+      host: item.host,
+      reason: item.reason || '',
+      source: item.source || 'manual',
+    });
+  };
+
+  const resetForm = () => {
+    setEditing(null);
+    setDraft(emptyDraft);
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const cleanHost = host.trim();
-    if (!cleanHost) return;
-    await adminDomainsService.createDomain({ host: cleanHost, list_type: tab, reason, source, status: 'active' });
-    setMessage(`${cleanHost} 已保存到全局${strategyText(tab)}名单。`);
-    setHost('');
-    setReason('');
+    const host = draft.host.trim();
+    if (!host) {
+      setError('请输入域名。');
+      return;
+    }
+
+    if (editing) {
+      await adminDomainsService.updateDomain(editing.id, {
+        host,
+        list_type: tab,
+        reason: draft.reason,
+        source: draft.source,
+        status: 'active',
+      });
+      setMessage(`${host} 的全局策略已更新。`);
+    } else {
+      await adminDomainsService.createDomain({ host, list_type: tab, reason: draft.reason, source: draft.source, status: 'active' });
+      setMessage(`${host} 已保存到全局${strategyText(tab)}名单。`);
+    }
+    resetForm();
     loadData();
   };
 
-  const remove = async (id: number) => {
-    await adminDomainsService.deleteDomain(id);
-    setMessage('全局域名策略已停用。');
+  const remove = async (item: DomainListItem) => {
+    await adminDomainsService.deleteDomain(item.id);
+    setMessage(`${item.host} 已删除或停用。`);
     loadData();
   };
 
@@ -58,7 +102,8 @@ export default function Domains() {
         description="管理员维护全局 trusted / blocked 域名。个人策略仍在用户工作区维护，边界清晰。"
       />
 
-      {message && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</div>}
+      {message && <StatusNotice tone="success">{message}</StatusNotice>}
+      {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <StatCard title="全局白名单" value={trusted.length} tone="green" />
@@ -72,15 +117,20 @@ export default function Domains() {
           <button onClick={() => setTab('blocked')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === 'blocked' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>全局黑名单</button>
         </div>
         <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1fr_160px_120px]">
-          <input value={host} onChange={(event) => setHost(event.target.value)} placeholder="domain.com" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-          <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="添加原因" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-          <select value={source} onChange={(event) => setSource(event.target.value)} className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500">
+          <input value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} placeholder="domain.com" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
+          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="添加原因" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
+          <select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })} className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500">
             <option value="manual">手动添加</option>
             <option value="system">系统同步</option>
             <option value="plugin">插件事件</option>
           </select>
-          <button className="rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">保存</button>
+          <button className="rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">{editing ? '更新' : '保存'}</button>
         </form>
+        {editing && (
+          <button onClick={resetForm} type="button" className="mt-3 text-sm font-semibold text-slate-600 hover:text-slate-900">
+            取消编辑 {editing.host}
+          </button>
+        )}
       </section>
 
       <DataTable
@@ -88,12 +138,21 @@ export default function Domains() {
         emptyText="暂无全局域名策略。"
         columns={[
           { key: 'host', title: '域名' },
-          { key: 'list_type', title: '类型', render: (value) => strategyText(value) },
-          { key: 'reason', title: '原因', render: (value) => value || '-' },
-          { key: 'source', title: '来源', render: (value) => sourceText(value) },
+          { key: 'list_type', title: '类型', render: (value) => strategyText(String(value || '')) },
+          { key: 'reason', title: '原因', render: (value) => String(value || '-') },
+          { key: 'source', title: '来源', render: (value) => sourceText(String(value || '')) },
           { key: 'status', title: '状态', render: (value) => value === 'disabled' ? '已停用' : '启用中' },
-          { key: 'updated_at', title: '更新时间', render: (value, row) => formatDate(value || row.created_at) },
-          { key: 'id', title: '操作', render: (value, row) => row.status === 'disabled' ? '-' : <button onClick={() => remove(value)} className="font-semibold text-red-600">停用</button> },
+          { key: 'updated_at', title: '更新时间', render: (value, row) => formatDate(String(value || row.created_at || '')) },
+          {
+            key: 'id',
+            title: '操作',
+            render: (_value, row) => row.status === 'disabled' ? '-' : (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => startEdit(row)} className="font-semibold text-blue-700">编辑</button>
+                <button onClick={() => remove(row)} className="font-semibold text-red-600">删除</button>
+              </div>
+            ),
+          },
         ]}
       />
     </div>

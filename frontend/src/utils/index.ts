@@ -2,13 +2,15 @@ import type { RiskLabel } from '../types';
 
 export function formatDate(value?: string) {
   if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function getRiskText(label?: string) {
@@ -28,7 +30,7 @@ export function getRiskColor(label?: string) {
     malicious: 'bg-red-50 text-red-700 border-red-200',
     unknown: 'bg-slate-100 text-slate-600 border-slate-200',
   };
-  return colorMap[label || 'unknown'] || 'bg-slate-100 text-slate-600 border-slate-200';
+  return colorMap[label || 'unknown'] || colorMap.unknown;
 }
 
 export function riskAccent(label?: RiskLabel | string) {
@@ -47,10 +49,21 @@ export function riskBar(label?: RiskLabel | string) {
 
 export function sourceText(source?: string) {
   const sourceMap: Record<string, string> = {
-    manual: '手动检测',
-    plugin: '浏览器插件',
-    web: 'Web 页面',
+    manual: '手动添加',
+    plugin: '插件同步',
+    web: '网站平台',
     report: '报告处置',
+    recheck: '重新检测',
+    system: '系统同步',
+  };
+  return sourceMap[source || ''] || source || '-';
+}
+
+export function scanSourceText(source?: string) {
+  const sourceMap: Record<string, string> = {
+    manual: '网站检测',
+    web: '网站检测',
+    plugin: '插件扫描',
     recheck: '重新检测',
   };
   return sourceMap[source || ''] || source || '-';
@@ -58,13 +71,13 @@ export function sourceText(source?: string) {
 
 export function pluginEventText(eventType?: string, action?: string) {
   const eventMap: Record<string, string> = {
-    scan: '扫描事件',
-    warning: 'Warning 拦截',
-    bypass: '继续访问一次',
+    scan: '扫描',
+    warning: 'Warning',
+    bypass: '继续访问',
     trust: '永久信任',
     temporary_trust: '临时信任',
-    feedback: '误报反馈',
-    error: '插件错误',
+    feedback: '反馈',
+    error: '错误',
   };
   return eventMap[eventType || ''] || action || eventType || '-';
 }
@@ -74,6 +87,18 @@ export function strategyText(value?: string) {
     trusted: '信任',
     blocked: '阻止',
     paused: '临时放行',
+    temp_bypass: '临时放行',
   };
   return strategyMap[value || ''] || value || '-';
+}
+
+export function feedbackStatusText(value?: string) {
+  const textMap: Record<string, string> = {
+    pending_review: '待处理',
+    confirmed_false_positive: '确认误报',
+    confirmed_risk: '确认风险',
+    resolved: '已处理',
+    closed: '已关闭',
+  };
+  return textMap[value || ''] || value || '-';
 }

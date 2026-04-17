@@ -13,6 +13,7 @@ class APIResponse:
             status_code=200,
             content={
                 "code": 0,
+                "success": True,
                 "message": message,
                 "data": data
             }
@@ -25,6 +26,7 @@ class APIResponse:
             status_code=400,
             content={
                 "code": code,
+                "success": False,
                 "message": message,
                 "data": data
             }

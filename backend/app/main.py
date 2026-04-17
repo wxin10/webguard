@@ -34,7 +34,7 @@ def on_startup():
 async def webguard_exception_handler(request: Request, exc: WebGuardException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": exc.code, "message": exc.detail, "data": None},
+        content={"success": False, "code": exc.code, "message": exc.detail, "data": None},
     )
 
 
@@ -42,7 +42,7 @@ async def webguard_exception_handler(request: Request, exc: WebGuardException):
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": exc.status_code, "message": exc.detail, "data": None},
+        content={"success": False, "code": exc.status_code, "message": exc.detail, "data": None},
     )
 
 
@@ -50,7 +50,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def general_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={"code": 500, "message": "服务器内部错误", "data": None},
+        content={"success": False, "code": 500, "message": "服务器内部错误", "data": None},
     )
 
 
@@ -60,6 +60,7 @@ app.include_router(api_router)
 @app.get("/")
 def read_root():
     return {
+        "success": True,
         "code": 0,
         "message": "success",
         "data": {
@@ -72,7 +73,7 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"code": 0, "message": "success", "data": {"status": "healthy"}}
+    return {"success": True, "code": 0, "message": "success", "data": {"status": "healthy"}}
 
 
 if __name__ == "__main__":

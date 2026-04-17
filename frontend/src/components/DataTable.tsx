@@ -1,9 +1,9 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
 interface Column<T> {
   key: string;
   title: string;
-  render?: (value: any, row: T) => React.ReactNode;
+  render?: (value: any, row: T) => ReactNode;
 }
 
 interface DataTableProps<T> {
@@ -22,15 +22,15 @@ export default function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">加载中...</div>;
+    return <div className="p-8 text-center text-slate-500">正在加载...</div>;
   }
 
   if (!data.length) {
-    return <div className="p-8 text-center text-slate-500">{emptyText}</div>;
+    return <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">{emptyText}</div>;
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full min-w-[760px] text-left">
         <thead className="bg-slate-50">
           <tr>
@@ -44,13 +44,15 @@ export default function DataTable<T>({
         <tbody className="divide-y divide-slate-100">
           {data.map((row, index) => (
             <tr
-              key={(row as Record<string, any>).id ?? index}
+              key={(row as Record<string, unknown>).id?.toString() ?? String(index)}
               className={onRowClick ? 'cursor-pointer transition hover:bg-blue-50/60' : undefined}
               onClick={() => onRowClick?.(row)}
             >
               {columns.map((column) => (
                 <td key={column.key} className="px-5 py-4 text-sm text-slate-700">
-                  {column.render ? column.render((row as Record<string, any>)[column.key], row) : (row as Record<string, any>)[column.key]}
+                  {column.render
+                    ? column.render((row as Record<string, unknown>)[column.key], row)
+                    : String((row as Record<string, unknown>)[column.key] ?? '-')}
                 </td>
               ))}
             </tr>

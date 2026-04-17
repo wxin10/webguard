@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
 import RuleHitList from '../components/RuleHitList';
-import { scanService } from '../services/api';
-import { ScanResult } from '../types';
+import StatusNotice from '../components/StatusNotice';
+import { scanService } from '../services/scanService';
+import type { ScanResult } from '../types';
 import { riskBar } from '../utils';
 
 export default function Scan() {
@@ -15,14 +16,17 @@ export default function Scan() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!url.trim()) {
+    const targetUrl = url.trim();
+    if (!targetUrl) {
       setError('请输入需要检测的网址。');
       return;
     }
+
     setLoading(true);
     setError('');
+    setResult(null);
     try {
-      const data = await scanService.scanUrl({ url: url.trim() });
+      const data = await scanService.scanUrl({ url: targetUrl });
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '检测失败，请确认后端服务可用。');
@@ -35,12 +39,16 @@ export default function Scan() {
     <div>
       <PageHeader
         title="网站检测"
-        description="普通用户从这里提交 URL 检测。网站生成正式检测记录与报告，插件只负责浏览器当前页面的现场执行。"
-        action={<Link to="/app/my-records" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">查看历史记录</Link>}
+        description="在网站主平台发起 URL 检测，后端会生成统一的检测记录和正式报告。插件上传的现场扫描也会进入同一套记录体系。"
+        action={
+          <Link to="/app/my-records" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            查看历史记录
+          </Link>
+        }
       />
 
       <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
+        {error && <StatusNotice tone="error">{error}</StatusNotice>}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:flex-row">
           <input
             type="url"
@@ -60,42 +68,51 @@ export default function Scan() {
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
               <div>
-                <p className="text-sm font-semibold text-blue-600">检测结果摘要</p>
+                <p className="text-sm font-semibold text-blue-600">检测摘要</p>
                 <h2 className="mt-2 break-all text-xl font-bold text-slate-950">{url}</h2>
                 <p className="mt-1 text-sm text-slate-500">报告编号 #{result.report_id || result.record_id}</p>
               </div>
               <RiskBadge label={result.label} size="lg" />
             </div>
+
             <div className="mt-6 grid gap-4 lg:grid-cols-3">
               <Metric title="风险分数" value={result.risk_score.toFixed(1)} tone={result.label} />
               <Metric title="规则分数" value={result.rule_score.toFixed(1)} />
               <Metric title="模型恶意概率" value={`${(result.model_malicious_prob * 100).toFixed(1)}%`} />
             </div>
+
             <div className="mt-5 h-2 rounded-full bg-slate-200">
               <div className={`h-2 rounded-full ${riskBar(result.label)}`} style={{ width: `${Math.min(result.risk_score, 100)}%` }} />
             </div>
+
             <div className="mt-6 grid gap-5 lg:grid-cols-2">
               <div className="rounded-lg bg-slate-50 p-4">
-                <h3 className="font-semibold text-slate-950">检测摘要</h3>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{result.explanation}</p>
+                <h3 className="font-semibold text-slate-950">摘要原因</h3>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{result.explanation || '暂无摘要。'}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-4">
                 <h3 className="font-semibold text-slate-950">处置建议</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{result.recommendation}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{result.recommendation || '暂无处置建议。'}</p>
               </div>
             </div>
+
             <div className="mt-6">
               <h3 className="mb-3 font-semibold text-slate-950">命中规则</h3>
               <RuleHitList rules={result.hit_rules || []} />
             </div>
+
             <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Link className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/app/my-records">返回记录</Link>
-              <Link className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/app/reports/${result.report_id || result.record_id}`}>查看完整报告</Link>
+              <Link className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/app/my-records">
+                返回记录
+              </Link>
+              <Link className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" to={`/app/reports/${result.report_id || result.record_id}`}>
+                查看完整报告
+              </Link>
             </div>
           </section>
         ) : (
           <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-            检测完成后，这里会展示摘要；完整证据链、处置动作和历史追踪沉淀在 Web 报告中。
+            检测完成后，这里会展示风险等级、分数和摘要原因；完整证据链、用户动作和插件现场事件会沉淀到报告页。
           </section>
         )}
       </div>

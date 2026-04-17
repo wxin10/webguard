@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from ..models import ScanRecord
+from ..models import FeedbackCase, PluginSyncEvent, ScanRecord
 
 
 class StatsService:
@@ -100,3 +100,41 @@ class StatsService:
             'malicious': malicious,
             'distribution': distribution
         }
+
+    def get_source_distribution(self) -> Dict[str, int]:
+        rows = self.db.query(ScanRecord.source, func.count(ScanRecord.id)).group_by(ScanRecord.source).all()
+        return {source or "unknown": int(count) for source, count in rows}
+
+    def get_feedback_trend(self, days: int = 7) -> List[Dict[str, Any]]:
+        trend = []
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days - 1)
+        current_date = start_date
+        while current_date <= end_date:
+            total = self.db.query(func.count(FeedbackCase.id)).filter(
+                func.date(FeedbackCase.created_at) == current_date
+            ).scalar() or 0
+            resolved = self.db.query(func.count(FeedbackCase.id)).filter(
+                func.date(FeedbackCase.created_at) == current_date,
+                FeedbackCase.status.in_(["confirmed_false_positive", "confirmed_risk", "closed", "resolved"]),
+            ).scalar() or 0
+            trend.append({
+                "date": current_date.strftime("%Y-%m-%d"),
+                "count": total,
+                "resolved_count": resolved,
+            })
+            current_date += timedelta(days=1)
+        return trend
+
+    def get_platform_overview(self) -> Dict[str, Any]:
+        overview = self.get_overview()
+        overview.update({
+            "high_risk_count": self.db.query(func.count(ScanRecord.id)).filter(ScanRecord.label == "malicious").scalar() or 0,
+            "plugin_event_count": self.db.query(func.count(PluginSyncEvent.id)).scalar() or 0,
+            "warning_count": self.db.query(func.count(PluginSyncEvent.id)).filter(PluginSyncEvent.event_type == "warning").scalar() or 0,
+            "bypass_count": self.db.query(func.count(PluginSyncEvent.id)).filter(PluginSyncEvent.event_type == "bypass").scalar() or 0,
+            "trust_count": self.db.query(func.count(PluginSyncEvent.id)).filter(PluginSyncEvent.event_type.in_(["trust", "temporary_trust"])).scalar() or 0,
+            "feedback_count": self.db.query(func.count(FeedbackCase.id)).scalar() or 0,
+            "source_distribution": self.get_source_distribution(),
+        })
+        return overview
