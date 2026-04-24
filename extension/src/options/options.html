@@ -24,6 +24,14 @@
         <input id="web-base-url" type="url" placeholder="http://127.0.0.1:5173" />
         <p class="hint">用于打开网站报告和站点策略页面。</p>
 
+        <label for="access-token">Access Token</label>
+        <input id="access-token" type="password" autocomplete="off" placeholder="Bearer token from WebGuard dev login" />
+        <p class="hint">用于扫描、bootstrap 同步和策略写回时发送 Authorization: Bearer &lt;access_token&gt;。</p>
+
+        <label for="plugin-instance-id">Plugin Instance ID</label>
+        <input id="plugin-instance-id" type="text" autocomplete="off" placeholder="local-dev-plugin" />
+        <p class="hint">作为 X-Plugin-Instance-Id 发送。本轮保留手动填写，后续再接入完整绑定流程。</p>
+
         <button id="test-button" class="secondary">测试后端连接并同步配置</button>
         <p id="test-message" class="message" role="status"></p>
       </section>

@@ -1,4 +1,4 @@
-import { ensurePluginBootstrapFresh, testBackendConnection } from '../utils/api.js';
+import { testBackendConnection, testPluginBootstrapConnection } from '../utils/api.js';
 import {
   DEFAULT_SETTINGS,
   clearRuntimeCache,
@@ -10,6 +10,8 @@ import {
 
 const apiBaseUrlInput = document.getElementById('api-base-url') as HTMLInputElement | null;
 const webBaseUrlInput = document.getElementById('web-base-url') as HTMLInputElement | null;
+const accessTokenInput = document.getElementById('access-token') as HTMLInputElement | null;
+const pluginInstanceIdInput = document.getElementById('plugin-instance-id') as HTMLInputElement | null;
 const autoDetectCheckbox = document.getElementById('auto-detect') as HTMLInputElement | null;
 const autoBlockCheckbox = document.getElementById('auto-block') as HTMLInputElement | null;
 const notifySuspiciousCheckbox = document.getElementById('notify-suspicious') as HTMLInputElement | null;
@@ -39,6 +41,8 @@ async function renderSettings(): Promise<void> {
   const settings = await getSettings();
   if (apiBaseUrlInput) apiBaseUrlInput.value = settings.apiBaseUrl;
   if (webBaseUrlInput) webBaseUrlInput.value = settings.webBaseUrl;
+  if (accessTokenInput) accessTokenInput.value = settings.accessToken || '';
+  if (pluginInstanceIdInput) pluginInstanceIdInput.value = settings.pluginInstanceId || '';
   if (autoDetectCheckbox) autoDetectCheckbox.checked = settings.autoDetect;
   if (autoBlockCheckbox) autoBlockCheckbox.checked = settings.autoBlockMalicious;
   if (notifySuspiciousCheckbox) notifySuspiciousCheckbox.checked = settings.notifySuspicious;
@@ -51,6 +55,8 @@ async function saveOptions(): Promise<void> {
     await saveSettings({
       apiBaseUrl,
       webBaseUrl,
+      accessToken: accessTokenInput?.value.trim() || undefined,
+      pluginInstanceId: pluginInstanceIdInput?.value.trim() || undefined,
       autoDetect: Boolean(autoDetectCheckbox?.checked),
       autoBlockMalicious: Boolean(autoBlockCheckbox?.checked),
       notifySuspicious: Boolean(notifySuspiciousCheckbox?.checked),
@@ -63,13 +69,22 @@ async function saveOptions(): Promise<void> {
 
 async function testConnection(): Promise<void> {
   const apiBaseUrl = readRequiredUrl(apiBaseUrlInput, DEFAULT_SETTINGS.apiBaseUrl);
+  const webBaseUrl = readRequiredUrl(webBaseUrlInput, DEFAULT_SETTINGS.webBaseUrl);
   testButton?.setAttribute('disabled', 'true');
   showTestMessage('正在测试后端连接...');
   try {
+    await saveSettings({
+      apiBaseUrl,
+      webBaseUrl,
+      accessToken: accessTokenInput?.value.trim() || undefined,
+      pluginInstanceId: pluginInstanceIdInput?.value.trim() || undefined,
+      autoDetect: Boolean(autoDetectCheckbox?.checked),
+      autoBlockMalicious: Boolean(autoBlockCheckbox?.checked),
+      notifySuspicious: Boolean(notifySuspiciousCheckbox?.checked),
+    });
     const health = await testBackendConnection(apiBaseUrl);
     if (health.ok) {
-      await saveSettings({ apiBaseUrl });
-      await ensurePluginBootstrapFresh(true);
+      await testPluginBootstrapConnection();
       await renderSettings();
     }
     showTestMessage(

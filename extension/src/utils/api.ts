@@ -121,13 +121,7 @@ export async function testBackendConnection(apiBaseUrl?: string): Promise<Backen
 
 export async function syncPluginBootstrap(): Promise<PluginPolicySnapshot | null> {
   try {
-    const payload = await requestApi<unknown>('/api/v1/plugin/bootstrap', {
-      method: 'GET',
-      headers: webGuardHeaders(),
-    });
-    const policy = parsePluginBootstrapSnapshot(unwrapData(payload));
-    await savePluginPolicySnapshot(policy);
-    return policy;
+    return await fetchAndSavePluginBootstrap();
   } catch (error) {
     console.warn('[WebGuard] Bootstrap sync failed.', error);
     return null;
@@ -142,6 +136,10 @@ export async function ensurePluginBootstrapFresh(force = false): Promise<PluginP
     return snapshot;
   }
   return syncPluginBootstrap();
+}
+
+export async function testPluginBootstrapConnection(): Promise<PluginPolicySnapshot> {
+  return fetchAndSavePluginBootstrap();
 }
 
 export async function syncPluginEvent(data: PluginSyncEventRequest): Promise<void> {
@@ -347,6 +345,16 @@ export function parsePluginBootstrapSnapshot(value: unknown): PluginPolicySnapsh
       : {}),
     syncedAt: Date.now(),
   };
+}
+
+async function fetchAndSavePluginBootstrap(): Promise<PluginPolicySnapshot> {
+  const payload = await requestApi<unknown>('/api/v1/plugin/bootstrap', {
+    method: 'GET',
+    headers: webGuardHeaders(),
+  });
+  const policy = parsePluginBootstrapSnapshot(unwrapData(payload));
+  await savePluginPolicySnapshot(policy);
+  return policy;
 }
 
 function validateDetectionResult(value: unknown, fallbackUrl: string): DetectionResult {

@@ -76,6 +76,7 @@ h1 {
 }
 
 .url-card,
+.connection-card,
 .status-card {
   margin-top: 14px;
   border: 1px solid #e2e8f0;
@@ -83,6 +84,13 @@ h1 {
   background: #fff;
   padding: 14px;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.connection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
 }
 
 .url-card span {

@@ -1,6 +1,7 @@
 import { ensurePluginBootstrapFresh, pauseSite, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
 import { buildReportUrl } from '../utils/navigation.js';
 import {
+  getPluginPolicySnapshot,
   getSettings,
   getTabRiskRecord,
   hostFromUrl,
@@ -26,6 +27,10 @@ const scanTimeElement = document.getElementById('scan-time');
 const riskLabelElement = document.getElementById('risk-label');
 const riskSummaryElement = document.getElementById('risk-summary');
 const pageMessageElement = document.getElementById('page-message');
+const apiBaseUrlElement = document.getElementById('api-base-url-status');
+const tokenStatusElement = document.getElementById('token-status');
+const pluginInstanceElement = document.getElementById('plugin-instance-status');
+const bootstrapStatusElement = document.getElementById('bootstrap-status');
 
 const scanButton = document.getElementById('scan-button') as HTMLButtonElement | null;
 const warningButton = document.getElementById('warning-button') as HTMLButtonElement | null;
@@ -44,13 +49,14 @@ void init().catch((error) => {
 
 async function init(): Promise<void> {
   bindEvents();
-  void ensurePluginBootstrapFresh();
+  await ensurePluginBootstrapFresh();
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTab = tabs[0] ?? null;
   const currentUrl = currentTab?.url ?? '';
 
   setText(currentUrlElement, currentUrl || '无法读取当前页面 URL');
+  await renderConnectionSummary();
 
   if (!currentTab?.id || !currentUrl) {
     setActionAvailability(false);
@@ -88,6 +94,18 @@ async function renderBackendStatus(): Promise<void> {
   if (!health.ok) {
     showMessage(`后端不可达：${health.message}`, true);
   }
+}
+
+async function renderConnectionSummary(): Promise<void> {
+  const settings = await getSettings();
+  const snapshot = await getPluginPolicySnapshot();
+  setText(apiBaseUrlElement, settings.apiBaseUrl);
+  setText(tokenStatusElement, settings.accessToken ? '已配置' : '未配置');
+  setText(pluginInstanceElement, settings.pluginInstanceId || '未配置');
+  setText(
+    bootstrapStatusElement,
+    snapshot ? `${new Date(snapshot.syncedAt).toLocaleString()} / ${snapshot.configVersion || snapshot.ruleVersion}` : '尚未同步',
+  );
 }
 
 async function renderRecordWithDecisions(record: TabRiskRecord | null): Promise<void> {
