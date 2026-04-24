@@ -1,11 +1,15 @@
-import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.core.database import Base
 from app.services.detector import Detector
 
-# 创建SQLite内存测试数据库
-engine = create_engine("sqlite:///:memory:")
+# 创建共享的 SQLite 内存测试数据库
+engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # 创建测试表
@@ -82,6 +86,10 @@ def test_build_result():
             'safe_prob': 0.9,
             'suspicious_prob': 0.05,
             'malicious_prob': 0.05
+        },
+        'score_breakdown': {
+            'final_score': 10.0,
+            'label': 'safe',
         },
         'explanation': '测试解释',
         'recommendation': '测试建议'

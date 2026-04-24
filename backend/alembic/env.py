@@ -18,7 +18,7 @@ from app.models import *  # 导入所有模型
 # access to the values within the .ini file in use.
 config = context.config
 
-# 设置数据库 URL。Local development uses MySQL by default.
+# 设置数据库 URL。Local development defaults to PostgreSQL.
 config.set_main_option('sqlalchemy.url', settings.sqlalchemy_database_url)
 
 # Interpret the config file for Python logging.

@@ -1,12 +1,17 @@
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.core.database import Base
 from app.core import get_db
 
-# 创建SQLite内存测试数据库
-engine = create_engine("sqlite:///:memory:")
+# 创建共享的 SQLite 内存测试数据库
+engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # 创建测试表

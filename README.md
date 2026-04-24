@@ -4,33 +4,32 @@ WebGuard 是一个以 Web 平台为正式主入口的恶意网站检测与主动
 
 ## 本地开发环境
 
-- Backend: Python 3.14 + FastAPI + SQLAlchemy
-- Database: 本机 MySQL
+- Backend: Python 3.11+ + FastAPI + SQLAlchemy
+- Database: 本机 PostgreSQL
 - Frontend: React + TypeScript + Vite
 - Extension: Chrome/Edge Manifest V3 + TypeScript
 
-本地开发数据库固定为：
+本地开发数据库默认配置为：
 
 ```text
 host: 127.0.0.1
-port: 3306
+port: 5432
 database: webguard
-username: admin
-password: adminadmin
+username: webguard
+password: webguard
 ```
 
 默认连接串：
 
 ```text
-mysql+pymysql://admin:adminadmin@127.0.0.1:3306/webguard?charset=utf8mb4
+postgresql://webguard:webguard@127.0.0.1:5432/webguard
 ```
 
-如果本机尚未创建数据库，可以执行：
+如果本机尚未创建数据库和开发用户，可以执行：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS webguard
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+CREATE USER webguard WITH PASSWORD 'webguard';
+CREATE DATABASE webguard OWNER webguard;
 ```
 
 同样的 SQL 放在 `backend/scripts/init_mysql.sql`。
@@ -45,7 +44,16 @@ py -3.14 -m pip install -r requirements.txt
 py -3.14 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端以 Python 3.14 为目标运行环境。没有 `backend/.env` 时，默认使用本地 MySQL 配置。
+后端在本地开发中默认读取 `backend/.env`；如果该文件不存在，则回退到 `backend/app/core/config.py` 中的 PostgreSQL 默认配置。
+
+数据库初始化后，建议先执行：
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+当前分支尚未提交 Alembic 版本脚本，所以上述命令主要用于验证迁移链路可执行；实际本地建表仍会在服务启动时由应用启动逻辑补齐。
 
 ### Frontend
 
