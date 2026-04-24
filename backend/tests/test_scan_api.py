@@ -80,8 +80,9 @@ def test_scan_url_empty():
     )
     assert response.status_code == 400
     data = response.json()
-    assert data["code"] == 400
+    assert data["code"] == 40002
     assert data["message"] == "URL不能为空"
+    assert data["data"] is None
 
 
 def test_scan_page_empty_url():
@@ -100,5 +101,18 @@ def test_scan_page_empty_url():
     )
     assert response.status_code == 400
     data = response.json()
-    assert data["code"] == 400
+    assert data["code"] == 40002
     assert data["message"] == "URL不能为空"
+    assert data["data"] is None
+
+
+def test_scan_url_validation_error():
+    """测试请求校验错误响应契约"""
+    response = client.post("/api/v1/scan/url", json={})
+    assert response.status_code == 400
+    data = response.json()
+    assert data == {
+        "code": 40002,
+        "message": "invalid parameter",
+        "data": None,
+    }

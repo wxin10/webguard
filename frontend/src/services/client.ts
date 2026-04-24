@@ -26,11 +26,15 @@ api.interceptors.request.use((config) => {
 export async function unwrap<T>(request: Promise<AxiosResponse<ApiResponse<T>>>): Promise<T> {
   try {
     const response = await request;
-    if (response.data.success === false || response.data.code !== 0) {
+    if (response.data.code !== 0) {
       throw new Error(response.data.message || '请求失败');
     }
-    return response.data.data;
+    return response.data.data as T;
   } catch (error) {
+    if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
+      const message = error.response?.data?.message || error.message || '网络请求失败';
+      throw new Error(message);
+    }
     if (error instanceof Error) throw error;
     throw new Error('网络请求失败');
   }

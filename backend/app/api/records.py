@@ -3,7 +3,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..core import get_db
-from ..core.auth_context import Principal, ok, principal_from_headers
+from ..core.auth_context import Principal, fail, ok, principal_from_headers
 from ..models import ScanRecord as ScanRecordModel
 from ..schemas import ApiResponse, ScanRecord, ScanRecordList
 from ..services.user_service import UserService
@@ -71,5 +71,5 @@ def get_my_records(
 def get_record(record_id: int, db: Session = Depends(get_db)):
     record = db.query(ScanRecordModel).filter(ScanRecordModel.id == record_id).first()
     if not record:
-        return {"success": False, "code": 404, "message": "记录不存在", "data": None}
+        return fail("记录不存在", 404)
     return ok(ScanRecord.model_validate(record))

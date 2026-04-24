@@ -3,6 +3,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import fail, ok
 from ..models import DomainWhitelist as DomainWhitelistModel
 from ..schemas import ApiResponse, DomainList, DomainWhitelist, DomainWhitelistCreate
 from .user import normalize_domain
@@ -22,14 +23,12 @@ def get_whitelist(
         query = query.filter(DomainWhitelistModel.status == status)
     total = query.count()
     items = query.order_by(desc(DomainWhitelistModel.added_at)).offset((page - 1) * page_size).limit(page_size).all()
-    return {
-        "code": 0,
-        "message": "success",
-        "data": {
+    return ok(
+        {
             "total": total,
             "items": [DomainWhitelist.model_validate(item) for item in items],
-        },
-    }
+        }
+    )
 
 
 @router.post("", response_model=ApiResponse[DomainWhitelist])
@@ -42,7 +41,7 @@ def add_whitelist(request: DomainWhitelistCreate, db: Session = Depends(get_db))
         existing.status = request.status or "active"
         db.commit()
         db.refresh(existing)
-        return {"code": 0, "message": "success", "data": DomainWhitelist.model_validate(existing)}
+        return ok(DomainWhitelist.model_validate(existing))
 
     whitelist = DomainWhitelistModel(
         domain=domain,
@@ -53,14 +52,14 @@ def add_whitelist(request: DomainWhitelistCreate, db: Session = Depends(get_db))
     db.add(whitelist)
     db.commit()
     db.refresh(whitelist)
-    return {"code": 0, "message": "success", "data": DomainWhitelist.model_validate(whitelist)}
+    return ok(DomainWhitelist.model_validate(whitelist))
 
 
 @router.delete("/{whitelist_id}", response_model=ApiResponse[dict])
 def delete_whitelist(whitelist_id: int, db: Session = Depends(get_db)):
     whitelist = db.query(DomainWhitelistModel).filter(DomainWhitelistModel.id == whitelist_id).first()
     if not whitelist:
-        return {"code": 404, "message": "白名单记录不存在", "data": None}
+        return fail("白名单记录不存在", 404)
     whitelist.status = "disabled"
     db.commit()
-    return {"code": 0, "message": "success", "data": {"id": whitelist_id, "status": "disabled"}}
+    return ok({"id": whitelist_id, "status": "disabled"})

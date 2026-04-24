@@ -3,6 +3,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import fail, ok
 from ..models import DomainBlacklist as DomainBlacklistModel
 from ..schemas import ApiResponse, DomainBlacklist, DomainBlacklistCreate, DomainList
 from .user import normalize_domain
@@ -22,14 +23,12 @@ def get_blacklist(
         query = query.filter(DomainBlacklistModel.status == status)
     total = query.count()
     items = query.order_by(desc(DomainBlacklistModel.added_at)).offset((page - 1) * page_size).limit(page_size).all()
-    return {
-        "code": 0,
-        "message": "success",
-        "data": {
+    return ok(
+        {
             "total": total,
             "items": [DomainBlacklist.model_validate(item) for item in items],
-        },
-    }
+        }
+    )
 
 
 @router.post("", response_model=ApiResponse[DomainBlacklist])
@@ -43,7 +42,7 @@ def add_blacklist(request: DomainBlacklistCreate, db: Session = Depends(get_db))
         existing.status = request.status or "active"
         db.commit()
         db.refresh(existing)
-        return {"code": 0, "message": "success", "data": DomainBlacklist.model_validate(existing)}
+        return ok(DomainBlacklist.model_validate(existing))
 
     blacklist = DomainBlacklistModel(
         domain=domain,
@@ -55,14 +54,14 @@ def add_blacklist(request: DomainBlacklistCreate, db: Session = Depends(get_db))
     db.add(blacklist)
     db.commit()
     db.refresh(blacklist)
-    return {"code": 0, "message": "success", "data": DomainBlacklist.model_validate(blacklist)}
+    return ok(DomainBlacklist.model_validate(blacklist))
 
 
 @router.delete("/{blacklist_id}", response_model=ApiResponse[dict])
 def delete_blacklist(blacklist_id: int, db: Session = Depends(get_db)):
     blacklist = db.query(DomainBlacklistModel).filter(DomainBlacklistModel.id == blacklist_id).first()
     if not blacklist:
-        return {"code": 404, "message": "黑名单记录不存在", "data": None}
+        return fail("黑名单记录不存在", 404)
     blacklist.status = "disabled"
     db.commit()
-    return {"code": 0, "message": "success", "data": {"id": blacklist_id, "status": "disabled"}}
+    return ok({"id": blacklist_id, "status": "disabled"})

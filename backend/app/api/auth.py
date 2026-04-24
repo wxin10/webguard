@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from ..core.auth_context import ok
 from ..schemas import ApiResponse
 
 
@@ -26,12 +27,10 @@ def mock_login(request: MockLoginRequest):
     without changing the rest of the frontend auth context.
     """
     display_name = request.username.strip() or ("安全运营管理员" if request.role == "admin" else "受保护用户")
-    return {
-        "code": 0,
-        "message": "success",
-        "data": {
+    return ok(
+        {
             "username": request.username.strip(),
             "role": request.role,
             "display_name": display_name,
-        },
-    }
+        }
+    )

@@ -2,10 +2,9 @@ export type UserRole = 'admin' | 'user';
 export type RiskLabel = 'safe' | 'suspicious' | 'malicious' | 'unknown';
 
 export interface ApiResponse<T> {
-  success?: boolean;
   code: number;
   message: string;
-  data: T;
+  data: T | null;
 }
 
 export interface DevelopmentUser {

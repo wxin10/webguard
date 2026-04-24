@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from ..core import get_db
+from ..core.auth_context import fail, ok
 from ..models import UserSiteStrategy as UserSiteStrategyModel
 from ..schemas import ApiResponse, UserSiteStrategyCreate, UserSiteStrategyItem, UserStrategyOverview
 
@@ -95,7 +96,7 @@ def get_user_strategies(
         "blocked_sites": [UserSiteStrategyItem.model_validate(item) for item in items if item.strategy_type == "blocked"],
         "paused_sites": [UserSiteStrategyItem.model_validate(item) for item in items if item.strategy_type == "paused"],
     }
-    return {"code": 0, "message": "success", "data": data}
+    return ok(data)
 
 
 @router.post("/trusted-sites", response_model=ApiResponse[UserSiteStrategyItem])
@@ -105,7 +106,7 @@ def add_trusted_site(
     db: Session = Depends(get_db),
 ):
     strategy = upsert_strategy(db, username, "trusted", request)
-    return {"code": 0, "message": "success", "data": UserSiteStrategyItem.model_validate(strategy)}
+    return ok(UserSiteStrategyItem.model_validate(strategy))
 
 
 @router.post("/blocked-sites", response_model=ApiResponse[UserSiteStrategyItem])
@@ -115,7 +116,7 @@ def add_blocked_site(
     db: Session = Depends(get_db),
 ):
     strategy = upsert_strategy(db, username, "blocked", request)
-    return {"code": 0, "message": "success", "data": UserSiteStrategyItem.model_validate(strategy)}
+    return ok(UserSiteStrategyItem.model_validate(strategy))
 
 
 @router.post("/site-actions/pause", response_model=ApiResponse[UserSiteStrategyItem])
@@ -125,7 +126,7 @@ def pause_site(
     db: Session = Depends(get_db),
 ):
     strategy = upsert_strategy(db, username, "paused", request)
-    return {"code": 0, "message": "success", "data": UserSiteStrategyItem.model_validate(strategy)}
+    return ok(UserSiteStrategyItem.model_validate(strategy))
 
 
 @router.post("/site-actions/resume", response_model=ApiResponse[dict])
@@ -141,7 +142,7 @@ def resume_site(
         UserSiteStrategyModel.strategy_type == "paused",
     ).update({"is_active": False})
     db.commit()
-    return {"code": 0, "message": "success", "data": {"domain": domain, "resumed": True}}
+    return ok({"domain": domain, "resumed": True})
 
 
 @router.delete("/trusted-sites/{strategy_id}", response_model=ApiResponse[dict])
@@ -161,7 +162,7 @@ def delete_strategy(strategy_id: int, username: str, strategy_type: str, db: Ses
         UserSiteStrategyModel.strategy_type == strategy_type,
     ).first()
     if not strategy:
-        return {"code": 404, "message": "策略不存在", "data": None}
+        return fail("策略不存在", 404)
     strategy.is_active = False
     db.commit()
-    return {"code": 0, "message": "删除成功", "data": None}
+    return ok(None, "删除成功")

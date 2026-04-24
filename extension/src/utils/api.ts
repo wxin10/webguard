@@ -66,6 +66,13 @@ interface RequestOptions {
   apiBaseUrl?: string;
 }
 
+interface ApiEnvelope<T> {
+  code?: number;
+  message?: string;
+  data?: T | null;
+  success?: boolean;
+}
+
 const DEFAULT_TIMEOUT_MS = 5000;
 const PLUGIN_VERSION = chrome.runtime.getManifest().version || '1.0.0';
 
@@ -238,15 +245,28 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
       signal: controller.signal,
     });
 
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      throw new Error(`后端响应不是有效 JSON：${errorMessage(error)}`);
+    }
+
+    if (isApiEnvelope(payload)) {
+      if (payload.code !== undefined && payload.code !== 0) {
+        throw new Error(payload.message || `后端返回异常：HTTP ${response.status}`);
+      }
+      if (!response.ok) {
+        throw new Error(payload.message || `后端返回异常：HTTP ${response.status}`);
+      }
+      return payload as T;
+    }
+
     if (!response.ok) {
       throw new Error(`后端返回异常：HTTP ${response.status}`);
     }
 
-    try {
-      return await response.json() as T;
-    } catch (error) {
-      throw new Error(`后端响应不是有效 JSON：${errorMessage(error)}`);
-    }
+    return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error(`请求超时：${timeoutMs}ms`);
@@ -338,7 +358,7 @@ function validateDetectionResult(value: unknown, fallbackUrl: string): Detection
 }
 
 function unwrapData(payload: unknown): unknown {
-  if (isRecord(payload) && 'data' in payload) return payload.data;
+  if (isApiEnvelope(payload)) return payload.data;
   return payload;
 }
 
@@ -420,6 +440,10 @@ function normalizeHost(host: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isApiEnvelope(value: unknown): value is ApiEnvelope<unknown> {
+  return isRecord(value) && ('code' in value || 'message' in value || 'data' in value);
 }
 
 function errorMessage(error: unknown): string {

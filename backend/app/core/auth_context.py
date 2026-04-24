@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Header
+from fastapi.responses import JSONResponse
+
+from .response import error_response, success_payload
 
 
 @dataclass(frozen=True)
@@ -31,14 +34,14 @@ def principal_from_headers(
 
 
 def ok(data: Any = None, message: str = "success") -> dict[str, Any]:
-    return {"success": True, "code": 0, "message": message, "data": data}
+    return success_payload(data=data, message=message)
 
 
-def fail(message: str, code: int = 400, data: Any = None) -> dict[str, Any]:
-    return {"success": False, "code": code, "message": message, "data": data}
+def fail(message: str, status_code: int = 400, data: Any = None, code: int | None = None) -> JSONResponse:
+    return error_response(message=message, status_code=status_code, code=code, data=data)
 
 
-def require_admin(principal: Principal) -> dict[str, Any] | None:
+def require_admin(principal: Principal) -> JSONResponse | None:
     if principal.is_admin:
         return None
     return fail("admin permission required", 403)
