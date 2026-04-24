@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     DB_CHARSET: str = "utf8mb4"
     DATABASE_URL: str | None = None
     CORS_ORIGINS: str = "http://127.0.0.1:5173,http://localhost:5173,chrome-extension://__EXTENSION_ID__"
+    ENABLE_DEV_AUTH: bool = True
+    JWT_SECRET: str = "webguard-dev-secret"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRES_MINUTES: int = 30
 
     MODEL_DIR: str = "./models"
     MODEL_NAME: str = "text_classifier"
@@ -35,6 +39,18 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [item.strip() for item in self.CORS_ORIGINS.split(",") if item.strip()]
+
+    @property
+    def dev_auth_enabled(self) -> bool:
+        return bool(self.DEBUG and self.ENABLE_DEV_AUTH)
+
+    @property
+    def mock_login_enabled(self) -> bool:
+        return self.dev_auth_enabled
+
+    @property
+    def access_token_expires_seconds(self) -> int:
+        return max(self.JWT_ACCESS_TOKEN_EXPIRES_MINUTES, 1) * 60
 
     def _normalize_database_url(self, database_url: str) -> str:
         if database_url.startswith("postgres://"):

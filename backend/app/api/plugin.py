@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core import get_db
-from ..core.auth_context import Principal, fail, ok, principal_from_headers
+from ..core.auth_context import Principal, fail, ok, principal_from_headers, require_auth
 from ..models import ReportAction as ReportActionModel
 from ..schemas import (
     ApiResponse,
@@ -57,7 +57,7 @@ def get_plugin_policy(principal: Principal = Depends(principal_from_headers), db
 
 
 @router.get("/bootstrap")
-def get_plugin_bootstrap(principal: Principal = Depends(principal_from_headers), db: Session = Depends(get_db)):
+def get_plugin_bootstrap(principal: Principal = Depends(require_auth), db: Session = Depends(get_db)):
     return ok(PolicyService(db).plugin_bootstrap(principal.username))
 
 

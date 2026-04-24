@@ -36,6 +36,8 @@ export interface ExtensionSettings {
   autoBlockMalicious: boolean;
   notifySuspicious: boolean;
   eventUploadEnabled: boolean;
+  accessToken?: string;
+  pluginInstanceId?: string;
 }
 
 export interface RuntimeError {
@@ -115,6 +117,8 @@ interface StoredSettingsV1 {
   autoBlockMalicious?: unknown;
   notifySuspicious?: unknown;
   eventUploadEnabled?: unknown;
+  accessToken?: unknown;
+  pluginInstanceId?: unknown;
 }
 
 interface LocalStorageShape {
@@ -169,6 +173,8 @@ export async function getSettings(): Promise<ExtensionSettings> {
     autoBlockMalicious: firstBoolean(settings.autoBlockMalicious, DEFAULT_SETTINGS.autoBlockMalicious),
     notifySuspicious: firstBoolean(settings.notifySuspicious, DEFAULT_SETTINGS.notifySuspicious),
     eventUploadEnabled: firstBoolean(settings.eventUploadEnabled, DEFAULT_SETTINGS.eventUploadEnabled),
+    ...(firstString(settings.accessToken) ? { accessToken: firstString(settings.accessToken) } : {}),
+    ...(firstString(settings.pluginInstanceId) ? { pluginInstanceId: firstString(settings.pluginInstanceId) } : {}),
   };
 }
 
@@ -179,6 +185,8 @@ export async function saveSettings(settings: Partial<ExtensionSettings>): Promis
     ...settings,
     apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl, current.apiBaseUrl),
     webBaseUrl: normalizeBaseUrl(settings.webBaseUrl, current.webBaseUrl),
+    ...(typeof settings.accessToken === 'string' ? { accessToken: settings.accessToken.trim() || undefined } : {}),
+    ...(typeof settings.pluginInstanceId === 'string' ? { pluginInstanceId: settings.pluginInstanceId.trim() || undefined } : {}),
   };
   await chrome.storage.local.set({ settings: next });
   return next;

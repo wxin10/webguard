@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core import get_db
-from ..core.auth_context import Principal, fail, ok, principal_from_headers
+from ..core.auth_context import Principal, fail, ok, principal_from_headers, require_auth
 from ..schemas import FeedbackCaseCreate, FeedbackCaseItem, PluginSyncEventCreate, PluginSyncEventItem
 from ..services.domain_service import DomainService
 from ..services.feedback_service import FeedbackService
@@ -105,7 +105,7 @@ def delete_my_domain(
 
 
 @router.get("/policy")
-def get_my_policy(principal: Principal = Depends(principal_from_headers), db: Session = Depends(get_db)):
+def get_my_policy(principal: Principal = Depends(require_auth), db: Session = Depends(get_db)):
     policy = PolicyService(db).get_or_create_policy(principal.username)
     return ok(policy)
 
@@ -113,7 +113,7 @@ def get_my_policy(principal: Principal = Depends(principal_from_headers), db: Se
 @router.patch("/policy")
 def update_my_policy(
     request: UserPolicyPatch,
-    principal: Principal = Depends(principal_from_headers),
+    principal: Principal = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
     policy = PolicyService(db).update_policy(principal.username, request.model_dump(exclude_unset=True))

@@ -11,6 +11,9 @@ export interface DevelopmentUser {
   username: string;
   role: UserRole;
   display_name: string;
+  access_token?: string;
+  token_type?: string;
+  expires_in?: number;
 }
 
 export interface UrlScanRequest {

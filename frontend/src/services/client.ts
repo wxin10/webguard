@@ -14,6 +14,9 @@ api.interceptors.request.use((config) => {
   if (!rawUser) return config;
   try {
     const user = JSON.parse(rawUser) as DevelopmentUser;
+    if (user.access_token) {
+      headers.Authorization = `Bearer ${user.access_token}`;
+    }
     headers['X-WebGuard-User'] = user.username || 'platform-user';
     headers['X-WebGuard-Role'] = user.role || 'user';
   } catch {

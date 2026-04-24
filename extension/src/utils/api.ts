@@ -240,8 +240,10 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers = withAuthHeaders(init.headers, settings);
     const response = await fetch(url, {
       ...init,
+      headers,
       signal: controller.signal,
     });
 
@@ -424,6 +426,19 @@ function webGuardHeaders(): HeadersInit {
     'X-WebGuard-User': 'platform-user',
     'X-WebGuard-Role': 'user',
   };
+}
+
+function withAuthHeaders(headers: HeadersInit | undefined, settings: ExtensionSettings): Headers {
+  const next = new Headers(headers);
+  if (!next.has('Content-Type')) next.set('Content-Type', 'application/json');
+  next.set('X-Plugin-Version', PLUGIN_VERSION);
+  if (settings.pluginInstanceId) {
+    next.set('X-Plugin-Instance-Id', settings.pluginInstanceId);
+  }
+  if (settings.accessToken) {
+    next.set('Authorization', `Bearer ${settings.accessToken}`);
+  }
+  return next;
 }
 
 function hostFromUrl(url: string): string {
