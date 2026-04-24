@@ -1,5 +1,6 @@
 export type RiskLabel = 'safe' | 'suspicious' | 'malicious' | 'unknown';
 export type TabRiskState = 'idle' | 'scanning' | 'safe' | 'suspicious' | 'malicious' | 'error';
+export type DetectionAction = 'ALLOW' | 'WARN' | 'BLOCK';
 
 export interface PageInfo {
   url: string;
@@ -13,9 +14,14 @@ export interface PageInfo {
 
 export interface DetectionResult {
   url: string;
+  domain?: string;
   label: RiskLabel;
   risk_score: number;
   summary: string;
+  reason_summary?: string[];
+  action?: DetectionAction;
+  should_warn?: boolean;
+  should_block?: boolean;
   reason?: string;
   explanation?: string;
   recommendation?: string;

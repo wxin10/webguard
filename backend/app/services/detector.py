@@ -26,49 +26,61 @@ class Detector:
         try:
             if username:
                 now = datetime.now(timezone.utc)
-                user_strategy = self.db.query(UserSiteStrategy).filter(
-                    UserSiteStrategy.username == username,
-                    UserSiteStrategy.domain == domain,
-                    UserSiteStrategy.is_active.is_(True),
-                    UserSiteStrategy.strategy_type.in_(["trusted", "blocked", "paused"]),
-                ).filter(
-                    (UserSiteStrategy.expires_at.is_(None)) | (UserSiteStrategy.expires_at > now)
-                ).order_by(UserSiteStrategy.updated_at.desc()).first()
+                user_strategy = (
+                    self.db.query(UserSiteStrategy)
+                    .filter(
+                        UserSiteStrategy.username == username,
+                        UserSiteStrategy.domain == domain,
+                        UserSiteStrategy.is_active.is_(True),
+                        UserSiteStrategy.strategy_type.in_(["trusted", "blocked", "paused"]),
+                    )
+                    .filter((UserSiteStrategy.expires_at.is_(None)) | (UserSiteStrategy.expires_at > now))
+                    .order_by(UserSiteStrategy.updated_at.desc())
+                    .first()
+                )
                 if user_strategy:
                     if user_strategy.strategy_type == "blocked":
                         return {
                             "label": "malicious",
-                            "reason": f"域名命中你的阻止站点策略：{user_strategy.reason or '用户策略'}",
+                            "reason": f"Domain matches your blocked-site policy: {user_strategy.reason or 'user policy'}",
                         }
-                    policy_name = "临时忽略" if user_strategy.strategy_type == "paused" else "信任站点"
+                    policy_name = "temporary bypass" if user_strategy.strategy_type == "paused" else "trusted site"
                     return {
                         "label": "safe",
-                        "reason": f"域名命中你的{policy_name}策略：{user_strategy.reason or '用户策略'}",
+                        "reason": f"Domain matches your {policy_name} policy: {user_strategy.reason or 'user policy'}",
                     }
 
-            blacklist = self.db.query(DomainBlacklist).filter(
-                DomainBlacklist.domain == domain,
-                DomainBlacklist.status == "active",
-            ).first()
+            blacklist = (
+                self.db.query(DomainBlacklist)
+                .filter(
+                    DomainBlacklist.domain == domain,
+                    DomainBlacklist.status == "active",
+                )
+                .first()
+            )
             if blacklist:
                 return {
                     "label": "malicious",
-                    "reason": f"域名在全局黑名单中：{blacklist.reason or '未填写原因'}",
+                    "reason": f"Domain is in the global blacklist: {blacklist.reason or 'no reason provided'}",
                 }
 
-            whitelist = self.db.query(DomainWhitelist).filter(
-                DomainWhitelist.domain == domain,
-                DomainWhitelist.status == "active",
-            ).first()
+            whitelist = (
+                self.db.query(DomainWhitelist)
+                .filter(
+                    DomainWhitelist.domain == domain,
+                    DomainWhitelist.status == "active",
+                )
+                .first()
+            )
             if whitelist:
                 return {
                     "label": "safe",
-                    "reason": f"域名在全局白名单中：{whitelist.reason or '未填写原因'}",
+                    "reason": f"Domain is in the global whitelist: {whitelist.reason or 'no reason provided'}",
                 }
 
             return None
         except SQLAlchemyError as exc:
-            raise DatabaseError(f"查询黑白名单失败: {exc}")
+            raise DatabaseError(f"Failed to query domain lists: {exc}") from exc
 
     def _run_detection_pipeline(self, features: Dict[str, Any]) -> Dict[str, Any]:
         try:
@@ -76,13 +88,13 @@ class Detector:
             rule_score = rule_result["rule_score"]
             rule_details = rule_result["rules"]
         except Exception as exc:
-            raise RuleEngineError(f"规则引擎执行失败: {exc}")
+            raise RuleEngineError(f"Rule engine execution failed: {exc}") from exc
 
         try:
             model_input = features["model_input"]
             model_result = self.model_service.predict(model_input)
         except Exception as exc:
-            raise ModelServiceError(f"模型推理失败: {exc}")
+            raise ModelServiceError(f"Model inference failed: {exc}") from exc
 
         fuse_result = self._fuse_decision(rule_score, model_result)
         score_breakdown = build_score_breakdown(
@@ -111,7 +123,84 @@ class Detector:
             "recommendation": recommendation,
         }
 
-    def _build_result(self, domain_list_result: Optional[Dict[str, Any]], pipeline_result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _decision_flags(self, label: str) -> tuple[str, bool, bool]:
+        if label == "malicious":
+            return "BLOCK", True, True
+        if label == "suspicious":
+            return "WARN", True, False
+        return "ALLOW", False, False
+
+    def _summarize_reasons(self, hit_rules: list[dict[str, Any]]) -> list[str]:
+        reasons: list[str] = []
+        for rule in hit_rules:
+            if not rule.get("matched"):
+                continue
+            reason = (
+                str(
+                    rule.get("reason")
+                    or rule.get("detail")
+                    or rule.get("name")
+                    or rule.get("rule_name")
+                    or ""
+                )
+                .strip()
+            )
+            if reason and reason not in reasons:
+                reasons.append(reason)
+            if len(reasons) >= 3:
+                break
+        return reasons
+
+    def _build_summary(
+        self,
+        *,
+        label: str,
+        reason_summary: list[str],
+        explanation: str,
+        domain_list_reason: Optional[str] = None,
+    ) -> str:
+        if domain_list_reason:
+            return domain_list_reason
+        if reason_summary:
+            return "；".join(reason_summary[:2])
+        if explanation:
+            first_line = explanation.splitlines()[0].strip()
+            if first_line:
+                return first_line
+        if label == "malicious":
+            return "Detected high-risk signals and blocked the page."
+        if label == "suspicious":
+            return "Detected suspicious signals and recommend warning the user."
+        return "No obvious high-risk signal was detected."
+
+    def _attach_result_metadata(
+        self,
+        *,
+        result: Dict[str, Any],
+        url: str,
+        domain: str,
+        record: ScanRecord,
+    ) -> Dict[str, Any]:
+        action, should_warn, should_block = self._decision_flags(result["label"])
+        enriched = dict(result)
+        enriched.update(
+            {
+                "url": url,
+                "domain": domain,
+                "action": action,
+                "should_warn": should_warn,
+                "should_block": should_block,
+                "record_id": record.id,
+                "report_id": record.report_id or record.id,
+            }
+        )
+        return enriched
+
+    def _build_result(
+        self,
+        domain_list_result: Optional[Dict[str, Any]],
+        pipeline_result: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         if domain_list_result:
             label = domain_list_result["label"]
             risk_score = 100.0 if label == "malicious" else 0.0
@@ -131,12 +220,23 @@ class Detector:
                 model_score=model_score,
                 final_score=risk_score,
                 label=label,
-                fusion_summary=f"本次命中名单策略，直接判定为 {label}；规则与模型仅作为记录展示，不参与覆盖名单结果。",
+                fusion_summary=(
+                    f"Decision was short-circuited by a domain list policy and marked as {label}. "
+                    "Rule and model scores are retained only for audit display."
+                ),
                 raw_feature_summary={},
             )
+            reason_summary = [domain_list_result["reason"]]
             return {
                 "label": label,
                 "risk_score": risk_score,
+                "summary": self._build_summary(
+                    label=label,
+                    reason_summary=reason_summary,
+                    explanation=domain_list_result["reason"],
+                    domain_list_reason=domain_list_result["reason"],
+                ),
+                "reason_summary": reason_summary,
                 "rule_score": 0.0,
                 "model_safe_prob": model_result["safe_prob"],
                 "model_suspicious_prob": 0.0,
@@ -150,9 +250,16 @@ class Detector:
         if pipeline_result:
             fuse_result = pipeline_result["fuse_result"]
             model_result = pipeline_result["model_result"]
+            reason_summary = self._summarize_reasons(pipeline_result["hit_rules"])
             return {
                 "label": fuse_result["label"],
                 "risk_score": fuse_result["risk_score"],
+                "summary": self._build_summary(
+                    label=fuse_result["label"],
+                    reason_summary=reason_summary,
+                    explanation=pipeline_result["explanation"],
+                ),
+                "reason_summary": reason_summary,
                 "rule_score": pipeline_result["rule_score"],
                 "model_safe_prob": model_result["safe_prob"],
                 "model_suspicious_prob": model_result["suspicious_prob"],
@@ -166,14 +273,16 @@ class Detector:
         return {
             "label": "safe",
             "risk_score": 0.0,
+            "summary": "No obvious high-risk signal was detected.",
+            "reason_summary": [],
             "rule_score": 0.0,
             "model_safe_prob": 1.0,
             "model_suspicious_prob": 0.0,
             "model_malicious_prob": 0.0,
             "hit_rules": [],
             "score_breakdown": {},
-            "explanation": "尚未执行检测。",
-            "recommendation": "建议：当前未发现明显风险信号。",
+            "explanation": "Detection has not been executed yet.",
+            "recommendation": "No obvious high-risk signal was detected. Continue browsing with normal caution.",
         }
 
     def _resolve_user_id(self, username: Optional[str]) -> Optional[int]:
@@ -245,7 +354,7 @@ class Detector:
             return record
         except SQLAlchemyError as exc:
             self.db.rollback()
-            raise DatabaseError(f"保存扫描记录失败: {exc}")
+            raise DatabaseError(f"Failed to save scan record: {exc}") from exc
 
     def _fuse_decision(self, rule_score: float, model_probs: Dict[str, float]) -> Dict[str, Any]:
         safe_prob = float(model_probs["safe_prob"])
@@ -263,9 +372,9 @@ class Detector:
             label = "safe"
 
         fusion_summary = (
-            f"最终风险分 = 规则分 {rule_score:.1f} x 40% + 模型风险分 {model_score:.1f} x 60%。"
-            f" 模型风险分由 malicious 概率 {malicious_prob:.2f} 和 suspicious 概率 {suspicious_prob:.2f} 映射得到。"
-            f" 融合后分数为 {risk_score:.1f}，因此标签为 {label}。"
+            f"Final risk score = rule score {rule_score:.1f} x 40% + model score {model_score:.1f} x 60%. "
+            f"Model score comes from malicious probability {malicious_prob:.2f} and suspicious probability "
+            f"{suspicious_prob:.2f}. Final decision is {label} with risk score {risk_score:.1f}."
         )
         return {
             "label": label,
@@ -274,22 +383,30 @@ class Detector:
             "fusion_summary": fusion_summary,
         }
 
-    def _generate_explanation(self, rule_details: list[dict[str, Any]], model_probs: Dict[str, float], breakdown: dict[str, Any]) -> str:
+    def _generate_explanation(
+        self,
+        rule_details: list[dict[str, Any]],
+        model_probs: Dict[str, float],
+        breakdown: dict[str, Any],
+    ) -> str:
         matched_rules = [rule for rule in rule_details if rule.get("matched") and rule.get("enabled")]
         lines = [
-            f"规则分：{breakdown.get('rule_score_total', 0):.1f}",
-            f"模型风险分：{breakdown.get('model_score_total', 0):.1f}",
-            f"最终风险分：{breakdown.get('final_score', 0):.1f}",
+            f"Rule score: {breakdown.get('rule_score_total', 0):.1f}",
+            f"Model score: {breakdown.get('model_score_total', 0):.1f}",
+            f"Final risk score: {breakdown.get('final_score', 0):.1f}",
         ]
         if matched_rules:
-            lines.append(f"命中并计分的规则：{len(matched_rules)} 条")
+            lines.append(f"Matched and applied rules: {len(matched_rules)}")
             for rule in matched_rules[:5]:
-                lines.append(f"- {rule.get('name') or rule.get('rule_name')}: +{rule.get('contribution', 0):.1f}，{rule.get('reason')}")
+                lines.append(
+                    f"- {rule.get('name') or rule.get('rule_name')}: "
+                    f"+{rule.get('contribution', 0):.1f}; {rule.get('reason')}"
+                )
         else:
-            lines.append("没有命中启用中的计分规则。")
+            lines.append("No enabled scoring rule was matched.")
 
         lines.append(
-            "模型概率："
+            "Model probabilities: "
             f"safe={model_probs['safe_prob']:.2f}, "
             f"suspicious={model_probs['suspicious_prob']:.2f}, "
             f"malicious={model_probs['malicious_prob']:.2f}"
@@ -299,29 +416,32 @@ class Detector:
 
     def _generate_recommendation(self, label: str, risk_score: float) -> str:
         if label == "malicious":
-            return "建议：不要访问该网站，避免输入账号、密码、验证码或支付信息，并交由管理员复核。"
+            return (
+                "Do not continue to this site. Avoid entering passwords, verification codes, "
+                "payment information, or other sensitive data."
+            )
         if label == "suspicious":
-            return "建议：谨慎访问，先核验域名、证书和页面来源；如需继续访问，不要输入敏感信息。"
-        return "建议：当前未发现明显风险信号，但仍建议保持基础安全习惯。"
+            return (
+                "Proceed with caution. Verify the domain, certificate, and page source before entering "
+                "any sensitive information."
+            )
+        return "No obvious high-risk signal was detected. Continue browsing with normal caution."
 
     def detect_url(self, url: str, source: str = "manual", username: Optional[str] = None) -> Dict[str, Any]:
         features = self.feature_extractor.extract_features(url)
+        normalized_url = str(features["raw_features"].get("url") or url)
         domain = features["domain"]
 
         domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
-            record = self._save_record(url, domain, features, result, source, username)
-            result["record_id"] = record.id
-            result["report_id"] = record.report_id or record.id
-            return result
+            record = self._save_record(normalized_url, domain, features, result, source, username)
+            return self._attach_result_metadata(result=result, url=normalized_url, domain=domain, record=record)
 
         pipeline_result = self._run_detection_pipeline(features)
         result = self._build_result(None, pipeline_result)
-        record = self._save_record(url, domain, features, result, source, username)
-        result["record_id"] = record.id
-        result["report_id"] = record.report_id or record.id
-        return result
+        record = self._save_record(normalized_url, domain, features, result, source, username)
+        return self._attach_result_metadata(result=result, url=normalized_url, domain=domain, record=record)
 
     def detect_page(self, page_data: Dict[str, Any], source: str = "plugin", username: Optional[str] = None) -> Dict[str, Any]:
         url = page_data["url"]
@@ -334,19 +454,16 @@ class Detector:
             page_data.get("form_action_domains") or [],
             bool(page_data.get("has_password_input")),
         )
+        normalized_url = str(features["raw_features"].get("url") or url)
         domain = features["domain"]
 
         domain_list_result = self._check_domain_lists(domain, username)
         if domain_list_result:
             result = self._build_result(domain_list_result, None)
-            record = self._save_record(url, domain, features, result, source, username)
-            result["record_id"] = record.id
-            result["report_id"] = record.report_id or record.id
-            return result
+            record = self._save_record(normalized_url, domain, features, result, source, username)
+            return self._attach_result_metadata(result=result, url=normalized_url, domain=domain, record=record)
 
         pipeline_result = self._run_detection_pipeline(features)
         result = self._build_result(None, pipeline_result)
-        record = self._save_record(url, domain, features, result, source, username)
-        result["record_id"] = record.id
-        result["report_id"] = record.report_id or record.id
-        return result
+        record = self._save_record(normalized_url, domain, features, result, source, username)
+        return self._attach_result_metadata(result=result, url=normalized_url, domain=domain, record=record)

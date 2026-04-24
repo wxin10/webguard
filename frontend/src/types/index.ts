@@ -105,8 +105,15 @@ export interface ScoreBreakdown {
 }
 
 export interface ScanResult {
+  url: string;
+  domain: string;
   label: RiskLabel;
   risk_score: number;
+  summary: string;
+  reason_summary: string[];
+  action: 'ALLOW' | 'WARN' | 'BLOCK';
+  should_warn: boolean;
+  should_block: boolean;
   rule_score: number;
   model_safe_prob: number;
   model_suspicious_prob: number;

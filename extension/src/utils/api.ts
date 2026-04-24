@@ -1,3 +1,4 @@
+import { parseDetectionResult } from './detection.js';
 import {
   addTrustedHost,
   getSettings,
@@ -251,27 +252,27 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
     try {
       payload = await response.json();
     } catch (error) {
-      throw new Error(`后端响应不是有效 JSON：${errorMessage(error)}`);
+      throw new Error(`后端响应不是有效 JSON: ${errorMessage(error)}`);
     }
 
     if (isApiEnvelope(payload)) {
       if (payload.code !== undefined && payload.code !== 0) {
-        throw new Error(payload.message || `后端返回异常：HTTP ${response.status}`);
+        throw new Error(payload.message || `后端返回异常: HTTP ${response.status}`);
       }
       if (!response.ok) {
-        throw new Error(payload.message || `后端返回异常：HTTP ${response.status}`);
+        throw new Error(payload.message || `后端返回异常: HTTP ${response.status}`);
       }
       return payload as T;
     }
 
     if (!response.ok) {
-      throw new Error(`后端返回异常：HTTP ${response.status}`);
+      throw new Error(`后端返回异常: HTTP ${response.status}`);
     }
 
     return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`请求超时：${timeoutMs}ms`);
+      throw new Error(`请求超时: ${timeoutMs}ms`);
     }
     throw error instanceof Error ? error : new Error('网络请求失败');
   } finally {
@@ -318,45 +319,7 @@ function normalizePluginBootstrap(value: unknown): PluginPolicySnapshot {
 }
 
 function validateDetectionResult(value: unknown, fallbackUrl: string): DetectionResult {
-  if (!isRecord(value)) {
-    throw new Error('后端响应缺少检测结果对象');
-  }
-
-  const label = parseRiskLabel(value.label);
-  if (!label) {
-    throw new Error('后端响应缺少有效 label 字段');
-  }
-
-  const riskScore = parseRiskScore(value.risk_score);
-  if (riskScore === null) {
-    throw new Error('后端响应缺少有效 risk_score 字段');
-  }
-
-  const summary = firstNonEmptyString(value.summary, value.reason, value.explanation);
-  if (!summary) {
-    throw new Error('后端响应缺少 summary 或 reason 字段');
-  }
-
-  const recordId = parseOptionalNumber(value.record_id);
-  const reportId = parseOptionalNumber(value.report_id);
-
-  return {
-    url: typeof value.url === 'string' && value.url ? value.url : fallbackUrl,
-    label,
-    risk_score: riskScore,
-    summary,
-    reason: firstNonEmptyString(value.reason),
-    explanation: firstNonEmptyString(value.explanation),
-    recommendation: firstNonEmptyString(value.recommendation),
-    ...(typeof recordId === 'number' ? { record_id: recordId } : {}),
-    ...(typeof reportId === 'number' ? { report_id: reportId } : {}),
-    rule_score: parseOptionalNumber(value.rule_score),
-    model_safe_prob: parseOptionalNumber(value.model_safe_prob),
-    model_suspicious_prob: parseOptionalNumber(value.model_suspicious_prob),
-    model_malicious_prob: parseOptionalNumber(value.model_malicious_prob),
-    hit_rules: parseHitRules(value.hit_rules),
-    timestamp: Date.now(),
-  };
+  return parseDetectionResult(value, fallbackUrl);
 }
 
 function unwrapData(payload: unknown): unknown {
@@ -382,42 +345,6 @@ function normalizePausedPolicy(value: unknown): PausedHostRecord[] {
       return { host, addedAt: Date.now(), expiresAt };
     })
     .filter((item): item is PausedHostRecord => Boolean(item));
-}
-
-function parseRiskLabel(value: unknown): RiskLabel | null {
-  if (value === 'safe' || value === 'suspicious' || value === 'malicious' || value === 'unknown') return value;
-  return null;
-}
-
-function parseRiskScore(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return clampRiskScore(value);
-  if (typeof value === 'string') {
-    const numericValue = Number(value);
-    if (Number.isFinite(numericValue)) return clampRiskScore(numericValue);
-  }
-  return null;
-}
-
-function clampRiskScore(value: number): number {
-  return Math.max(0, Math.min(100, value));
-}
-
-function parseOptionalNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const numericValue = Number(value);
-    if (Number.isFinite(numericValue)) return numericValue;
-  }
-  return undefined;
-}
-
-function parseHitRules(value: unknown): Array<Record<string, unknown>> | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.filter(isRecord);
-}
-
-function firstNonEmptyString(...values: unknown[]): string | undefined {
-  return values.find((value): value is string => typeof value === 'string' && value.trim().length > 0)?.trim();
 }
 
 function webGuardHeaders(): HeadersInit {

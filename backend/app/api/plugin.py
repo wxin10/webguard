@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from ..core import get_db
@@ -19,6 +19,7 @@ from ..schemas import (
     PluginSyncEventList,
     ScanResult,
 )
+from ..schemas.scan import normalize_scan_url, normalize_text_list
 from ..services.domain_service import normalize_domain
 from ..services.feedback_service import FeedbackService
 from ..services.plugin_event_service import PluginEventService
@@ -37,6 +38,16 @@ class AnalyzeCurrentRequest(BaseModel):
     input_labels: List[str] = Field(default_factory=list)
     form_action_domains: List[str] = Field(default_factory=list)
     has_password_input: bool = False
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return normalize_scan_url(value)
+
+    @field_validator("button_texts", "input_labels", "form_action_domains")
+    @classmethod
+    def validate_text_lists(cls, value: List[str]) -> List[str]:
+        return normalize_text_list(value)
 
 
 class FeedbackRequest(BaseModel):
@@ -89,7 +100,7 @@ def analyze_current(
             risk_label=result.get("label"),
             risk_level=result.get("label"),
             risk_score=result.get("risk_score"),
-            summary=result.get("explanation"),
+            summary=result.get("summary") or result.get("explanation"),
             scan_record_id=result.get("record_id"),
             metadata={
                 "title": request.title,

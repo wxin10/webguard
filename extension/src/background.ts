@@ -1,4 +1,5 @@
 import { analyzeCurrentPage, syncPluginBootstrap, syncPluginEvent } from './utils/api.js';
+import { resolveDetectionDecision } from './utils/detection.js';
 import { buildWarningPageUrl } from './utils/navigation.js';
 import {
   consumeTemporaryBypass,
@@ -141,14 +142,14 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
         action: 'continue_once_consumed',
         url,
         domain: hostFromUrl(url),
-        summary: '一次性继续访问已消费，插件跳过本次扫描',
+        summary: '一次性继续访问已消耗，本次扫描跳过。',
       });
       return { ok: true, record };
     }
 
     const host = hostFromUrl(url);
     if (await isBlockedByPolicy(host)) {
-      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中主平台下发的阻止策略。');
+      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中平台下发的阻止策略。');
       const record = await handleDetectionResult(tabId, url, blockedResult);
       await syncPluginEvent({
         event_type: 'scan',
@@ -163,7 +164,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
     }
 
     if (await isTrustedHost(host)) {
-      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点命中主平台下发的信任策略，本次未调用后端扫描。');
+      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点命中平台下发的信任策略，本次未调用后端扫描。');
       const record = await setTabState(tabId, url, 'safe', trustedResult);
       await syncPluginEvent({
         event_type: 'scan',
@@ -184,7 +185,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
         action: 'temporary_trust_active',
         url,
         domain: host,
-        summary: '当前站点处于临时信任期，插件跳过本次扫描',
+        summary: '当前站点处于临时信任期，本次扫描已跳过。',
       });
       return { ok: true, record };
     }
@@ -215,18 +216,20 @@ async function handleDetectionResult(tabId: number, originalUrl: string, result:
   const state = stateFromRiskLabel(result.label);
   const record = await setTabState(tabId, originalUrl, state, result);
   const settings = await getSettings();
+  const decision = resolveDetectionDecision(result);
 
-  logInfo(`Scan finished. tab=${tabId} state=${state} score=${result.risk_score}`);
+  logInfo(`Scan finished. tab=${tabId} state=${state} score=${result.risk_score} action=${decision.action}`);
 
-  if (result.label === 'suspicious' && settings.notifySuspicious) {
+  if (decision.shouldWarn && result.label === 'suspicious' && settings.notifySuspicious) {
     notifyRisk('WebGuard 可疑站点提醒', `风险评分 ${result.risk_score.toFixed(1)}：${result.summary}`);
   }
 
-  if (result.label === 'malicious') {
-    notifyRisk('WebGuard 安全警告', `检测到恶意站点，风险评分 ${result.risk_score.toFixed(1)}`);
-    if (settings.autoBlockMalicious) {
-      await redirectToWarning(tabId, result, 'auto_block');
-    }
+  if (decision.shouldWarn && result.label === 'malicious') {
+    notifyRisk('WebGuard 安全警告', `检测到高风险站点，风险评分 ${result.risk_score.toFixed(1)}`);
+  }
+
+  if (decision.shouldBlock && settings.autoBlockMalicious) {
+    await redirectToWarning(tabId, result, 'auto_block');
   }
 
   return record;
@@ -281,21 +284,27 @@ function createLocalDecisionResult(url: string, label: 'safe' | 'malicious', sum
     label,
     risk_score: label === 'malicious' ? 100 : 0,
     summary,
+    action: label === 'malicious' ? 'BLOCK' : 'ALLOW',
+    should_warn: label === 'malicious',
+    should_block: label === 'malicious',
     timestamp: Date.now(),
   };
 }
 
 function notifyRisk(title: string, message: string): void {
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icons/128.png',
-    title,
-    message,
-  }, () => {
-    if (chrome.runtime.lastError) {
-      logError('Notification failed.', chrome.runtime.lastError);
-    }
-  });
+  chrome.notifications.create(
+    {
+      type: 'basic',
+      iconUrl: 'icons/128.png',
+      title,
+      message,
+    },
+    () => {
+      if (chrome.runtime.lastError) {
+        logError('Notification failed.', chrome.runtime.lastError);
+      }
+    },
+  );
 }
 
 function isScanMessage(message: unknown): message is ScanMessage {
@@ -315,14 +324,16 @@ function isOpenWarningMessage(message: unknown): message is OpenWarningMessage {
 }
 
 function isPageInfo(value: unknown): value is PageInfo {
-  return isRecord(value)
+  return (
+    isRecord(value)
     && typeof value.url === 'string'
     && typeof value.title === 'string'
     && typeof value.visible_text === 'string'
     && Array.isArray(value.button_texts)
     && Array.isArray(value.input_labels)
     && Array.isArray(value.form_action_domains)
-    && typeof value.has_password_input === 'boolean';
+    && typeof value.has_password_input === 'boolean'
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
