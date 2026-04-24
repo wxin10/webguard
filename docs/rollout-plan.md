@@ -1,265 +1,161 @@
-# WebGuard 实施与收口路线图
+# WebGuard Rollout Plan
 
-**版本**：V1.0  
-**目标**：把当前仓库从“已有可运行骨架但存在漂移和工程缺口”的状态，推进到“可稳定开发、可持续联调、可逐步上线”的状态。  
-**适用对象**：开发者、Tech Lead、Codex
+Version: P2-A local internal-test baseline
 
----
+This plan records the current convergence path. It is not a production release checklist yet.
 
-# 1. 当前判断
+## Current Verified Baseline
 
-当前项目已经具备：
+The repository is now usable as a local internal-test build.
 
-- 三端代码骨架
-- 后端多模块 API
-- 检测主链路
-- Web 工作区页面
-- 插件扫描/告警基础流程
+Verified after P1-D:
 
-但仍存在几类明显问题：
+- PostgreSQL local development path works.
+- Alembic initial baseline exists and `alembic upgrade head` is part of startup.
+- Backend `/health` returns the unified `code/message/data` envelope.
+- Development mock-login returns an access token.
+- Extension Options can store API URL, Web URL, Access Token, and Plugin Instance ID.
+- Extension bootstrap succeeds with `Authorization`, `X-Plugin-Instance-Id`, and `X-Plugin-Version`.
+- Safe URL scan returns `ALLOW`.
+- Risky URL scan returns `BLOCK`.
+- Scan records and reports are persisted and can be read by the Web app.
+- Temporary trust and permanent trust write back to the backend.
+- The next bootstrap can pull the updated strategy and the extension can apply it locally.
 
-1. 数据库口径不一致
-2. 鉴权仍处于开发态占位
-3. 构建/测试收口不足
-4. 三端 API 契约未完全统一
-5. 文档与配置存在漂移
+Verified commands:
 
-因此，实施顺序必须以**收口与稳定性优先**，而不是继续无序堆功能。
+```text
+backend:   python -m pytest        -> 22 passed
+frontend:  npm run lint/build      -> passed
+extension: npm run build           -> passed
+```
 
----
+## Completed Work
 
-# 2. 总体路线
+### P0-A: Running Baseline
 
-建议分五个阶段推进：
+Completed:
 
-1. **阶段 A：文档与配置定版**
-2. **阶段 B：基础设施与开发环境收口**
-3. **阶段 C：核心契约与鉴权收口**
-4. **阶段 D：主链路稳定化**
-5. **阶段 E：运营能力与上线前治理**
+- Database default converged to PostgreSQL.
+- Backend can start against local PostgreSQL.
+- Frontend lint baseline exists and passes.
+- Frontend build and extension build pass.
+- Core backend tests improved and pass.
 
----
+### P0-A2: Alembic Baseline
 
-# 3. 阶段 A：文档与配置定版
+Completed:
 
-## 目标
-让 Codex、人类开发者和仓库本身拥有同一套“规则来源”。
+- Initial Alembic schema baseline added.
+- Empty PostgreSQL database can be created through `alembic upgrade head`.
+- Runtime `create_all` and `ensure_runtime_schema` remain as compatibility guards.
 
-## 交付物
-- `AGENTS.md`
-- `docs/architecture.md`
-- `docs/api-contract.md`
+### P0-B: API Response Contract
+
+Completed:
+
+- Backend responses converged to `code/message/data`.
+- Global exception handlers use the unified envelope.
+- HTTP status codes are set for error responses.
+- Frontend and extension clients use `code === 0` as the success contract.
+
+### P0-C: Authentication Skeleton
+
+Completed:
+
+- JWT access-token skeleton exists.
+- `mock-login` is explicitly development-only.
+- `require_auth` / current-user dependency exists.
+- Frontend API client sends `Authorization`.
+- Extension API client can send `Authorization`, `X-Plugin-Instance-Id`, and `X-Plugin-Version`.
+
+### P1-A: Detection Main Flow
+
+Completed:
+
+- Extension scan -> backend detection -> scan records/reports -> frontend read path works.
+- Scan result includes `action`, `should_warn`, and `should_block`.
+- Safe and risky URL paths are covered.
+
+### P1-B: Strategy Sync and Trust Loop
+
+Completed:
+
+- Plugin bootstrap returns whitelist, blacklist, temporary trust, versions, and updated time.
+- Extension caches policy with TTL/version fields.
+- Local whitelist, blacklist, and temporary trust checks run before scanning.
+- Trust actions write back and are visible in subsequent bootstrap responses.
+
+### P1-C: Extension Connection Configuration
+
+Completed:
+
+- Options page stores API URL, Web URL, Access Token, and Plugin Instance ID.
+- Connection test verifies health and bootstrap.
+- Popup shows API address, token status, plugin instance, bootstrap status, and latest scan summary.
+
+### P1-D: End-to-End Manual Acceptance
+
+Completed:
+
+- Local backend and frontend startup verified.
+- Development login token flow verified.
+- Extension connection configuration verified.
+- Safe/risky scan verified.
+- Records/reports read path verified.
+- Temporary and permanent trust write-back verified.
+
+## P2-A: Documentation and Engineering Hygiene
+
+Goal:
+
+- Make local startup, shutdown, acceptance, and limits reproducible.
+- Reduce Windows line-ending churn.
+- Keep the current internal-test build understandable for the next development phase.
+
+Scope:
+
+- `README.md`
 - `docs/dev-setup.md`
-- `docs/coding-standards.md`
 - `docs/rollout-plan.md`
-- `.env.example`
+- `.gitattributes`
 
-## 完成标准
-- 三端职责清楚
-- 启动方式清楚
-- API 返回结构统一
-- 环境变量语义清楚
+Acceptance:
 
----
+- Docs include startup, stop, health verification, token copy, extension configuration, safe/risky scan, records/reports, and trust-policy verification.
+- Docs explicitly list current development-only limits.
+- `.gitattributes` defines text/binary and LF/CRLF expectations.
 
-# 4. 阶段 B：基础设施与环境收口
+## Next Recommended Phase: P2-B
 
-## 目标
-让仓库具备稳定、可复现、可联调的开发环境。
+Recommended focus:
 
-## 重点任务
+- Release-readiness checks that do not expand product scope.
+- CI workflow definition for backend/frontend/extension checks.
+- Optional small scripts for local start/stop if the team wants a repeatable command wrapper.
+- Confirm whether extension should load `extension/` or `extension/dist/` for the final demo path.
+- Review production-blocking items without implementing them in the P2-A documentation pass.
 
-### B1. 统一数据库口径
-- 明确生产目标数据库为 PostgreSQL
-- 对当前 MySQL 兼容路径做边界标记
-- 修正文档、README、`.env.example`
-- 决定是否分支内直接迁移到 PostgreSQL 驱动与连接方式
+## Known Development Limits
 
-### B2. 整理环境变量
-- 根 `.env.example` 只保留全栈联调视角变量
-- `backend/.env.example` 只保留后端变量
-- `frontend/.env.example`（建议新增）
-- 若插件需要默认地址说明，写入文档而不是散乱硬编码
+These are intentional current limits, not bugs in the local internal-test build:
 
-### B3. 收口构建流程
-- frontend: `npm install && npm run build` 必须稳定
-- extension: `npm run build` 必须稳定
-- backend: 启动与基础依赖安装必须稳定
+- `mock-login` is development-only.
+- Access Token is manually copied from Web localStorage to extension Options.
+- Refresh Token is not implemented.
+- Formal plugin binding and QR-code pairing are not implemented.
+- Plugin Instance ID is manually entered.
+- RBAC is minimal and not production-grade.
+- Redis is not connected.
+- Production deployment configuration is not complete.
+- Production CORS, HTTPS, secrets management, and extension publishing are not complete.
 
-### B4. 最小 CI 命令定义
-建议最终形成：
-- backend: `pytest`
-- frontend: `npm run lint && npm run build`
-- extension: `npm run build`
+## Guardrails for Future Work
 
-## 完成标准
-- 新人按文档 30 分钟内可起全栈开发环境
-- Codex 能理解并执行检查命令
+- Do not expand mock login into production-facing logic.
+- Do not rename API paths during stabilization tasks.
+- Do not change database schema without Alembic migration.
+- Do not bypass the `code/message/data` envelope.
+- Do not delete runtime schema guards until startup and migrations are proven safe without them.
+- Keep extension behavior thin and backend-authoritative.
 
----
-
-# 5. 阶段 C：核心契约与鉴权收口
-
-## 目标
-把最危险、最容易后续返工的边界先固定下来。
-
-## 重点任务
-
-### C1. API 路径与响应收敛
-- 确定核心扫描接口路径
-- 确定报告详情接口结构
-- 确定用户域名策略接口结构
-- 新代码必须返回统一 `code/message/data`
-
-### C2. 正式鉴权替代 mock 流程
-- Web 登录替换 `mock-login`
-- Access/Refresh 机制成型
-- 前端会话管理改为正式模式
-
-### C3. 插件绑定机制
-- 设计 `plugin_instance_id`
-- 支持插件绑定、解绑
-- 插件不直接长期持有用户主会话
-
-### C4. 权限边界清理
-- 普通用户与管理员能力分离
-- 管理接口后端做真实权限校验
-
-## 完成标准
-- 不再依赖 mock login 承载正式业务流程
-- 普通用户无法绕过后端访问管理员能力
-- 插件实例与用户有清晰绑定关系
-
----
-
-# 6. 阶段 D：主链路稳定化
-
-## 目标
-让“扫描 -> 风险判断 -> 报告 -> 策略写回 -> 插件同步”这一主链路稳定可用。
-
-## 重点任务
-
-### D1. 扫描链路统一
-- 统一扫描请求入口
-- 统一检测服务编排
-- 统一报告生成逻辑
-- 明确同步/异步边界
-
-### D2. 报告体系收口
-- 报告详情字段稳定
-- 报告列表与详情字段区分清楚
-- Web 页与插件跳转 URL 明确
-
-### D3. 用户策略回写
-- 个人白名单/黑名单/临时信任写回后端
-- 插件 bootstrap 能同步新策略
-- 本地缓存带 TTL 和版本号
-
-### D4. 关键错误处理
-- 后端失败时插件安全降级
-- 前端失败时页面有错误态
-- 所有关键流程有日志与 request id
-
-### D5. 主链路测试
-至少覆盖：
-- 插件发起扫描
-- 后端生成记录
-- Web 查看报告
-- 把域名加入信任
-- 插件重新拉取策略
-
-## 完成标准
-- 主链路可被连续验证
-- 出错时可追踪
-- 体验不再依赖人工猜测
-
----
-
-# 7. 阶段 E：运营与上线前治理
-
-## 目标
-补足从“能跑”到“能上线/能展示成完整产品”的治理层能力。
-
-## 重点任务
-
-### E1. 后台治理能力完善
-- 规则管理
-- 样本反馈
-- 域名运营台
-- 模型状态与版本展示
-- 插件实例管理
-- 用户管理
-
-### E2. 审计与安全控制
-- 关键操作审计日志
-- 限流
-- 异常登录/异常绑定监控
-- CORS 和 host_permissions 收口
-
-### E3. 部署与发布准备
-- 区分 dev/staging/prod 配置
-- 镜像与部署文档完善
-- 插件打包与发布流程定义
-- Web 域名与 HTTPS 策略明确
-
-### E4. 可观测性建设
-- 结构化日志
-- 后端健康检查
-- 错误统计
-- 核心指标面板
-
-## 完成标准
-- 具备清晰部署口径
-- 具备上线前配置治理能力
-- 具备最小审计能力
-
----
-
-# 8. Codex 执行优先级建议
-
-如果要给 Codex 分批下任务，建议按下面顺序：
-
-## 批次 1：文档与配置收口
-- 写/更新 AGENTS.md
-- 更新 docs
-- 清理 `.env.example`
-- 对齐 README
-
-## 批次 2：构建与环境修复
-- 修 frontend build
-- 修 extension build
-- 修 backend test / startup 基线
-
-## 批次 3：API 契约收敛
-- 统一响应结构
-- 统一核心接口 DTO
-- 修三端调用适配
-
-## 批次 4：鉴权与插件绑定
-- Web 真登录
-- 插件绑定
-- 权限控制
-
-## 批次 5：主链路与测试
-- E2E 主链路修通
-- 增加关键测试
-
-## 批次 6：运营后台与上线治理
-- 完善后台能力
-- 收口部署配置
-
----
-
-# 9. 每阶段的验收问题
-
-在每个阶段结束时，都要回答：
-
-1. 有没有减少架构漂移？
-2. 有没有把临时实现变成永久包袱？
-3. 文档和代码是否同步？
-4. 构建、测试、联调是否更稳定？
-5. 这一步是否为下一阶段消除了阻塞？
-
-如果答案是否定的，就说明阶段任务并未真正完成。
-
-这份 rollout plan 的核心作用，是让项目按技术优先级推进，而不是按“哪里先看到问题就乱改哪里”的方式推进。

@@ -1,116 +1,157 @@
 # WebGuard
 
-WebGuard 是一个以 Web 平台为正式主入口的恶意网站检测与主动防御系统。普通用户在 Web 平台完成网址检测、报告查看、个人安全策略维护和插件同步记录追踪；管理员在 Web 运营控制台完成全局态势、样本与误报、规则、名单、模型、插件和用户管理。浏览器插件只作为浏览器侧辅助入口，负责当前页面快速扫描、即时提醒、必要拦截和跳转到 Web 报告。
+WebGuard is a malicious website detection and warning platform. The Web app is the primary product surface, the FastAPI backend owns detection and persistence, and the Manifest V3 browser extension is a lightweight companion for page scanning, warning, blocking, and opening Web reports.
 
-## 本地开发环境
+This repository currently represents a local-development internal test build. It is not a production deployment package yet.
 
-- Backend: Python 3.11+ + FastAPI + SQLAlchemy
-- Database: 本机 PostgreSQL
-- Frontend: React + TypeScript + Vite
-- Extension: Chrome/Edge Manifest V3 + TypeScript
+## Deliverables
 
-本地开发数据库默认配置为：
+- `frontend/`: React 18 + TypeScript + Vite Web platform.
+- `backend/`: FastAPI + SQLAlchemy + Alembic service.
+- `extension/`: Chrome/Edge Manifest V3 extension.
+- `docs/`: architecture, API, rollout, and development setup notes.
 
-```text
-host: 127.0.0.1
-port: 5432
-database: webguard
-username: webguard
-password: webguard
-```
+## Local Baseline
 
-默认连接串：
+Default local services:
 
 ```text
-postgresql://webguard:webguard@127.0.0.1:5432/webguard
+Backend API: http://127.0.0.1:8000
+Frontend:    http://127.0.0.1:5173
+PostgreSQL:  postgresql://webguard:webguard@127.0.0.1:5432/webguard
 ```
 
-如果本机尚未创建数据库和开发用户，可以执行：
+Create the local PostgreSQL user and database if they do not exist:
 
 ```sql
 CREATE USER webguard WITH PASSWORD 'webguard';
 CREATE DATABASE webguard OWNER webguard;
 ```
 
-同样的 SQL 放在 `backend/scripts/init_mysql.sql`。
+Apply migrations before starting the backend:
 
-## 启动
-
-### Backend
-
-```bash
-cd backend
-py -3.14 -m pip install -r requirements.txt
-py -3.14 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-后端在本地开发中默认读取 `backend/.env`；如果该文件不存在，则回退到 `backend/app/core/config.py` 中的 PostgreSQL 默认配置。
-
-数据库初始化后，建议先执行：
-
-```bash
+```powershell
 cd backend
 alembic upgrade head
 ```
 
-当前分支尚未提交 Alembic 版本脚本，所以上述命令主要用于验证迁移链路可执行；实际本地建表仍会在服务启动时由应用启动逻辑补齐。
+## Start
 
-### Frontend
+Backend:
 
-```bash
-cd frontend
-npm install
-npm run dev
+```powershell
+cd backend
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-默认 API 地址：`http://127.0.0.1:8000`
+Frontend:
 
-前端路由结构：
+```powershell
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
 
-- `/`: 正式产品首页
-- `/login`: 登录页
-- `/plugin-install`: 浏览器助手安装引导
-- `/app`: 登录后的 Web 工作区根路由
-- `/app/scan`, `/app/my-records`, `/app/my-domains`, `/app/plugin-sync`, `/app/report/latest`, `/app/account`: 普通用户工作区
-- `/app/admin/records`, `/app/admin/samples`, `/app/admin/rules`, `/app/admin/domains`, `/app/admin/model`, `/app/admin/stats`, `/app/admin/plugin`, `/app/admin/users`: 管理员运营控制台
-- `/app/reports/:id`: 共用报告详情页
+Extension:
 
-### Extension
-
-```bash
+```powershell
 cd extension
 npm install
 npm run build
 ```
 
-在 Chrome / Edge 扩展管理页开启开发者模式，加载 `extension` 目录。插件默认 API 地址为 `http://127.0.0.1:8000`，默认 Web 平台地址为 `http://127.0.0.1:5173`。
+Open Chrome or Edge extension management, enable developer mode, and load the `extension/` directory as an unpacked extension.
 
-## 产品结构
+## Stop Old Local Processes
 
-### Web 主平台
+If `/health` or frontend behavior looks stale, confirm which process owns the ports:
 
-- 正式产品首页、登录入口与插件安装入口。
-- 普通用户工作台：网址检测、我的报告、最近报告、个人信任站点 / 阻止站点、插件同步记录、账户设置。
-- 管理员运营控制台：全局统计、风险趋势、全部报告、样本与误报处理、规则管理、全局黑白名单、模型状态、插件管理、用户管理。
+```powershell
+Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue |
+  Select-Object LocalPort,State,OwningProcess
+```
 
-### 浏览器插件
+Stop stale backend/frontend processes by PID:
 
-- 读取当前网站风险状态。
-- 快速扫描当前网页并同步到 Web 平台。
-- 提供即时风险提示和恶意页面 warning 拦截。
-- 一键打开 Web 平台详细报告。
-- 支持当前站点加入信任列表或临时忽略。
+```powershell
+Stop-Process -Id <PID> -Force
+```
 
-插件不承担完整用户管理、复杂报表、运营后台或完整分析流程。
+Confirm the backend is current code by checking `/health`. Current code returns no `success` field:
 
-## 本地开发登录
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 5
+```
 
-当前前端保留 `POST /api/v1/auth/mock-login` 作为本地开发登录入口，用于检查普通用户工作台和管理员运营控制台。该接口不是正式鉴权方案，后续上线应替换为真实用户体系、token/session 管理和后端权限校验。
+Expected shape:
 
-## 后续上线需要补齐
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "status": "healthy"
+  }
+}
+```
 
-- 真实用户、密码或单点登录、会话管理、权限校验和审计日志。
-- 用户个人策略与全局策略的权限边界和数据隔离。
-- 误报处理工单、样本标注、模型迭代和发布流程。
-- 插件发布签名、版本更新和权限最小化审查。
-- 生产级 CORS、日志、监控、告警和密钥管理。
+## Local End-to-End Acceptance
+
+1. Start PostgreSQL, run `alembic upgrade head`, then start backend and frontend.
+2. Open `http://127.0.0.1:5173/login`.
+3. Use development mock login and read `webguard_dev_user.access_token` from browser localStorage.
+4. Open extension Options and set:
+   - API Base URL: `http://127.0.0.1:8000`
+   - Web App URL: `http://127.0.0.1:5173`
+   - Access Token: value from `webguard_dev_user.access_token`
+   - Plugin Instance ID: for example `local-dev-plugin`
+5. Click the connection test button. It must pass backend health and plugin bootstrap.
+6. Visit `https://example.com`; it should be allowed.
+7. Visit `https://login-paypal-account-security.example-phish.com/verify/password`; it should warn or block.
+8. In the Web app, open records or reports to confirm the scan was persisted.
+9. On the warning page, choose temporary trust or permanent trust.
+10. Re-run bootstrap or reload the extension flow; the trusted domain should appear in policy and take effect locally.
+
+## Checks
+
+Backend:
+
+```powershell
+cd backend
+python -m pytest
+```
+
+Frontend:
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+Extension:
+
+```powershell
+cd extension
+npm run build
+```
+
+Current verified baseline after P1-D:
+
+```text
+backend pytest: 22 passed
+frontend lint/build: passed
+extension build: passed
+```
+
+## Development-Only Limits
+
+- `POST /api/v1/auth/mock-login` is development-only.
+- The extension token is copied manually from Web localStorage.
+- There is no Refresh Token flow yet.
+- There is no production plugin binding flow yet.
+- There is no production deployment configuration yet.
+- The extension `Plugin Instance ID` is a manual placeholder.
+- Do not treat this local setup as a production authentication or authorization model.
+
