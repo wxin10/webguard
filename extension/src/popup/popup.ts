@@ -1,4 +1,4 @@
-import { pauseSite, syncPluginBootstrap, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
+import { ensurePluginBootstrapFresh, pauseSite, syncPluginEvent, testBackendConnection, trustSite } from '../utils/api.js';
 import { buildReportUrl } from '../utils/navigation.js';
 import {
   getSettings,
@@ -44,7 +44,7 @@ void init().catch((error) => {
 
 async function init(): Promise<void> {
   bindEvents();
-  void syncPluginBootstrap();
+  void ensurePluginBootstrapFresh();
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTab = tabs[0] ?? null;

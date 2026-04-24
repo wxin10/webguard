@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -27,11 +28,17 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
+@pytest.fixture()
+def client():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.pop(get_db, None)
 
 
-def test_scan_url_safe_result_persists_record_and_report():
+def test_scan_url_safe_result_persists_record_and_report(client: TestClient):
     response = client.post("/api/v1/scan/url", json={"url": "https://example.com"})
 
     assert response.status_code == 200
@@ -73,7 +80,7 @@ def test_scan_url_safe_result_persists_record_and_report():
         db.close()
 
 
-def test_plugin_analyze_current_high_risk_can_trigger_block_flow():
+def test_plugin_analyze_current_high_risk_can_trigger_block_flow(client: TestClient):
     response = client.post(
         "/api/v1/plugin/analyze-current",
         json={
@@ -110,7 +117,7 @@ def test_plugin_analyze_current_high_risk_can_trigger_block_flow():
     assert report_payload["data"]["record_id"] == data["record_id"]
 
 
-def test_scan_url_invalid_format_returns_40002():
+def test_scan_url_invalid_format_returns_40002(client: TestClient):
     response = client.post("/api/v1/scan/url", json={"url": "example.com"})
     assert response.status_code == 400
     assert response.json() == {
@@ -120,7 +127,7 @@ def test_scan_url_invalid_format_returns_40002():
     }
 
 
-def test_plugin_analyze_invalid_format_returns_40002():
+def test_plugin_analyze_invalid_format_returns_40002(client: TestClient):
     response = client.post(
         "/api/v1/plugin/analyze-current",
         json={
@@ -141,7 +148,7 @@ def test_plugin_analyze_invalid_format_returns_40002():
     }
 
 
-def test_scan_url_validation_error_contract():
+def test_scan_url_validation_error_contract(client: TestClient):
     response = client.post("/api/v1/scan/url", json={})
     assert response.status_code == 400
     assert response.json() == {

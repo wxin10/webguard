@@ -280,8 +280,22 @@ export interface PluginBootstrap {
   trusted_hosts: string[];
   blocked_hosts: string[];
   temp_bypass_records: Array<{ domain: string; expires_at?: string; reason?: string }>;
+  whitelist_domains?: {
+    user: string[];
+    global: string[];
+    all: string[];
+  };
+  blacklist_domains?: {
+    user: string[];
+    global: string[];
+    all: string[];
+  };
+  temporary_trusted_domains?: Array<{ domain: string; expires_at?: string; reason?: string }>;
   plugin_default_config: PluginDefaultConfig;
+  policy_version?: string;
+  config_version?: string;
   current_rule_version: string;
+  updated_at?: string;
   generated_at: string;
 }
 

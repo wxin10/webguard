@@ -1,4 +1,4 @@
-import { syncPluginBootstrap, testBackendConnection } from '../utils/api.js';
+import { ensurePluginBootstrapFresh, testBackendConnection } from '../utils/api.js';
 import {
   DEFAULT_SETTINGS,
   clearRuntimeCache,
@@ -69,7 +69,7 @@ async function testConnection(): Promise<void> {
     const health = await testBackendConnection(apiBaseUrl);
     if (health.ok) {
       await saveSettings({ apiBaseUrl });
-      await syncPluginBootstrap();
+      await ensurePluginBootstrapFresh(true);
       await renderSettings();
     }
     showTestMessage(

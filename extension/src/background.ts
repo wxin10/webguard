@@ -1,4 +1,4 @@
-import { analyzeCurrentPage, syncPluginBootstrap, syncPluginEvent } from './utils/api.js';
+import { analyzeCurrentPage, ensurePluginBootstrapFresh, syncPluginEvent } from './utils/api.js';
 import { resolveDetectionDecision } from './utils/detection.js';
 import { buildWarningPageUrl } from './utils/navigation.js';
 import {
@@ -47,12 +47,12 @@ const activeScans = new Set<string>();
 
 chrome.runtime.onInstalled.addListener(() => {
   logInfo('Installed. Syncing platform bootstrap.');
-  void syncPluginBootstrap();
+  void ensurePluginBootstrapFresh(true);
 });
 
 chrome.runtime.onStartup.addListener(() => {
   logInfo('Startup. Syncing platform bootstrap.');
-  void syncPluginBootstrap();
+  void ensurePluginBootstrapFresh(true);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -133,7 +133,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
   try {
     await setTabState(tabId, url, 'scanning');
-    await syncPluginBootstrap();
+    await ensurePluginBootstrapFresh();
 
     if (await consumeTemporaryBypass(url)) {
       const record = await setTabState(tabId, url, 'idle');

@@ -99,6 +99,8 @@ export interface PluginPolicySnapshot {
   username: string;
   pluginVersion: string;
   ruleVersion: string;
+  policyVersion?: string;
+  configVersion?: string;
   userTrustedHosts: string[];
   userBlockedHosts: string[];
   userPausedHosts: PausedHostRecord[];
@@ -112,6 +114,7 @@ export interface PluginPolicySnapshot {
     bypassDurationMinutes?: number;
     pluginEnabled?: boolean;
   };
+  updatedAt?: number;
   syncedAt: number;
 }
 
@@ -163,6 +166,7 @@ const DEFAULT_USER_DECISIONS: UserDecisions = {
 
 const MAX_TAB_STATE_RECORDS = 120;
 const TEMPORARY_BYPASS_TTL_MS = 10 * 60 * 1000;
+export const PLUGIN_POLICY_TTL_MS = 5 * 60 * 1000;
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const stored = await chrome.storage.local.get(['settings', 'apiBaseUrl', 'frontendBaseUrl']) as LocalStorageShape;
@@ -333,7 +337,7 @@ export async function savePluginPolicySnapshot(policy: PluginPolicySnapshot): Pr
   await updateRuntimeCache((cache) => ({ ...cache, policySnapshot: policy }));
   await updateUserDecisions((decisions) => ({
     ...decisions,
-    trustedHosts: mergeTrustedHosts(decisions.trustedHosts, policy.userTrustedHosts),
+    trustedHosts: mergeTrustedHosts(decisions.trustedHosts, [...policy.userTrustedHosts, ...policy.globalTrustedHosts]),
     pausedHosts: mergePausedHosts(decisions.pausedHosts, policy.userPausedHosts),
   }));
 }
@@ -341,6 +345,15 @@ export async function savePluginPolicySnapshot(policy: PluginPolicySnapshot): Pr
 export async function getPluginPolicySnapshot(): Promise<PluginPolicySnapshot | null> {
   const cache = await getRuntimeCache();
   return cache.policySnapshot;
+}
+
+export function isPluginPolicySnapshotStale(
+  snapshot: PluginPolicySnapshot | null,
+  now: number = Date.now(),
+  ttlMs: number = PLUGIN_POLICY_TTL_MS,
+): boolean {
+  if (!snapshot) return true;
+  return now - snapshot.syncedAt > ttlMs;
 }
 
 export async function isBlockedByPolicy(host: string): Promise<boolean> {

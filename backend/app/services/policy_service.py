@@ -83,7 +83,7 @@ class PolicyService:
         total = self.db.query(func.count(RuleConfig.id)).scalar() or 0
         latest = self.db.query(func.max(RuleConfig.updated_at)).scalar()
         if latest:
-            return f"rules-{total}-{latest.isoformat()}"
+            return f"rules-{total}-{self._normalize_datetime(latest).isoformat()}"
         return f"rules-{total}-initial"
 
     def plugin_policy(self, username: str) -> PluginPolicyBundle:
@@ -156,10 +156,17 @@ class PolicyService:
     def plugin_bootstrap(self, username: str) -> dict[str, Any]:
         policy = self.get_or_create_policy(username)
         bundle = self.plugin_policy(username)
+        trusted_hosts = sorted(set(bundle.user_trusted_hosts + bundle.global_trusted_hosts))
+        blocked_hosts = sorted(set(bundle.user_blocked_hosts + bundle.global_blocked_hosts))
+        temp_bypass_records = bundle.user_paused_hosts
+        policy_updated_at = self._normalize_datetime(policy.updated_at or bundle.generated_at)
+        generated_at = self._normalize_datetime(bundle.generated_at)
+        latest_updated_at = max(policy_updated_at, generated_at)
         return {
             "user_policy": {
                 "id": policy.id,
                 "user_id": policy.user_id,
+                "username": policy.username,
                 "auto_detect": policy.auto_detect,
                 "auto_block_malicious": policy.auto_block_malicious,
                 "notify_suspicious": policy.notify_suspicious,
@@ -167,10 +174,29 @@ class PolicyService:
                 "plugin_enabled": policy.plugin_enabled,
                 "updated_at": policy.updated_at,
             },
-            "trusted_hosts": bundle.user_trusted_hosts + bundle.global_trusted_hosts,
-            "blocked_hosts": bundle.user_blocked_hosts + bundle.global_blocked_hosts,
-            "temp_bypass_records": bundle.user_paused_hosts,
+            "trusted_hosts": trusted_hosts,
+            "blocked_hosts": blocked_hosts,
+            "temp_bypass_records": temp_bypass_records,
+            "whitelist_domains": {
+                "user": bundle.user_trusted_hosts,
+                "global": bundle.global_trusted_hosts,
+                "all": trusted_hosts,
+            },
+            "blacklist_domains": {
+                "user": bundle.user_blocked_hosts,
+                "global": bundle.global_blocked_hosts,
+                "all": blocked_hosts,
+            },
+            "temporary_trusted_domains": temp_bypass_records,
             "plugin_default_config": bundle.defaults.model_dump(),
+            "policy_version": f"policy-{policy_updated_at.isoformat()}",
+            "config_version": bundle.rule_version,
             "current_rule_version": bundle.rule_version,
-            "generated_at": bundle.generated_at,
+            "updated_at": latest_updated_at,
+            "generated_at": generated_at,
         }
+
+    def _normalize_datetime(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)

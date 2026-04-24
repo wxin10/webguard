@@ -1,7 +1,9 @@
 import { parseDetectionResult } from './detection.js';
 import {
   addTrustedHost,
+  getPluginPolicySnapshot,
   getSettings,
+  isPluginPolicySnapshotStale,
   pauseHostProtection,
   resumeHostProtection,
   savePluginPolicySnapshot,
@@ -50,6 +52,17 @@ interface PluginBootstrapResponse {
   trusted_hosts?: string[];
   blocked_hosts?: string[];
   temp_bypass_records?: Array<{ domain?: string; host?: string; expires_at?: string | null; reason?: string | null }>;
+  whitelist_domains?: {
+    user?: string[];
+    global?: string[];
+    all?: string[];
+  };
+  blacklist_domains?: {
+    user?: string[];
+    global?: string[];
+    all?: string[];
+  };
+  temporary_trusted_domains?: Array<{ domain?: string; host?: string; expires_at?: string | null; reason?: string | null }>;
   plugin_default_config?: {
     api_base_url?: string;
     web_base_url?: string;
@@ -58,7 +71,10 @@ interface PluginBootstrapResponse {
     notify_suspicious?: boolean;
     event_upload_enabled?: boolean;
   };
+  policy_version?: string;
+  config_version?: string;
   current_rule_version?: string;
+  updated_at?: string;
   generated_at?: string;
 }
 
@@ -109,7 +125,7 @@ export async function syncPluginBootstrap(): Promise<PluginPolicySnapshot | null
       method: 'GET',
       headers: webGuardHeaders(),
     });
-    const policy = normalizePluginBootstrap(unwrapData(payload));
+    const policy = parsePluginBootstrapSnapshot(unwrapData(payload));
     await savePluginPolicySnapshot(policy);
     return policy;
   } catch (error) {
@@ -119,6 +135,14 @@ export async function syncPluginBootstrap(): Promise<PluginPolicySnapshot | null
 }
 
 export const syncPluginPolicy = syncPluginBootstrap;
+
+export async function ensurePluginBootstrapFresh(force = false): Promise<PluginPolicySnapshot | null> {
+  const snapshot = await getPluginPolicySnapshot();
+  if (!force && !isPluginPolicySnapshotStale(snapshot)) {
+    return snapshot;
+  }
+  return syncPluginBootstrap();
+}
 
 export async function syncPluginEvent(data: PluginSyncEventRequest): Promise<void> {
   const settings = await getSettings();
@@ -182,7 +206,7 @@ export async function trustSite(host: string): Promise<UserDecisionSyncStatus> {
     domain: cleanHost,
     summary: '用户在插件中永久信任当前站点',
   });
-  void syncPluginBootstrap();
+  await syncPluginBootstrap();
   return 'synced';
 }
 
@@ -210,7 +234,7 @@ export async function pauseSite(host: string, minutes = 30): Promise<UserDecisio
       summary: `用户在插件中临时信任 ${minutes} 分钟`,
       metadata: { minutes },
     });
-    void syncPluginBootstrap();
+    await syncPluginBootstrap();
     return 'synced';
   } catch (error) {
     console.warn('[WebGuard] Temporary trust sync failed, keeping a local runtime fallback.', error);
@@ -280,7 +304,7 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
   }
 }
 
-function normalizePluginBootstrap(value: unknown): PluginPolicySnapshot {
+export function parsePluginBootstrapSnapshot(value: unknown): PluginPolicySnapshot {
   if (!isRecord(value)) {
     throw new Error('后端 bootstrap 响应无效');
   }
@@ -298,14 +322,18 @@ function normalizePluginBootstrap(value: unknown): PluginPolicySnapshot {
   };
 
   return {
-    username: 'platform-user',
+    username: typeof (bootstrap.user_policy as { username?: unknown } | undefined)?.username === 'string'
+      ? (bootstrap.user_policy as { username: string }).username
+      : 'platform-user',
     pluginVersion: PLUGIN_VERSION,
     ruleVersion: typeof bootstrap.current_rule_version === 'string' ? bootstrap.current_rule_version : 'unknown',
-    userTrustedHosts: normalizeHostArray(bootstrap.trusted_hosts),
-    userBlockedHosts: normalizeHostArray(bootstrap.blocked_hosts),
-    userPausedHosts: normalizePausedPolicy(bootstrap.temp_bypass_records),
-    globalTrustedHosts: [],
-    globalBlockedHosts: [],
+    ...(typeof bootstrap.policy_version === 'string' ? { policyVersion: bootstrap.policy_version } : {}),
+    ...(typeof bootstrap.config_version === 'string' ? { configVersion: bootstrap.config_version } : {}),
+    userTrustedHosts: normalizeHostArray(bootstrap.whitelist_domains?.user ?? bootstrap.trusted_hosts),
+    userBlockedHosts: normalizeHostArray(bootstrap.blacklist_domains?.user ?? bootstrap.blocked_hosts),
+    userPausedHosts: normalizePausedPolicy(bootstrap.temporary_trusted_domains ?? bootstrap.temp_bypass_records),
+    globalTrustedHosts: normalizeHostArray(bootstrap.whitelist_domains?.global),
+    globalBlockedHosts: normalizeHostArray(bootstrap.blacklist_domains?.global),
     defaultSettings,
     userPolicy: {
       autoDetect: userPolicy.auto_detect,
@@ -314,6 +342,9 @@ function normalizePluginBootstrap(value: unknown): PluginPolicySnapshot {
       bypassDurationMinutes: userPolicy.bypass_duration_minutes,
       pluginEnabled: userPolicy.plugin_enabled,
     },
+    ...(typeof bootstrap.updated_at === 'string' && Number.isFinite(Date.parse(bootstrap.updated_at))
+      ? { updatedAt: Date.parse(bootstrap.updated_at) }
+      : {}),
     syncedAt: Date.now(),
   };
 }
