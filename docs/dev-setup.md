@@ -50,7 +50,35 @@ The repository now has an initial Alembic baseline. Keep schema changes in Alemb
 
 `Base.metadata.create_all()` and `ensure_runtime_schema()` still exist as local compatibility guards. Do not delete them without a separate migration and startup-risk review.
 
-## 4. Backend
+## 4. Seed a Local Formal User
+
+Create or update the first local formal login user after migrations:
+
+```powershell
+cd backend
+$env:WEBGUARD_SEED_USERNAME = "platform-admin"
+$env:WEBGUARD_SEED_PASSWORD = "change-me-local"
+$env:WEBGUARD_SEED_ROLE = "admin"
+$env:WEBGUARD_SEED_EMAIL = "platform-admin@example.local"
+$env:WEBGUARD_SEED_DISPLAY_NAME = "Platform Admin"
+python -m app.scripts.seed_dev_user
+```
+
+Seed environment variables:
+
+```text
+WEBGUARD_SEED_USERNAME
+WEBGUARD_SEED_PASSWORD
+WEBGUARD_SEED_ROLE=admin|user
+WEBGUARD_SEED_EMAIL
+WEBGUARD_SEED_DISPLAY_NAME
+```
+
+The command uses the same password hashing function as `/api/v1/auth/login`. It stores only `users.password_hash`, never prints the plaintext password, and is idempotent: rerunning it updates the same user instead of creating duplicates.
+
+When development auth is enabled, omitted values fall back to local-only defaults for convenience. Do not rely on those defaults for production-like environments; provide `WEBGUARD_SEED_PASSWORD` explicitly.
+
+## 5. Backend
 
 Install dependencies:
 
@@ -88,7 +116,7 @@ Expected current response:
 
 If the response contains a top-level `success` field, port `8000` is likely serving an old backend process.
 
-## 5. Frontend
+## 6. Frontend
 
 Install dependencies:
 
@@ -111,7 +139,7 @@ http://127.0.0.1:5173
 http://127.0.0.1:5173/login
 ```
 
-## 6. Extension
+## 7. Extension
 
 Build:
 
@@ -140,7 +168,7 @@ The Options page also accepts:
 - Access Token
 - Plugin Instance ID
 
-## 7. Stop Stale Processes
+## 8. Stop Stale Processes
 
 Check local ports:
 
@@ -157,7 +185,7 @@ Stop-Process -Id <PID> -Force
 
 A stale backend can make acceptance misleading. Always re-check `/health` after restarting.
 
-## 8. Web Login and Development Token
+## 9. Web Login and Development Token
 
 The Web app now supports formal username/password login for users that already exist with `users.password_hash` set. There is still no self-service registration flow in this local baseline.
 
@@ -186,7 +214,7 @@ Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_
 Manual token flow:
 
 1. Open `http://127.0.0.1:5173/login`.
-2. Log in with a formal test user, or use the development mock-login option.
+2. Log in with the seeded formal test user, or use the development mock-login option.
 3. Open browser DevTools.
 4. Read localStorage key `webguard_dev_user`.
 5. Copy `access_token` into the extension Options page.
@@ -205,7 +233,7 @@ $login.data.access_token
 
 `mock-login` is development-only and must not be treated as production authentication.
 
-## 9. End-to-End Acceptance
+## 10. End-to-End Acceptance
 
 Use these values in extension Options:
 
@@ -261,7 +289,7 @@ Trust-policy acceptance:
 6. Re-run bootstrap.
 7. The domain should appear in `whitelist_domains.user`.
 
-## 10. Verification Commands
+## 11. Verification Commands
 
 Backend:
 
@@ -285,7 +313,7 @@ cd extension
 npm run build
 ```
 
-## 11. GitHub Actions CI
+## 12. GitHub Actions CI
 
 The repository has a baseline CI workflow at `.github/workflows/ci.yml`.
 
@@ -297,10 +325,10 @@ It runs on `push` and `pull_request`:
 
 The current CI baseline does not require secrets and does not start PostgreSQL.
 
-## 12. Current Development Limits
+## 13. Current Development Limits
 
 - Development mock-login is still present and only valid in development mode.
-- Formal Web login requires pre-created users; registration and password reset are not implemented.
+- Formal Web login requires seeded or otherwise pre-created users; registration and password reset are not implemented.
 - Access Token is manually copied into extension Options.
 - Web Refresh Token exists for the Web app; extension refresh tokens are not implemented.
 - Formal plugin binding is not implemented.

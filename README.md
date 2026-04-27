@@ -35,6 +35,19 @@ cd backend
 alembic upgrade head
 ```
 
+Create or update a local formal login user:
+
+```powershell
+cd backend
+$env:WEBGUARD_SEED_USERNAME = "platform-admin"
+$env:WEBGUARD_SEED_PASSWORD = "change-me-local"
+$env:WEBGUARD_SEED_ROLE = "admin"
+$env:WEBGUARD_SEED_EMAIL = "platform-admin@example.local"
+python -m app.scripts.seed_dev_user
+```
+
+The seed command uses the same password hashing logic as formal login, stores no plaintext password, and is idempotent. In development auth mode it can fall back to local-only defaults, but production-like runs should always provide `WEBGUARD_SEED_PASSWORD` explicitly.
+
 ## Start
 
 Backend:
@@ -100,7 +113,7 @@ Expected shape:
 
 1. Start PostgreSQL, run `alembic upgrade head`, then start backend and frontend.
 2. Open `http://127.0.0.1:5173/login`.
-3. Log in through the Web page. For local acceptance you may use the development mock-login option, or a formal test user that already has `users.password_hash` set.
+3. Log in through the Web page. For local acceptance you may use the seeded formal user, or the development mock-login option.
 4. Open extension Options and set:
    - API Base URL: `http://127.0.0.1:8000`
    - Web App URL: `http://127.0.0.1:5173`
@@ -159,6 +172,7 @@ The CI workflow does not require secrets or a PostgreSQL service.
 
 - `POST /api/v1/auth/mock-login` is development-only.
 - Formal Web login exists for pre-created users with password hashes.
+- `python -m app.scripts.seed_dev_user` is the supported local way to create the first formal login user.
 - Web Refresh Token is stored as an HttpOnly cookie and only the server-side hash is persisted.
 - The extension token is copied manually from Web localStorage.
 - There is no production plugin binding flow yet.
