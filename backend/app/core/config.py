@@ -77,4 +77,23 @@ class Settings(BaseSettings):
             return urlunsplit(("postgresql+psycopg", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
         return database_url
 
+    def validate_production_safety(self) -> None:
+        """Fail fast when production mode is paired with local-only settings."""
+        if self.DEBUG:
+            return
+
+        errors: list[str] = []
+        if self.ENABLE_DEV_AUTH:
+            errors.append("ENABLE_DEV_AUTH must be false when DEBUG=false")
+        if self.JWT_SECRET in {"webguard-dev-secret", "replace_me_in_local_env"} or len(self.JWT_SECRET) < 32:
+            errors.append("JWT_SECRET must be replaced with a strong secret")
+        if not self.REFRESH_TOKEN_COOKIE_SECURE:
+            errors.append("REFRESH_TOKEN_COOKIE_SECURE must be true when DEBUG=false")
+        if "*" in self.cors_origins_list:
+            errors.append("CORS_ORIGINS must not contain wildcard origins when DEBUG=false")
+
+        if errors:
+            raise RuntimeError("Unsafe production settings: " + "; ".join(errors))
+
 settings = Settings()
+settings.validate_production_safety()

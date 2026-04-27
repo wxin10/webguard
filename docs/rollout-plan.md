@@ -158,4 +158,15 @@ These are intentional current limits, not bugs in the local internal-test build:
 - Do not bypass the `code/message/data` envelope.
 - Do not delete runtime schema guards until startup and migrations are proven safe without them.
 - Keep extension behavior thin and backend-authoritative.
+- Treat local `.env.example` values as development defaults only. Production-like runs must disable development auth, use a strong JWT secret, enable Secure refresh cookies, and use exact CORS origins.
+- Keep manual extension token fallback documented as development compatibility until a release decision explicitly removes or gates it.
 
+## P2-G Security Gate
+
+Before a deployable release, the following must be closed:
+
+- HTTPS/reverse proxy and production CORS allowlist.
+- Secret management for `JWT_SECRET` and database credentials.
+- Review of `create_all()` / `ensure_runtime_schema()` production startup behavior.
+- Production extension ID and extension-origin allowlist.
+- Clear decision on whether manual extension token fallback is hidden or disabled outside development.

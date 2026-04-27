@@ -471,6 +471,8 @@ Because extension storage is accessible to the extension context, plugin tokens 
 - Extension origins must be explicitly allowlisted after publishing or during development.
 - No production wildcard CORS.
 - Backend must validate `X-Plugin-Instance-Id` against token claims and database state.
+- Production startup must use `DEBUG=false`, `ENABLE_DEV_AUTH=false`, a strong non-placeholder `JWT_SECRET`, and Secure refresh cookies.
+- Manual extension token fallback is a development compatibility path, not the production binding path.
 
 ### 8.4 Binding Code
 

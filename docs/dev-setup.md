@@ -345,3 +345,19 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 - Plugin Instance ID can be generated and persisted by the extension, but full device-management UI is not implemented.
 - RBAC is still minimal.
 - Production deployment, HTTPS, production CORS, secrets management, and release packaging are not complete.
+
+## 14. Production Safety Gate
+
+This document describes local development, not production deployment. For staging or production, use a separate environment file and set at least:
+
+```text
+DEBUG=false
+ENABLE_DEV_AUTH=false
+JWT_SECRET=<strong unique secret, at least 32 characters>
+REFRESH_TOKEN_COOKIE_SECURE=true
+CORS_ORIGINS=https://<web-origin>,chrome-extension://<published-extension-id>
+```
+
+The backend fails fast when `DEBUG=false` is combined with development auth, placeholder/short JWT secrets, insecure refresh cookies, or wildcard CORS origins. This guard is intentional so local defaults cannot silently become production defaults.
+
+Do not publish with manual extension token fallback as the primary user path. It remains available only to keep development and emergency local debugging workflows usable.

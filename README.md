@@ -181,3 +181,14 @@ The CI workflow does not require secrets or a PostgreSQL service.
 - There is no production deployment configuration yet.
 - The extension can generate and persist `Plugin Instance ID`, but production device-management UX is still minimal.
 - Do not treat this local setup as a production authentication or authorization model.
+
+## Production Safety Notes
+
+The committed defaults are for local internal testing. Before any staging or production deployment, set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, and exact `CORS_ORIGINS` values. The backend now refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, or wildcard CORS while `DEBUG=false`.
+
+Known release blockers before production:
+
+- HTTPS, reverse proxy, and production CORS allowlist are not finalized.
+- Secrets management and environment-specific deployment configuration are not finalized.
+- Manual extension token fallback remains only for development compatibility.
+- Runtime `create_all()` / `ensure_runtime_schema()` still exist as local compatibility guards and should be reviewed before production startup.
