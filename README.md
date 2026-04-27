@@ -184,11 +184,17 @@ The CI workflow does not require secrets or a PostgreSQL service.
 
 ## Production Safety Notes
 
-The committed defaults are for local internal testing. Before any staging or production deployment, set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, and exact `CORS_ORIGINS` values. The backend now refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, or wildcard CORS while `DEBUG=false`.
+The committed defaults are for local internal testing. Before any staging or production deployment, set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, and exact `CORS_ORIGINS` values. The backend refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, wildcard CORS, or runtime schema guards while `DEBUG=false`.
+
+Runtime schema guard behavior:
+
+- Local development: enabled by default when `DEBUG=true`, unless `ENABLE_RUNTIME_SCHEMA_GUARD=false`.
+- Production-like runs: disabled by default when `DEBUG=false`; explicitly enabling it with `DEBUG=false` is rejected.
+- Production schema changes must be applied through Alembic, for example `cd backend && alembic upgrade head`.
 
 Known release blockers before production:
 
 - HTTPS, reverse proxy, and production CORS allowlist are not finalized.
 - Secrets management and environment-specific deployment configuration are not finalized.
 - Manual extension token fallback remains only for development compatibility.
-- Runtime `create_all()` / `ensure_runtime_schema()` still exist as local compatibility guards and should be reviewed before production startup.
+- Web access token still has a localStorage-compatible frontend path and must be migrated in P2-I before production release.

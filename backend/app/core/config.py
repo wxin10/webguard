@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str | None = None
     CORS_ORIGINS: str = "http://127.0.0.1:5173,http://localhost:5173,chrome-extension://__EXTENSION_ID__"
     ENABLE_DEV_AUTH: bool = True
+    ENABLE_RUNTIME_SCHEMA_GUARD: bool | None = None
     JWT_SECRET: str = "webguard-dev-secret"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRES_MINUTES: int = 30
@@ -52,6 +53,12 @@ class Settings(BaseSettings):
     @property
     def mock_login_enabled(self) -> bool:
         return self.dev_auth_enabled
+
+    @property
+    def runtime_schema_guard_enabled(self) -> bool:
+        if self.ENABLE_RUNTIME_SCHEMA_GUARD is None:
+            return bool(self.DEBUG)
+        return bool(self.ENABLE_RUNTIME_SCHEMA_GUARD)
 
     @property
     def access_token_expires_seconds(self) -> int:
@@ -91,6 +98,8 @@ class Settings(BaseSettings):
             errors.append("REFRESH_TOKEN_COOKIE_SECURE must be true when DEBUG=false")
         if "*" in self.cors_origins_list:
             errors.append("CORS_ORIGINS must not contain wildcard origins when DEBUG=false")
+        if self.runtime_schema_guard_enabled:
+            errors.append("ENABLE_RUNTIME_SCHEMA_GUARD must be false when DEBUG=false")
 
         if errors:
             raise RuntimeError("Unsafe production settings: " + "; ".join(errors))

@@ -1,6 +1,6 @@
 # WebGuard Development Setup
 
-Version: P2-D local internal-test baseline
+Version: P2-H local internal-test baseline
 
 This document describes the current local workflow after P1-D. It is intentionally focused on repeatable development and acceptance, not production deployment.
 
@@ -48,7 +48,14 @@ alembic upgrade head
 
 The repository now has an initial Alembic baseline. Keep schema changes in Alembic migrations instead of relying on runtime table creation.
 
-`Base.metadata.create_all()` and `ensure_runtime_schema()` still exist as local compatibility guards. Do not delete them without a separate migration and startup-risk review.
+`Base.metadata.create_all()` and `ensure_runtime_schema()` still exist as local compatibility guards, but they are now isolated behind `ENABLE_RUNTIME_SCHEMA_GUARD`.
+
+Runtime schema guard behavior:
+
+- Local development: enabled by default when `DEBUG=true`, unless `ENABLE_RUNTIME_SCHEMA_GUARD=false`.
+- Production-like runs: disabled by default when `DEBUG=false`.
+- Unsafe combination: `DEBUG=false` with `ENABLE_RUNTIME_SCHEMA_GUARD=true` is rejected during backend settings validation.
+- Production schema changes must be applied through Alembic only.
 
 ## 4. Seed a Local Formal User
 
@@ -353,11 +360,14 @@ This document describes local development, not production deployment. For stagin
 ```text
 DEBUG=false
 ENABLE_DEV_AUTH=false
+ENABLE_RUNTIME_SCHEMA_GUARD=false
 JWT_SECRET=<strong unique secret, at least 32 characters>
 REFRESH_TOKEN_COOKIE_SECURE=true
 CORS_ORIGINS=https://<web-origin>,chrome-extension://<published-extension-id>
 ```
 
-The backend fails fast when `DEBUG=false` is combined with development auth, placeholder/short JWT secrets, insecure refresh cookies, or wildcard CORS origins. This guard is intentional so local defaults cannot silently become production defaults.
+The backend fails fast when `DEBUG=false` is combined with development auth, runtime schema guards, placeholder/short JWT secrets, insecure refresh cookies, or wildcard CORS origins. This guard is intentional so local defaults cannot silently become production defaults.
 
 Do not publish with manual extension token fallback as the primary user path. It remains available only to keep development and emergency local debugging workflows usable.
+
+P2-I should address the remaining Web access token localStorage compatibility path by moving the production Web client toward memory-only access tokens plus HttpOnly refresh cookies.

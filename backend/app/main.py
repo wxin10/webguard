@@ -27,8 +27,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
-    ensure_runtime_schema(engine)
+    if settings.runtime_schema_guard_enabled:
+        Base.metadata.create_all(bind=engine)
+        ensure_runtime_schema(engine)
 
 
 @app.exception_handler(WebGuardException)
