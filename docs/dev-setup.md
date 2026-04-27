@@ -263,7 +263,19 @@ cd extension
 npm run build
 ```
 
-## 11. Current Development Limits
+## 11. GitHub Actions CI
+
+The repository has a baseline CI workflow at `.github/workflows/ci.yml`.
+
+It runs on `push` and `pull_request`:
+
+- backend: installs Python dependencies and runs `python -m pytest` with SQLite test configuration.
+- frontend: installs npm dependencies, then runs `npm run lint` and `npm run build`.
+- extension: installs npm dependencies, then runs `npm run build`.
+
+The current CI baseline does not require secrets and does not start PostgreSQL.
+
+## 12. Current Development Limits
 
 - Development mock-login is still present and only valid in development mode.
 - Access Token is manually copied into extension Options.
@@ -272,4 +284,3 @@ npm run build
 - Plugin Instance ID is manually entered.
 - RBAC is still minimal.
 - Production deployment, HTTPS, production CORS, secrets management, and release packaging are not complete.
-

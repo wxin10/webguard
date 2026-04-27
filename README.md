@@ -145,6 +145,16 @@ frontend lint/build: passed
 extension build: passed
 ```
 
+## CI
+
+GitHub Actions runs the same baseline checks on `push` and `pull_request`:
+
+- backend: `python -m pytest` with SQLite test configuration
+- frontend: `npm run lint` and `npm run build`
+- extension: `npm run build`
+
+The CI workflow does not require secrets or a PostgreSQL service.
+
 ## Development-Only Limits
 
 - `POST /api/v1/auth/mock-login` is development-only.
@@ -154,4 +164,3 @@ extension build: passed
 - There is no production deployment configuration yet.
 - The extension `Plugin Instance ID` is a manual placeholder.
 - Do not treat this local setup as a production authentication or authorization model.
-
