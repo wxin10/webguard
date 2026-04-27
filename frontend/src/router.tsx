@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter, useParams } from 'react-router-dom';
+import { Navigate, createBrowserRouter, useLocation, useParams } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import AppLayout from './layouts/AppLayout';
@@ -25,8 +25,10 @@ import Users from './pages/Users';
 import type { UserRole } from './types';
 
 function RoleGuard({ roles, children }: { roles: UserRole[]; children: ReactElement }) {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  const { initialized, user } = useAuth();
+  const location = useLocation();
+  if (!initialized) return <div className="p-6 text-sm text-slate-500">Loading session...</div>;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (!roles.includes(user.role)) return <Navigate to="/app" replace />;
   return children;
 }

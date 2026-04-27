@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import { authApi } from '../services/api';
 import { readStoredAuthUser, writeStoredAuthUser } from '../services/client';
 import type { DevelopmentUser, UserRole } from '../types';
 
 interface AuthContextValue {
   user: DevelopmentUser | null;
+  initialized: boolean;
   login: (username: string, password: string) => Promise<void>;
   mockLogin: (username: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -14,11 +15,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<DevelopmentUser | null>(null);
-
-  useEffect(() => {
-    setUser(readStoredAuthUser());
-  }, []);
+  const [user, setUser] = useState<DevelopmentUser | null>(() => readStoredAuthUser());
+  const initialized = true;
 
   const persist = (nextUser: DevelopmentUser | null) => {
     setUser(nextUser);
@@ -58,7 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await mockLogin(nextRole === 'admin' ? 'platform-admin' : 'platform-user', nextRole);
   };
 
-  const value = useMemo(() => ({ user, login, mockLogin, logout, switchRole }), [user]);
+  const value = useMemo(
+    () => ({ user, initialized, login, mockLogin, logout, switchRole }),
+    [initialized, user],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

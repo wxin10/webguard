@@ -58,10 +58,19 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return;
   const url = tab.url;
-  if (!url || !isHttpUrl(url)) return;
+  if (!url) return;
+  if (isExtensionPageUrl(url)) {
+    void setTabState(tabId, url, 'idle');
+    return;
+  }
+  if (!isHttpUrl(url)) return;
 
   void getSettings()
     .then(async (settings) => {
+      if (isPlatformUrl(url, settings.apiBaseUrl, settings.webBaseUrl)) {
+        await setTabState(tabId, url, 'idle');
+        return;
+      }
       if (settings.autoDetect) {
         await scheduleScan(tabId, url, 'auto');
       } else {
@@ -117,6 +126,11 @@ async function handleRuntimeMessage(message: unknown): Promise<unknown> {
 }
 
 async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): Promise<ScanResponse> {
+  if (isExtensionPageUrl(url)) {
+    const record = await setTabState(tabId, url, 'idle');
+    return { ok: true, record };
+  }
+
   if (!isHttpUrl(url)) {
     const error = createRuntimeError('当前页面不是可扫描的 http/https 页面。', url, 'unsupported_url');
     const record = await setTabState(tabId, url, 'error', undefined, error);
@@ -133,6 +147,11 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
   try {
     await setTabState(tabId, url, 'scanning');
+    const settings = await getSettings();
+    if (isPlatformUrl(url, settings.apiBaseUrl, settings.webBaseUrl)) {
+      const record = await setTabState(tabId, url, 'idle');
+      return { ok: true, record };
+    }
     await ensurePluginBootstrapFresh();
 
     if (await consumeTemporaryBypass(url)) {
@@ -210,6 +229,16 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
   } finally {
     activeScans.delete(key);
   }
+}
+
+function isPlatformUrl(url: string, apiBaseUrl: string, webBaseUrl: string): boolean {
+  const host = hostFromUrl(url);
+  if (!host) return false;
+  return [apiBaseUrl, webBaseUrl].some((baseUrl) => hostFromUrl(baseUrl) === host);
+}
+
+function isExtensionPageUrl(url: string): boolean {
+  return url.startsWith(chrome.runtime.getURL(''));
 }
 
 async function handleDetectionResult(tabId: number, originalUrl: string, result: DetectionResult): Promise<TabRiskRecord> {

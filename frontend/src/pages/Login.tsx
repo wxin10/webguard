@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types';
 
@@ -8,13 +8,16 @@ const loginImage = 'https://images.unsplash.com/photo-1563986768609-322da13575f3
 export default function Login() {
   const { user, login, mockLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [developmentRole, setDevelopmentRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  if (user) return <Navigate to="/app" replace />;
+  const fromPath = isRedirectState(location.state) ? `${location.state.from.pathname}${location.state.from.search}` : '/app';
+
+  if (user) return <Navigate to={fromPath} replace />;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -23,7 +26,7 @@ export default function Login() {
     try {
       const normalizedUsername = username.trim();
       await login(normalizedUsername, password);
-      navigate('/app', { replace: true });
+      navigate(fromPath, { replace: true });
     } catch {
       setError('登录失败，请确认后端服务已启动。');
     } finally {
@@ -38,7 +41,7 @@ export default function Login() {
       const normalizedUsername = username.trim();
       const fallbackUsername = developmentRole === 'admin' ? 'platform-admin' : 'platform-user';
       await mockLogin(normalizedUsername || fallbackUsername, developmentRole);
-      navigate('/app', { replace: true });
+      navigate(fromPath, { replace: true });
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'mock login failed');
     } finally {
@@ -149,5 +152,16 @@ export default function Login() {
         </form>
       </div>
     </div>
+  );
+}
+
+function isRedirectState(state: unknown): state is { from: { pathname: string; search: string } } {
+  if (!state || typeof state !== 'object' || !('from' in state)) return false;
+  const from = (state as { from?: unknown }).from;
+  return Boolean(
+    from
+      && typeof from === 'object'
+      && typeof (from as { pathname?: unknown }).pathname === 'string'
+      && typeof (from as { search?: unknown }).search === 'string',
   );
 }

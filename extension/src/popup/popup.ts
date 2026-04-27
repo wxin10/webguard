@@ -100,7 +100,12 @@ async function renderConnectionSummary(): Promise<void> {
   const settings = await getSettings();
   const snapshot = await getPluginPolicySnapshot();
   setText(apiBaseUrlElement, settings.apiBaseUrl);
-  setText(tokenStatusElement, settings.accessToken ? '已配置' : '未配置');
+  const tokenStatus = settings.pluginAccessToken
+    ? 'Plugin token configured'
+    : settings.accessToken
+      ? 'Manual token configured'
+      : 'Not configured';
+  setText(tokenStatusElement, tokenStatus);
   setText(pluginInstanceElement, settings.pluginInstanceId || '未配置');
   setText(
     bootstrapStatusElement,

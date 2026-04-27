@@ -1,12 +1,14 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import AppSidebar from '../components/AppSidebar';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AppLayout() {
-  const { user } = useAuth();
+  const { initialized, user } = useAuth();
+  const location = useLocation();
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!initialized) return <div className="p-6 text-sm text-slate-500">Loading session...</div>;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
 
   return (
     <div className="min-h-screen bg-slate-50">
