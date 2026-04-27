@@ -8,12 +8,27 @@ export interface ApiResponse<T> {
 }
 
 export interface DevelopmentUser {
+  id?: number;
   username: string;
+  email?: string | null;
   role: UserRole;
   display_name: string;
+  is_active?: boolean;
   access_token?: string;
   token_type?: string;
   expires_in?: number;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+  user?: DevelopmentUser | null;
 }
 
 export interface UrlScanRequest {

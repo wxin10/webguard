@@ -1,6 +1,6 @@
 # WebGuard Development Setup
 
-Version: P2-A local internal-test baseline
+Version: P2-D local internal-test baseline
 
 This document describes the current local workflow after P1-D. It is intentionally focused on repeatable development and acceptance, not production deployment.
 
@@ -157,14 +157,36 @@ Stop-Process -Id <PID> -Force
 
 A stale backend can make acceptance misleading. Always re-check `/health` after restarting.
 
-## 8. Development Token
+## 8. Web Login and Development Token
 
-The Web app currently uses development-only mock login.
+The Web app now supports formal username/password login for users that already exist with `users.password_hash` set. There is still no self-service registration flow in this local baseline.
+
+Formal login endpoints:
+
+```text
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+GET  /api/v1/auth/me
+```
+
+`/api/v1/auth/login` returns a short-lived Access Token and sets an HttpOnly refresh cookie named `webguard_refresh_token`. `/api/v1/auth/refresh` rotates the refresh token and returns a new Access Token. The database stores only refresh-token hashes in `refresh_tokens`.
+
+Relevant local environment variables:
+
+```text
+JWT_ACCESS_TOKEN_EXPIRES_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRES_DAYS=14
+REFRESH_TOKEN_COOKIE_NAME=webguard_refresh_token
+REFRESH_TOKEN_COOKIE_SECURE=false
+```
+
+Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_AUTH=true`.
 
 Manual token flow:
 
 1. Open `http://127.0.0.1:5173/login`.
-2. Log in with the development login form.
+2. Log in with a formal test user, or use the development mock-login option.
 3. Open browser DevTools.
 4. Read localStorage key `webguard_dev_user`.
 5. Copy `access_token` into the extension Options page.
@@ -278,8 +300,9 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 ## 12. Current Development Limits
 
 - Development mock-login is still present and only valid in development mode.
+- Formal Web login requires pre-created users; registration and password reset are not implemented.
 - Access Token is manually copied into extension Options.
-- Refresh Token is not implemented.
+- Web Refresh Token exists for the Web app; extension refresh tokens are not implemented.
 - Formal plugin binding is not implemented.
 - Plugin Instance ID is manually entered.
 - RBAC is still minimal.

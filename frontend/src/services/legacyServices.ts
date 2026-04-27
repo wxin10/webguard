@@ -1,8 +1,10 @@
 import { api, unwrap } from './client';
 import type {
   ApiResponse,
+  AuthTokenResponse,
   BlacklistItem,
   DevelopmentUser,
+  LoginRequest,
   DomainList,
   ModelStatus,
   ModelVersionList,
@@ -16,6 +18,11 @@ import type {
 } from '../types';
 
 export const authApi = {
+  login: (data: LoginRequest) =>
+    unwrap(api.post<ApiResponse<AuthTokenResponse>>('/api/v1/auth/login', data)),
+  refresh: () => unwrap(api.post<ApiResponse<AuthTokenResponse>>('/api/v1/auth/refresh')),
+  logout: () => unwrap(api.post<ApiResponse<{ logged_out: boolean }>>('/api/v1/auth/logout')),
+  me: () => unwrap(api.get<ApiResponse<DevelopmentUser>>('/api/v1/auth/me')),
   mockLogin: (data: { username: string; role: UserRole }) =>
     unwrap(api.post<ApiResponse<DevelopmentUser>>('/api/v1/auth/mock-login', data)),
 };

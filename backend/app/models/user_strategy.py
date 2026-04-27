@@ -45,10 +45,33 @@ class User(Base):
     username = Column(String(100), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True)
     display_name = Column(String(100), nullable=False)
+    password_hash = Column(String(255))
     role = Column(String(20), default="user", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_login_at = Column(DateTime(timezone=True))
+
+
+class RefreshToken(Base):
+    """Server-side Web refresh-token session.
+
+    Only a hash of the opaque refresh token is stored.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    token_hash = Column(String(128), unique=True, index=True, nullable=False)
+    session_id = Column(String(128), unique=True, index=True, nullable=False)
+    user_agent = Column(String(255))
+    ip_address = Column(String(45))
+    expires_at = Column(DateTime(timezone=True), index=True, nullable=False)
+    revoked_at = Column(DateTime(timezone=True))
+    rotated_from_id = Column(Integer, ForeignKey("refresh_tokens.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True))
 
 
 class UserPolicy(Base):

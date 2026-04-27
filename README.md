@@ -100,7 +100,7 @@ Expected shape:
 
 1. Start PostgreSQL, run `alembic upgrade head`, then start backend and frontend.
 2. Open `http://127.0.0.1:5173/login`.
-3. Use development mock login and read `webguard_dev_user.access_token` from browser localStorage.
+3. Log in through the Web page. For local acceptance you may use the development mock-login option, or a formal test user that already has `users.password_hash` set.
 4. Open extension Options and set:
    - API Base URL: `http://127.0.0.1:8000`
    - Web App URL: `http://127.0.0.1:5173`
@@ -137,10 +137,10 @@ cd extension
 npm run build
 ```
 
-Current verified baseline after P1-D:
+Current verified baseline after P2-D:
 
 ```text
-backend pytest: 22 passed
+backend pytest: 29 passed
 frontend lint/build: passed
 extension build: passed
 ```
@@ -158,8 +158,9 @@ The CI workflow does not require secrets or a PostgreSQL service.
 ## Development-Only Limits
 
 - `POST /api/v1/auth/mock-login` is development-only.
+- Formal Web login exists for pre-created users with password hashes.
+- Web Refresh Token is stored as an HttpOnly cookie and only the server-side hash is persisted.
 - The extension token is copied manually from Web localStorage.
-- There is no Refresh Token flow yet.
 - There is no production plugin binding flow yet.
 - There is no production deployment configuration yet.
 - The extension `Plugin Instance ID` is a manual placeholder.

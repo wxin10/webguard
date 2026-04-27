@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "webguard-dev-secret"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRES_MINUTES: int = 30
+    JWT_REFRESH_TOKEN_EXPIRES_DAYS: int = 14
+    REFRESH_TOKEN_COOKIE_NAME: str = "webguard_refresh_token"
+    REFRESH_TOKEN_COOKIE_SECURE: bool = False
 
     MODEL_DIR: str = "./models"
     MODEL_NAME: str = "text_classifier"
@@ -51,6 +54,10 @@ class Settings(BaseSettings):
     @property
     def access_token_expires_seconds(self) -> int:
         return max(self.JWT_ACCESS_TOKEN_EXPIRES_MINUTES, 1) * 60
+
+    @property
+    def refresh_token_expires_seconds(self) -> int:
+        return max(self.JWT_REFRESH_TOKEN_EXPIRES_DAYS, 1) * 24 * 60 * 60
 
     def _normalize_database_url(self, database_url: str) -> str:
         if database_url.startswith("postgres://"):

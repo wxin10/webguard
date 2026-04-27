@@ -1,44 +1,64 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../services/api';
+import { readStoredAuthUser, writeStoredAuthUser } from '../services/client';
 import type { DevelopmentUser, UserRole } from '../types';
 
 interface AuthContextValue {
   user: DevelopmentUser | null;
-  login: (username: string, role: UserRole) => Promise<void>;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<void>;
+  mockLogin: (username: string, role: UserRole) => Promise<void>;
+  logout: () => Promise<void>;
   switchRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const STORAGE_KEY = 'webguard_dev_user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<DevelopmentUser | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) setUser(JSON.parse(raw));
+    setUser(readStoredAuthUser());
   }, []);
 
   const persist = (nextUser: DevelopmentUser | null) => {
     setUser(nextUser);
-    if (nextUser) localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
-    else localStorage.removeItem(STORAGE_KEY);
+    writeStoredAuthUser(nextUser);
   };
 
-  const login = async (username: string, role: UserRole) => {
+  const login = async (username: string, password: string) => {
+    const tokenResponse = await authApi.login({ username, password });
+    const profile = tokenResponse.user || {
+      username,
+      role: 'user' as UserRole,
+      display_name: username,
+    };
+    persist({
+      ...profile,
+      access_token: tokenResponse.access_token,
+      token_type: tokenResponse.token_type,
+      expires_in: tokenResponse.expires_in,
+    });
+  };
+
+  const mockLogin = async (username: string, role: UserRole) => {
     const nextUser = await authApi.mockLogin({ username, role });
     persist(nextUser);
   };
 
-  const logout = () => persist(null);
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      persist(null);
+    }
+  };
 
   const switchRole = async () => {
     const nextRole: UserRole = user?.role === 'admin' ? 'user' : 'admin';
-    await login(nextRole === 'admin' ? 'platform-admin' : 'platform-user', nextRole);
+    await mockLogin(nextRole === 'admin' ? 'platform-admin' : 'platform-user', nextRole);
   };
 
-  const value = useMemo(() => ({ user, login, logout, switchRole }), [user]);
+  const value = useMemo(() => ({ user, login, mockLogin, logout, switchRole }), [user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -7,6 +7,8 @@ from sqlalchemy.engine import Engine
 RUNTIME_COLUMNS: dict[str, dict[str, str]] = {
     "users": {
         "email": "VARCHAR(255) NULL",
+        "password_hash": "VARCHAR(255) NULL",
+        "last_login_at": "TIMESTAMP WITH TIME ZONE NULL",
     },
     "scan_records": {
         "user_id": "INTEGER NULL",

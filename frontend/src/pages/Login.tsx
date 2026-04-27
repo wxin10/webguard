@@ -6,7 +6,7 @@ import type { UserRole } from '../types';
 const loginImage = 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1400&q=80';
 
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, mockLogin } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -22,11 +22,25 @@ export default function Login() {
     setError('');
     try {
       const normalizedUsername = username.trim();
-      const fallbackUsername = developmentRole === 'admin' ? 'platform-admin' : 'platform-user';
-      await login(normalizedUsername || fallbackUsername, developmentRole);
+      await login(normalizedUsername, password);
       navigate('/app', { replace: true });
     } catch {
       setError('登录失败，请确认后端服务已启动。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMockLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const normalizedUsername = username.trim();
+      const fallbackUsername = developmentRole === 'admin' ? 'platform-admin' : 'platform-user';
+      await mockLogin(normalizedUsername || fallbackUsername, developmentRole);
+      navigate('/app', { replace: true });
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'mock login failed');
     } finally {
       setLoading(false);
     }
@@ -92,7 +106,7 @@ export default function Login() {
           />
 
           <button
-            disabled={loading || !password.trim()}
+            disabled={loading || !username.trim() || !password.trim()}
             className="mt-7 w-full rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? '登录中...' : '登录并进入平台'}
@@ -119,6 +133,14 @@ export default function Login() {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={handleMockLogin}
+              disabled={loading}
+              className="mt-4 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Use development mock-login
+            </button>
           </details>
 
           <Link to="/" className="mt-6 text-center text-sm font-semibold text-slate-500 hover:text-emerald-700">

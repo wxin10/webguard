@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from datetime import timedelta
 from typing import Any
@@ -13,6 +14,67 @@ from .config import settings
 
 class TokenError(ValueError):
     """Raised when an access token is malformed or invalid."""
+
+
+PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = 260_000
+
+
+def hash_password(password: str) -> str:
+    clean_password = password or ""
+    if not clean_password:
+        raise ValueError("password is required")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        clean_password.encode("utf-8"),
+        salt,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return "$".join(
+        [
+            PASSWORD_HASH_ALGORITHM,
+            str(PASSWORD_HASH_ITERATIONS),
+            _b64url_encode(salt),
+            _b64url_encode(digest),
+        ]
+    )
+
+
+def verify_password(password: str, password_hash: str | None) -> bool:
+    if not password or not password_hash:
+        return False
+    try:
+        algorithm, iterations_raw, salt_raw, digest_raw = password_hash.split("$", 3)
+        iterations = int(iterations_raw)
+    except (ValueError, AttributeError):
+        return False
+    if algorithm != PASSWORD_HASH_ALGORITHM or iterations < 1:
+        return False
+    try:
+        salt = _b64url_decode(salt_raw)
+        expected_digest = _b64url_decode(digest_raw)
+    except ValueError:
+        return False
+    candidate_digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        iterations,
+    )
+    return hmac.compare_digest(candidate_digest, expected_digest)
+
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hmac.new(settings.JWT_SECRET.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def generate_session_id() -> str:
+    return f"websess_{secrets.token_urlsafe(24)}"
 
 
 def create_access_token(

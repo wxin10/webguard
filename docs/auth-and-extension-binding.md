@@ -4,6 +4,8 @@ Version: P2-B design draft
 
 This document defines the target design for formal Web login, token refresh, and browser extension binding. It is a design document only. It does not change current implementation, database schema, dependencies, or API behavior.
 
+Implementation note: the P2-D baseline now implements the Web login endpoints, password hash field, Web refresh-token table, HttpOnly refresh cookie, refresh rotation, logout revocation, `/api/v1/auth/me`, and frontend refresh-on-401 behavior. Formal plugin binding remains design-only.
+
 ## 1. Goals
 
 - Replace development-only mock login as the production path.
@@ -562,4 +564,3 @@ Recommended scope:
 - Should admins be able to revoke any user's plugin instance in the first implementation?
 - Should the Web refresh cookie be path-scoped to `/api/v1/auth` or sent broadly to the API host?
 - Should password login ship first, or should the project adopt an SSO provider before production?
-

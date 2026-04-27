@@ -9,6 +9,7 @@ from .user_strategy import (
     FeedbackCase,
     PlatformSetting,
     PluginSyncEvent,
+    RefreshToken,
     Report,
     ReportAction,
     User,
@@ -33,5 +34,6 @@ __all__ = [
     "FeedbackCase",
     "PluginSyncEvent",
     "PlatformSetting",
+    "RefreshToken",
     "User",
 ]
