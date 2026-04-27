@@ -13,7 +13,7 @@ Thumbs.db
 node_modules/
 __pycache__/
 *.pyc
-backend/webguard.db
+backend/*.db
 *.sqlite
 *.sqlite3
 
@@ -35,10 +35,7 @@ logs/
 # 模型文件
 models/
 !backend/app/models/
-backend/app/models/*
-!backend/app/models/__init__.py
-!backend/app/models/rule_config.py
-!backend/app/models/user_strategy.py
+!backend/app/models/*.py
 
 # 临时文件
 tmp/
