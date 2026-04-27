@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Model from './pages/Model';
 import MyRecords from './pages/MyRecords';
 import Plugin from './pages/Plugin';
+import PluginBind from './pages/PluginBind';
 import PluginGuide from './pages/PluginGuide';
 import PluginSync from './pages/PluginSync';
 import ProductHome from './pages/ProductHome';
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: 'my-records', element: <RoleGuard roles={['user']}><MyRecords /></RoleGuard> },
       { path: 'my-domains', element: <RoleGuard roles={['user']}><UserDomains /></RoleGuard> },
       { path: 'plugin-sync', element: <RoleGuard roles={['user']}><PluginSync /></RoleGuard> },
+      { path: 'plugin-bind', element: <RoleGuard roles={['admin', 'user']}><PluginBind /></RoleGuard> },
       { path: 'account', element: <RoleGuard roles={['user', 'admin']}><AccountSettings /></RoleGuard> },
       { path: 'report/latest', element: <RoleGuard roles={['user', 'admin']}><LatestReport /></RoleGuard> },
       { path: 'plugin-guide', element: <RoleGuard roles={['admin', 'user']}><PluginGuide /></RoleGuard> },

@@ -74,6 +74,59 @@ class RefreshToken(Base):
     last_used_at = Column(DateTime(timezone=True))
 
 
+class PluginInstance(Base):
+    """A browser extension instance bound to one WebGuard user."""
+
+    __tablename__ = "plugin_instances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plugin_instance_id = Column(String(128), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    display_name = Column(String(100))
+    browser_family = Column(String(50))
+    plugin_version = Column(String(50))
+    status = Column(String(20), default="active", index=True, nullable=False)
+    bound_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True))
+    last_seen_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PluginBindingChallenge(Base):
+    """Short-lived one-time challenge for binding an extension instance."""
+
+    __tablename__ = "plugin_binding_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    challenge_id = Column(String(128), unique=True, index=True, nullable=False)
+    plugin_instance_id = Column(String(128), index=True, nullable=False)
+    binding_code_hash = Column(String(128), nullable=False)
+    status = Column(String(20), default="pending", index=True, nullable=False)
+    confirmed_by_user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    expires_at = Column(DateTime(timezone=True), index=True, nullable=False)
+    confirmed_at = Column(DateTime(timezone=True))
+    consumed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    metadata_json = Column(JSON)
+
+
+class PluginRefreshToken(Base):
+    """Extension-scoped refresh session bound to one plugin instance."""
+
+    __tablename__ = "plugin_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plugin_instance_id = Column(String(128), index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    token_hash = Column(String(128), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), index=True, nullable=False)
+    revoked_at = Column(DateTime(timezone=True))
+    rotated_from_id = Column(Integer, ForeignKey("plugin_refresh_tokens.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True))
+
+
 class UserPolicy(Base):
     """User-owned browser execution policy managed by the web platform."""
 

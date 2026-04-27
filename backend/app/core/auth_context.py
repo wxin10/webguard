@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from typing import Any
 
-from fastapi import Header
+from fastapi import Depends, Header
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
 from .config import settings
+from .database import get_db
 from .exceptions import WebGuardException
 from .response import error_response, success_payload
 from .security import TokenError, decode_access_token
@@ -15,6 +17,7 @@ class Principal:
     username: str
     role: str
     auth_mode: str = "anonymous"
+    plugin_instance_id: str | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -34,7 +37,11 @@ def _token_from_authorization_header(authorization: str | None) -> str | None:
     return token.strip()
 
 
-def _principal_from_token(authorization: str | None) -> Principal | None:
+def _principal_from_token(
+    authorization: str | None,
+    x_plugin_instance_id: str | None = None,
+    db: Session | None = None,
+) -> Principal | None:
     token = _token_from_authorization_header(authorization)
     if not token:
         return None
@@ -44,10 +51,22 @@ def _principal_from_token(authorization: str | None) -> Principal | None:
         detail = str(exc)
         code = 40102 if detail == "token expired" else 40101
         raise WebGuardException(status_code=401, detail=detail, code=code) from exc
+    plugin_instance_id = payload.get("plugin_instance_id")
+    if payload.get("token_scope") == "plugin":
+        if not isinstance(plugin_instance_id, str) or not plugin_instance_id.strip():
+            raise WebGuardException(status_code=401, detail="invalid plugin token", code=40101)
+        if plugin_instance_id.strip() != (x_plugin_instance_id or "").strip():
+            raise WebGuardException(status_code=403, detail="plugin instance mismatch", code=40301)
+        if db is not None:
+            from ..services.plugin_binding_service import PluginBindingService
+
+            PluginBindingService(db).get_active_instance(plugin_instance_id.strip())
+
     return Principal(
         username=payload["sub"].strip(),
         role=payload["role"].strip(),
-        auth_mode="token",
+        auth_mode="plugin-token" if payload.get("token_scope") == "plugin" else "token",
+        plugin_instance_id=plugin_instance_id.strip() if isinstance(plugin_instance_id, str) else None,
     )
 
 
@@ -69,6 +88,8 @@ def principal_from_headers(
     authorization: str | None = Header(default=None),
     x_webguard_user: str | None = Header(default=None),
     x_webguard_role: str | None = Header(default=None),
+    x_plugin_instance_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ) -> Principal:
     """Compatibility auth boundary for routes not yet frozen behind require_auth.
 
@@ -77,7 +98,7 @@ def principal_from_headers(
     resolve to an anonymous principal until they are migrated to require_auth.
     """
 
-    token_principal = _principal_from_token(authorization)
+    token_principal = _principal_from_token(authorization, x_plugin_instance_id=x_plugin_instance_id, db=db)
     if token_principal:
         return token_principal
     dev_principal = _principal_from_dev_headers(x_webguard_user, x_webguard_role)
@@ -92,8 +113,10 @@ def get_current_user(
     authorization: str | None = Header(default=None),
     x_webguard_user: str | None = Header(default=None),
     x_webguard_role: str | None = Header(default=None),
+    x_plugin_instance_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ) -> Principal:
-    token_principal = _principal_from_token(authorization)
+    token_principal = _principal_from_token(authorization, x_plugin_instance_id=x_plugin_instance_id, db=db)
     if token_principal:
         return token_principal
     dev_principal = _principal_from_dev_headers(x_webguard_user, x_webguard_role)
@@ -106,11 +129,15 @@ def require_auth(
     authorization: str | None = Header(default=None),
     x_webguard_user: str | None = Header(default=None),
     x_webguard_role: str | None = Header(default=None),
+    x_plugin_instance_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ) -> Principal:
     return get_current_user(
         authorization=authorization,
         x_webguard_user=x_webguard_user,
         x_webguard_role=x_webguard_role,
+        x_plugin_instance_id=x_plugin_instance_id,
+        db=db,
     )
 
 

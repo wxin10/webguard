@@ -44,6 +44,12 @@ export interface ExtensionSettings {
   eventUploadEnabled: boolean;
   accessToken?: string;
   pluginInstanceId?: string;
+  pluginAccessToken?: string;
+  pluginRefreshToken?: string;
+  pluginTokenExpiresAt?: number;
+  pendingBindingChallengeId?: string;
+  pendingBindingCode?: string;
+  pendingBindingVerificationUrl?: string;
 }
 
 export interface RuntimeError {
@@ -128,6 +134,12 @@ interface StoredSettingsV1 {
   eventUploadEnabled?: unknown;
   accessToken?: unknown;
   pluginInstanceId?: unknown;
+  pluginAccessToken?: unknown;
+  pluginRefreshToken?: unknown;
+  pluginTokenExpiresAt?: unknown;
+  pendingBindingChallengeId?: unknown;
+  pendingBindingCode?: unknown;
+  pendingBindingVerificationUrl?: unknown;
 }
 
 interface LocalStorageShape {
@@ -185,6 +197,12 @@ export async function getSettings(): Promise<ExtensionSettings> {
     eventUploadEnabled: firstBoolean(settings.eventUploadEnabled, DEFAULT_SETTINGS.eventUploadEnabled),
     ...(firstString(settings.accessToken) ? { accessToken: firstString(settings.accessToken) } : {}),
     ...(firstString(settings.pluginInstanceId) ? { pluginInstanceId: firstString(settings.pluginInstanceId) } : {}),
+    ...(firstString(settings.pluginAccessToken) ? { pluginAccessToken: firstString(settings.pluginAccessToken) } : {}),
+    ...(firstString(settings.pluginRefreshToken) ? { pluginRefreshToken: firstString(settings.pluginRefreshToken) } : {}),
+    ...(numberOrZero(settings.pluginTokenExpiresAt) > 0 ? { pluginTokenExpiresAt: numberOrZero(settings.pluginTokenExpiresAt) } : {}),
+    ...(firstString(settings.pendingBindingChallengeId) ? { pendingBindingChallengeId: firstString(settings.pendingBindingChallengeId) } : {}),
+    ...(firstString(settings.pendingBindingCode) ? { pendingBindingCode: firstString(settings.pendingBindingCode) } : {}),
+    ...(firstString(settings.pendingBindingVerificationUrl) ? { pendingBindingVerificationUrl: firstString(settings.pendingBindingVerificationUrl) } : {}),
   };
 }
 
@@ -195,11 +213,31 @@ export async function saveSettings(settings: Partial<ExtensionSettings>): Promis
     ...settings,
     apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl, current.apiBaseUrl),
     webBaseUrl: normalizeBaseUrl(settings.webBaseUrl, current.webBaseUrl),
-    ...(typeof settings.accessToken === 'string' ? { accessToken: settings.accessToken.trim() || undefined } : {}),
-    ...(typeof settings.pluginInstanceId === 'string' ? { pluginInstanceId: settings.pluginInstanceId.trim() || undefined } : {}),
   };
+  applyOptionalString(next, settings, 'accessToken');
+  applyOptionalString(next, settings, 'pluginInstanceId');
+  applyOptionalString(next, settings, 'pluginAccessToken');
+  applyOptionalString(next, settings, 'pluginRefreshToken');
+  applyOptionalString(next, settings, 'pendingBindingChallengeId');
+  applyOptionalString(next, settings, 'pendingBindingCode');
+  applyOptionalString(next, settings, 'pendingBindingVerificationUrl');
+  if ('pluginTokenExpiresAt' in settings) {
+    if (typeof settings.pluginTokenExpiresAt === 'number' && Number.isFinite(settings.pluginTokenExpiresAt) && settings.pluginTokenExpiresAt > 0) {
+      next.pluginTokenExpiresAt = settings.pluginTokenExpiresAt;
+    } else {
+      delete next.pluginTokenExpiresAt;
+    }
+  }
   await chrome.storage.local.set({ settings: next });
   return next;
+}
+
+export async function ensurePluginInstanceId(): Promise<string> {
+  const settings = await getSettings();
+  if (settings.pluginInstanceId) return settings.pluginInstanceId;
+  const pluginInstanceId = createPluginInstanceId();
+  await saveSettings({ pluginInstanceId });
+  return pluginInstanceId;
 }
 
 export async function resetSettings(): Promise<ExtensionSettings> {
@@ -718,4 +756,25 @@ function createRecordId(): string {
   const random = new Uint32Array(2);
   crypto.getRandomValues(random);
   return `${Date.now().toString(36)}-${random[0].toString(36)}${random[1].toString(36)}`;
+}
+
+function createPluginInstanceId(): string {
+  const random = new Uint32Array(4);
+  crypto.getRandomValues(random);
+  return `plugin_${Array.from(random, (value) => value.toString(36)).join('')}`;
+}
+
+function applyOptionalString<T extends keyof ExtensionSettings>(
+  next: ExtensionSettings,
+  source: Partial<ExtensionSettings>,
+  key: T,
+): void {
+  if (!(key in source)) return;
+  const value = source[key];
+  const mutableNext = next as unknown as Record<string, unknown>;
+  if (typeof value === 'string' && value.trim()) {
+    mutableNext[key] = value.trim();
+  } else {
+    delete mutableNext[key];
+  }
 }

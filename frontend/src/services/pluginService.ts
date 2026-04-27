@@ -3,7 +3,10 @@ import type {
   ApiResponse,
   FeedbackCaseList,
   PluginBootstrap,
+  PluginBindingChallenge,
+  PluginBindingConfirmResponse,
   PluginEventStats,
+  PluginInstanceList,
   PluginPolicyBundle,
   PluginSyncEventList,
 } from '../types';
@@ -35,6 +38,14 @@ export const pluginService = {
     unwrap(api.get<ApiResponse<PluginSyncEventList>>('/api/v1/my/plugin-events', { params })),
   getStats: () =>
     unwrap(api.get<ApiResponse<PluginEventStats>>('/api/v1/plugin/stats')),
+  getBindingChallenge: (challengeId: string) =>
+    unwrap(api.get<ApiResponse<PluginBindingChallenge>>(`/api/v1/plugin/binding-challenges/${challengeId}`)),
+  confirmBindingChallenge: (challengeId: string, data: { binding_code: string; display_name?: string }) =>
+    unwrap(api.post<ApiResponse<PluginBindingConfirmResponse>>(`/api/v1/plugin/binding-challenges/${challengeId}/confirm`, data)),
+  getInstances: () =>
+    unwrap(api.get<ApiResponse<PluginInstanceList>>('/api/v1/plugin/instances')),
+  revokeInstance: (pluginInstanceId: string) =>
+    unwrap(api.delete<ApiResponse<unknown>>(`/api/v1/plugin/instances/${pluginInstanceId}`)),
   recordEvent: (data: PluginEventPayload) =>
     unwrap(api.post<ApiResponse<unknown>>('/api/v1/plugin/events', data)),
   getFeedbackCases: (params: { status?: string } = {}) =>

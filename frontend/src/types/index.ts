@@ -31,6 +31,38 @@ export interface AuthTokenResponse {
   user?: DevelopmentUser | null;
 }
 
+export interface PluginBindingChallenge {
+  challenge_id: string;
+  plugin_instance_id: string;
+  status: string;
+  expires_at?: string | null;
+  confirmed_at?: string | null;
+  consumed_at?: string | null;
+}
+
+export interface PluginBindingConfirmResponse {
+  plugin_instance_id: string;
+  status: string;
+  challenge_id: string;
+}
+
+export interface PluginInstanceItem {
+  plugin_instance_id: string;
+  display_name?: string | null;
+  plugin_version?: string | null;
+  status: string;
+  bound_at?: string | null;
+  revoked_at?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PluginInstanceList {
+  total: number;
+  items: PluginInstanceItem[];
+}
+
 export interface UrlScanRequest {
   url: string;
 }

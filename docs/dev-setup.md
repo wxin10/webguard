@@ -289,6 +289,16 @@ Trust-policy acceptance:
 6. Re-run bootstrap.
 7. The domain should appear in `whitelist_domains.user`.
 
+Plugin binding acceptance:
+
+1. Open extension Options.
+2. Confirm API Base URL is `http://127.0.0.1:8000` and Web App URL is `http://127.0.0.1:5173`.
+3. Click Start binding.
+4. Open the displayed verification URL while logged in to the Web app.
+5. Enter the displayed binding code and confirm binding.
+6. Return to extension Options and click Finish binding.
+7. The extension should store plugin-specific access and refresh tokens and use them for later backend requests.
+
 ## 11. Verification Commands
 
 Backend:
@@ -329,9 +339,9 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 
 - Development mock-login is still present and only valid in development mode.
 - Formal Web login requires seeded or otherwise pre-created users; registration and password reset are not implemented.
-- Access Token is manually copied into extension Options.
-- Web Refresh Token exists for the Web app; extension refresh tokens are not implemented.
-- Formal plugin binding is not implemented.
-- Plugin Instance ID is manually entered.
+- Manual Access Token entry remains available in extension Options as a development-compatible fallback.
+- Web Refresh Token exists for the Web app; plugin refresh tokens exist for bound extension instances.
+- Minimal formal plugin binding is implemented through challenge, Web confirmation, token exchange, refresh, revoke, and unbind endpoints.
+- Plugin Instance ID can be generated and persisted by the extension, but full device-management UI is not implemented.
 - RBAC is still minimal.
 - Production deployment, HTTPS, production CORS, secrets management, and release packaging are not complete.

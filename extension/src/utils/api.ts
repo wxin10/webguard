@@ -1,12 +1,14 @@
 import { parseDetectionResult } from './detection.js';
 import {
   addTrustedHost,
+  ensurePluginInstanceId,
   getPluginPolicySnapshot,
   getSettings,
   isPluginPolicySnapshotStale,
   pauseHostProtection,
   resumeHostProtection,
   savePluginPolicySnapshot,
+  saveSettings,
 } from './storage.js';
 import type { DetectionResult, ExtensionSettings, PageInfo, PausedHostRecord, PluginPolicySnapshot, RiskLabel } from './storage.js';
 
@@ -39,6 +41,21 @@ export interface FeedbackRequest {
   feedback_type: 'false_positive' | 'false_negative' | 'other';
   comment: string;
   report_id?: number;
+}
+
+export interface PluginBindingChallengeResponse {
+  challenge_id: string;
+  binding_code: string;
+  verification_url: string;
+  expires_at: string;
+}
+
+export interface PluginTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  plugin_instance_id: string;
 }
 
 interface PluginBootstrapResponse {
@@ -81,6 +98,7 @@ interface PluginBootstrapResponse {
 interface RequestOptions {
   timeoutMs?: number;
   apiBaseUrl?: string;
+  skipTokenRefresh?: boolean;
 }
 
 interface ApiEnvelope<T> {
@@ -140,6 +158,53 @@ export async function ensurePluginBootstrapFresh(force = false): Promise<PluginP
 
 export async function testPluginBootstrapConnection(): Promise<PluginPolicySnapshot> {
   return fetchAndSavePluginBootstrap();
+}
+
+export async function createPluginBindingChallenge(): Promise<PluginBindingChallengeResponse> {
+  const settings = await getSettings();
+  const pluginInstanceId = await ensurePluginInstanceId();
+  const payload = await requestApi<unknown>('/api/v1/plugin/binding-challenges', {
+    method: 'POST',
+    headers: webGuardHeaders(),
+    body: JSON.stringify({ web_base_url: settings.webBaseUrl }),
+  });
+  const data = unwrapData(payload) as PluginBindingChallengeResponse;
+  await saveSettings({
+    pluginInstanceId,
+    pendingBindingChallengeId: data.challenge_id,
+    pendingBindingCode: data.binding_code,
+    pendingBindingVerificationUrl: data.verification_url,
+  });
+  return data;
+}
+
+export async function exchangePluginBindingToken(challengeId?: string, bindingCode?: string): Promise<PluginTokenResponse> {
+  const settings = await getSettings();
+  const pluginInstanceId = await ensurePluginInstanceId();
+  const resolvedChallengeId = challengeId || settings.pendingBindingChallengeId || '';
+  const resolvedBindingCode = bindingCode || settings.pendingBindingCode || '';
+  if (!resolvedChallengeId || !resolvedBindingCode) {
+    throw new Error('Missing pending binding challenge or binding code.');
+  }
+  const payload = await requestApi<unknown>('/api/v1/plugin/token', {
+    method: 'POST',
+    headers: webGuardHeaders(),
+    body: JSON.stringify({
+      challenge_id: resolvedChallengeId,
+      binding_code: resolvedBindingCode,
+    }),
+  }, { skipTokenRefresh: true });
+  const data = unwrapData(payload) as PluginTokenResponse;
+  await saveSettings({
+    pluginInstanceId,
+    pluginAccessToken: data.access_token,
+    pluginRefreshToken: data.refresh_token,
+    pluginTokenExpiresAt: Date.now() + Math.max(data.expires_in, 1) * 1000,
+    pendingBindingChallengeId: undefined,
+    pendingBindingCode: undefined,
+    pendingBindingVerificationUrl: undefined,
+  });
+  return data;
 }
 
 export async function syncPluginEvent(data: PluginSyncEventRequest): Promise<void> {
@@ -278,6 +343,9 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
     }
 
     if (isApiEnvelope(payload)) {
+      if (response.status === 401 && !options.skipTokenRefresh && await refreshPluginAccessTokenIfPossible()) {
+        return requestApi<T>(path, init, { ...options, skipTokenRefresh: true });
+      }
       if (payload.code !== undefined && payload.code !== 0) {
         throw new Error(payload.message || `后端返回异常: HTTP ${response.status}`);
       }
@@ -285,6 +353,10 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
         throw new Error(payload.message || `后端返回异常: HTTP ${response.status}`);
       }
       return payload as T;
+    }
+
+    if (response.status === 401 && !options.skipTokenRefresh && await refreshPluginAccessTokenIfPossible()) {
+      return requestApi<T>(path, init, { ...options, skipTokenRefresh: true });
     }
 
     if (!response.ok) {
@@ -401,10 +473,38 @@ function withAuthHeaders(headers: HeadersInit | undefined, settings: ExtensionSe
   if (settings.pluginInstanceId) {
     next.set('X-Plugin-Instance-Id', settings.pluginInstanceId);
   }
-  if (settings.accessToken) {
-    next.set('Authorization', `Bearer ${settings.accessToken}`);
+  const token = settings.pluginAccessToken || settings.accessToken;
+  if (token) {
+    next.set('Authorization', `Bearer ${token}`);
   }
   return next;
+}
+
+async function refreshPluginAccessTokenIfPossible(): Promise<boolean> {
+  const settings = await getSettings();
+  if (!settings.pluginRefreshToken || !settings.pluginInstanceId) return false;
+  try {
+    const payload = await requestApi<unknown>('/api/v1/plugin/token/refresh', {
+      method: 'POST',
+      headers: webGuardHeaders(),
+      body: JSON.stringify({ refresh_token: settings.pluginRefreshToken }),
+    }, { skipTokenRefresh: true });
+    const data = unwrapData(payload) as PluginTokenResponse;
+    await saveSettings({
+      pluginAccessToken: data.access_token,
+      pluginRefreshToken: data.refresh_token,
+      pluginTokenExpiresAt: Date.now() + Math.max(data.expires_in, 1) * 1000,
+    });
+    return true;
+  } catch (error) {
+    console.warn('[WebGuard] Plugin token refresh failed.', error);
+    await saveSettings({
+      pluginAccessToken: undefined,
+      pluginRefreshToken: undefined,
+      pluginTokenExpiresAt: undefined,
+    });
+    return false;
+  }
 }
 
 function hostFromUrl(url: string): string {

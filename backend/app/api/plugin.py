@@ -1,10 +1,10 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
-from ..core import get_db
+from ..core import get_db, settings
 from ..core.auth_context import Principal, fail, ok, principal_from_headers, require_auth
 from ..models import ReportAction as ReportActionModel
 from ..schemas import (
@@ -22,6 +22,7 @@ from ..schemas import (
 from ..schemas.scan import normalize_scan_url, normalize_text_list
 from ..services.domain_service import normalize_domain
 from ..services.feedback_service import FeedbackService
+from ..services.plugin_binding_service import PluginBindingService
 from ..services.plugin_event_service import PluginEventService
 from ..services.policy_service import PolicyService
 from ..services.report_service import ReportService
@@ -60,6 +61,181 @@ class FeedbackRequest(BaseModel):
 class FeedbackCaseUpdate(BaseModel):
     status: str
     comment: Optional[str] = None
+
+
+class BindingChallengeCreate(BaseModel):
+    web_base_url: str | None = None
+
+
+class BindingChallengeConfirm(BaseModel):
+    binding_code: str = Field(..., min_length=1, max_length=20)
+    display_name: str | None = Field(default=None, max_length=100)
+
+
+class PluginTokenExchange(BaseModel):
+    challenge_id: str = Field(..., min_length=1)
+    binding_code: str = Field(..., min_length=1, max_length=20)
+
+
+class PluginTokenRefresh(BaseModel):
+    refresh_token: str = Field(..., min_length=1)
+
+
+def _instance_payload(instance) -> dict:
+    return {
+        "plugin_instance_id": instance.plugin_instance_id,
+        "display_name": instance.display_name,
+        "plugin_version": instance.plugin_version,
+        "status": instance.status,
+        "bound_at": instance.bound_at.isoformat() if instance.bound_at else None,
+        "revoked_at": instance.revoked_at.isoformat() if instance.revoked_at else None,
+        "last_seen_at": instance.last_seen_at.isoformat() if instance.last_seen_at else None,
+        "created_at": instance.created_at.isoformat() if instance.created_at else None,
+        "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
+    }
+
+
+def _challenge_payload(challenge) -> dict:
+    return {
+        "challenge_id": challenge.challenge_id,
+        "plugin_instance_id": challenge.plugin_instance_id,
+        "status": challenge.status,
+        "expires_at": challenge.expires_at.isoformat() if challenge.expires_at else None,
+        "confirmed_at": challenge.confirmed_at.isoformat() if challenge.confirmed_at else None,
+        "consumed_at": challenge.consumed_at.isoformat() if challenge.consumed_at else None,
+    }
+
+
+@router.post("/binding-challenges")
+def create_binding_challenge(
+    request: BindingChallengeCreate,
+    x_plugin_instance_id: str | None = Header(default=None),
+    x_plugin_version: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    challenge, binding_code, verification_url = PluginBindingService(db).create_challenge(
+        plugin_instance_id=x_plugin_instance_id or "",
+        plugin_version=x_plugin_version,
+        verification_base_url=request.web_base_url,
+    )
+    db.commit()
+    return ok(
+        {
+            "challenge_id": challenge.challenge_id,
+            "binding_code": binding_code,
+            "verification_url": verification_url,
+            "expires_at": challenge.expires_at.isoformat(),
+        }
+    )
+
+
+@router.get("/binding-challenges/{challenge_id}")
+def get_binding_challenge(
+    challenge_id: str,
+    principal: Principal = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    challenge = PluginBindingService(db).get_challenge(challenge_id)
+    return ok(_challenge_payload(challenge))
+
+
+@router.post("/binding-challenges/{challenge_id}/confirm")
+def confirm_binding_challenge(
+    challenge_id: str,
+    request: BindingChallengeConfirm,
+    principal: Principal = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    challenge = PluginBindingService(db).confirm_challenge(
+        challenge_id=challenge_id,
+        binding_code=request.binding_code,
+        username=principal.username,
+        display_name=request.display_name,
+    )
+    db.commit()
+    return ok(
+        {
+            "plugin_instance_id": challenge.plugin_instance_id,
+            "status": challenge.status,
+            "challenge_id": challenge.challenge_id,
+        }
+    )
+
+
+@router.post("/token")
+def exchange_plugin_token(
+    request: PluginTokenExchange,
+    x_plugin_instance_id: str | None = Header(default=None),
+    x_plugin_version: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    instance, access_token, refresh_token = PluginBindingService(db).exchange_token(
+        challenge_id=request.challenge_id,
+        binding_code=request.binding_code,
+        plugin_instance_id=x_plugin_instance_id or "",
+        plugin_version=x_plugin_version,
+    )
+    db.commit()
+    return ok(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "expires_in": settings.access_token_expires_seconds,
+            "plugin_instance_id": instance.plugin_instance_id,
+        }
+    )
+
+
+@router.post("/token/refresh")
+def refresh_plugin_token(
+    request: PluginTokenRefresh,
+    x_plugin_instance_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    instance, access_token, refresh_token = PluginBindingService(db).refresh_plugin_token(
+        raw_refresh_token=request.refresh_token,
+        plugin_instance_id=x_plugin_instance_id or "",
+    )
+    db.commit()
+    return ok(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "expires_in": settings.access_token_expires_seconds,
+            "plugin_instance_id": instance.plugin_instance_id,
+        }
+    )
+
+
+@router.get("/instances")
+def list_plugin_instances(principal: Principal = Depends(require_auth), db: Session = Depends(get_db)):
+    instances = PluginBindingService(db).list_instances_for_user(principal.username)
+    return ok({"total": len(instances), "items": [_instance_payload(instance) for instance in instances]})
+
+
+@router.delete("/instances/{plugin_instance_id}")
+def revoke_plugin_instance(
+    plugin_instance_id: str,
+    principal: Principal = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    instance = PluginBindingService(db).revoke_instance(username=principal.username, plugin_instance_id=plugin_instance_id)
+    db.commit()
+    return ok(_instance_payload(instance))
+
+
+@router.post("/unbind")
+def unbind_plugin_instance(
+    principal: Principal = Depends(require_auth),
+    x_plugin_instance_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    instance_id = principal.plugin_instance_id or x_plugin_instance_id or ""
+    instance = PluginBindingService(db).unbind_instance(plugin_instance_id=instance_id, username=principal.username)
+    db.commit()
+    return ok(_instance_payload(instance))
 
 
 @router.get("/policy", response_model=ApiResponse[PluginPolicyBundle])

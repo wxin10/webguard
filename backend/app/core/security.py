@@ -77,6 +77,19 @@ def generate_session_id() -> str:
     return f"websess_{secrets.token_urlsafe(24)}"
 
 
+def generate_plugin_challenge_id() -> str:
+    return f"bind_chal_{secrets.token_urlsafe(18)}"
+
+
+def generate_binding_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_binding_code(challenge_id: str, binding_code: str) -> str:
+    message = f"{challenge_id}:{binding_code}".encode("utf-8")
+    return hmac.new(settings.JWT_SECRET.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
 def create_access_token(
     subject: str,
     role: str,

@@ -37,6 +37,31 @@
       </section>
 
       <section class="card">
+        <h2>Plugin Binding</h2>
+        <p class="hint">Start a short-lived binding challenge, confirm it in the Web app, then return here to exchange it for plugin-scoped tokens.</p>
+        <div class="binding-grid">
+          <div>
+            <label>Binding Code</label>
+            <code id="binding-code">-</code>
+          </div>
+          <div>
+            <label>Verification URL</label>
+            <code id="verification-url">-</code>
+          </div>
+          <div>
+            <label>Plugin Token</label>
+            <code id="plugin-token-status">Not bound</code>
+          </div>
+        </div>
+        <div class="maintenance-actions">
+          <button id="start-binding-button" class="secondary">Start binding</button>
+          <button id="open-verification-button" class="secondary" disabled>Open Web confirmation</button>
+          <button id="finish-binding-button" class="primary" disabled>Finish binding</button>
+        </div>
+        <p id="binding-message" class="message" role="status"></p>
+      </section>
+
+      <section class="card">
         <h2>执行行为</h2>
         <label class="switch-row">
           <span>

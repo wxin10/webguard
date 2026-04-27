@@ -117,14 +117,15 @@ Expected shape:
 4. Open extension Options and set:
    - API Base URL: `http://127.0.0.1:8000`
    - Web App URL: `http://127.0.0.1:5173`
-   - Access Token: value from `webguard_dev_user.access_token`
-   - Plugin Instance ID: for example `local-dev-plugin`
-5. Click the connection test button. It must pass backend health and plugin bootstrap.
-6. Visit `https://example.com`; it should be allowed.
-7. Visit `https://login-paypal-account-security.example-phish.com/verify/password`; it should warn or block.
-8. In the Web app, open records or reports to confirm the scan was persisted.
-9. On the warning page, choose temporary trust or permanent trust.
-10. Re-run bootstrap or reload the extension flow; the trusted domain should appear in policy and take effect locally.
+   - Access Token: value from `webguard_dev_user.access_token` if using the development-compatible manual token path
+   - Plugin Instance ID: for example `local-dev-plugin`, or let the extension generate one
+5. For the formal plugin path, click Start binding in Options, open the Web verification URL, confirm the binding code as the logged-in Web user, then return to Options and finish binding to store plugin tokens.
+6. Click the connection test button. It must pass backend health and plugin bootstrap.
+7. Visit `https://example.com`; it should be allowed.
+8. Visit `https://login-paypal-account-security.example-phish.com/verify/password`; it should warn or block.
+9. In the Web app, open records or reports to confirm the scan was persisted.
+10. On the warning page, choose temporary trust or permanent trust.
+11. Re-run bootstrap or reload the extension flow; the trusted domain should appear in policy and take effect locally.
 
 ## Checks
 
@@ -150,10 +151,10 @@ cd extension
 npm run build
 ```
 
-Current verified baseline after P2-D:
+Current verified baseline after P2-E:
 
 ```text
-backend pytest: 29 passed
+backend pytest: 39 passed
 frontend lint/build: passed
 extension build: passed
 ```
@@ -174,8 +175,9 @@ The CI workflow does not require secrets or a PostgreSQL service.
 - Formal Web login exists for pre-created users with password hashes.
 - `python -m app.scripts.seed_dev_user` is the supported local way to create the first formal login user.
 - Web Refresh Token is stored as an HttpOnly cookie and only the server-side hash is persisted.
-- The extension token is copied manually from Web localStorage.
-- There is no production plugin binding flow yet.
+- Minimal plugin binding exists and issues plugin-specific access/refresh tokens.
+- Manual extension token entry remains available only as a development-compatible fallback.
+- QR-code binding UI and full plugin device management are not implemented yet.
 - There is no production deployment configuration yet.
-- The extension `Plugin Instance ID` is a manual placeholder.
+- The extension can generate and persist `Plugin Instance ID`, but production device-management UX is still minimal.
 - Do not treat this local setup as a production authentication or authorization model.

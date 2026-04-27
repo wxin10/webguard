@@ -1,10 +1,10 @@
 # WebGuard Auth and Extension Binding Design
 
-Version: P2-B design draft
+Version: P2-E implementation baseline
 
-This document defines the target design for formal Web login, token refresh, and browser extension binding. It is a design document only. It does not change current implementation, database schema, dependencies, or API behavior.
+This document defines the target design and current implementation baseline for formal Web login, token refresh, and browser extension binding.
 
-Implementation note: the P2-D baseline now implements the Web login endpoints, password hash field, Web refresh-token table, HttpOnly refresh cookie, refresh rotation, logout revocation, `/api/v1/auth/me`, and frontend refresh-on-401 behavior. Formal plugin binding remains design-only.
+Implementation note: the P2-D baseline implements Web login endpoints, password hash field, Web refresh-token table, HttpOnly refresh cookie, refresh rotation, logout revocation, `/api/v1/auth/me`, and frontend refresh-on-401 behavior. The P2-E baseline implements the minimal plugin binding loop: binding challenge creation, Web confirmation, plugin token exchange, plugin token refresh, plugin instance revoke/unbind, extension Options binding actions, and a minimal Web binding confirmation page. QR-code UI, full device management, and production deployment hardening remain future work.
 
 ## 1. Goals
 

@@ -1,4 +1,9 @@
-import { testBackendConnection, testPluginBootstrapConnection } from '../utils/api.js';
+import {
+  createPluginBindingChallenge,
+  exchangePluginBindingToken,
+  testBackendConnection,
+  testPluginBootstrapConnection,
+} from '../utils/api.js';
 import {
   DEFAULT_SETTINGS,
   clearRuntimeCache,
@@ -20,9 +25,16 @@ const testButton = document.getElementById('test-button') as HTMLButtonElement |
 const clearCacheButton = document.getElementById('clear-cache-button') as HTMLButtonElement | null;
 const resetSettingsButton = document.getElementById('reset-settings-button') as HTMLButtonElement | null;
 const saveButton = document.getElementById('save-button') as HTMLButtonElement | null;
+const startBindingButton = document.getElementById('start-binding-button') as HTMLButtonElement | null;
+const openVerificationButton = document.getElementById('open-verification-button') as HTMLButtonElement | null;
+const finishBindingButton = document.getElementById('finish-binding-button') as HTMLButtonElement | null;
 
 const messageElement = document.getElementById('message');
 const testMessageElement = document.getElementById('test-message');
+const bindingMessageElement = document.getElementById('binding-message');
+const bindingCodeElement = document.getElementById('binding-code');
+const verificationUrlElement = document.getElementById('verification-url');
+const pluginTokenStatusElement = document.getElementById('plugin-token-status');
 
 void init().catch((error) => {
   console.error('[WebGuard] Options init failed.', error);
@@ -35,6 +47,9 @@ async function init(): Promise<void> {
   testButton?.addEventListener('click', () => void testConnection());
   clearCacheButton?.addEventListener('click', () => void clearCache());
   resetSettingsButton?.addEventListener('click', () => void resetOptions());
+  startBindingButton?.addEventListener('click', () => void startBinding());
+  openVerificationButton?.addEventListener('click', () => void openVerificationUrl());
+  finishBindingButton?.addEventListener('click', () => void finishBinding());
 }
 
 async function renderSettings(): Promise<void> {
@@ -46,6 +61,11 @@ async function renderSettings(): Promise<void> {
   if (autoDetectCheckbox) autoDetectCheckbox.checked = settings.autoDetect;
   if (autoBlockCheckbox) autoBlockCheckbox.checked = settings.autoBlockMalicious;
   if (notifySuspiciousCheckbox) notifySuspiciousCheckbox.checked = settings.notifySuspicious;
+  if (bindingCodeElement) bindingCodeElement.textContent = settings.pendingBindingCode || '-';
+  if (verificationUrlElement) verificationUrlElement.textContent = settings.pendingBindingVerificationUrl || '-';
+  if (pluginTokenStatusElement) pluginTokenStatusElement.textContent = settings.pluginAccessToken ? 'Bound plugin token configured' : 'Not bound';
+  openVerificationButton?.toggleAttribute('disabled', !settings.pendingBindingVerificationUrl);
+  finishBindingButton?.toggleAttribute('disabled', !(settings.pendingBindingChallengeId && settings.pendingBindingCode));
 }
 
 async function saveOptions(): Promise<void> {
@@ -64,6 +84,44 @@ async function saveOptions(): Promise<void> {
     showMessage('设置已保存。');
   } catch (error) {
     showMessage(errorMessage(error), true);
+  }
+}
+
+async function startBinding(): Promise<void> {
+  startBindingButton?.setAttribute('disabled', 'true');
+  showBindingMessage('Creating binding challenge...');
+  try {
+    await saveOptions();
+    const challenge = await createPluginBindingChallenge();
+    await renderSettings();
+    showBindingMessage(`Binding code ${challenge.binding_code} created. Confirm it in WebGuard, then finish binding here.`);
+  } catch (error) {
+    showBindingMessage(`Binding challenge failed: ${errorMessage(error)}`, true);
+  } finally {
+    startBindingButton?.removeAttribute('disabled');
+  }
+}
+
+async function openVerificationUrl(): Promise<void> {
+  const settings = await getSettings();
+  if (!settings.pendingBindingVerificationUrl) {
+    showBindingMessage('No pending verification URL. Start binding first.', true);
+    return;
+  }
+  await chrome.tabs.create({ url: settings.pendingBindingVerificationUrl });
+}
+
+async function finishBinding(): Promise<void> {
+  finishBindingButton?.setAttribute('disabled', 'true');
+  showBindingMessage('Exchanging confirmed challenge for plugin tokens...');
+  try {
+    const token = await exchangePluginBindingToken();
+    await renderSettings();
+    showBindingMessage(`Plugin bound as ${token.plugin_instance_id}. Future requests will use plugin tokens.`);
+  } catch (error) {
+    showBindingMessage(`Token exchange failed: ${errorMessage(error)}`, true);
+  } finally {
+    finishBindingButton?.removeAttribute('disabled');
   }
 }
 
@@ -134,6 +192,12 @@ function showTestMessage(text: string, isError = false): void {
   if (!testMessageElement) return;
   testMessageElement.textContent = text;
   testMessageElement.className = `message${isError ? ' error' : ''}`;
+}
+
+function showBindingMessage(text: string, isError = false): void {
+  if (!bindingMessageElement) return;
+  bindingMessageElement.textContent = text;
+  bindingMessageElement.className = `message${isError ? ' error' : ''}`;
 }
 
 function errorMessage(error: unknown): string {

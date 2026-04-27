@@ -117,6 +117,26 @@ input[type="checkbox"] {
   gap: 12px;
 }
 
+.binding-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.binding-grid code {
+  display: block;
+  min-height: 20px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
 .footer {
   margin-top: 22px;
 }
