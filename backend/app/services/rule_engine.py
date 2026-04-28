@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional
@@ -8,6 +9,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from ..models import BrandKeyword, ReportAction, RiskKeyword, RuleConfig, ScanRecord
+from .rule_dsl import RuleDslEvaluator
 
 
 DEFAULT_RULES: list[dict[str, Any]] = [
@@ -389,6 +391,64 @@ class RuleEngine:
         reason = f"页面包含可疑跳转提示 {', '.join(hits)}，达到阈值 {min_hits}" if matched else f"可疑跳转提示命中 {len(hits)}，阈值 {min_hits}"
         return self._result(rule, matched, reason, {"matched_keywords": hits}, len(hits))
 
+    def check_custom_rule(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        dsl_condition = self._extract_dsl_condition(rule.content)
+        if dsl_condition is not None:
+            dsl_result = RuleDslEvaluator(context).evaluate(dsl_condition)
+            return self._result(
+                rule,
+                bool(dsl_result["matched"]),
+                str(dsl_result["reason"]),
+                dsl_result["raw_feature"],
+                float(dsl_result["observed_value"]),
+            )
+
+        pattern = str(rule.pattern or "").strip()
+        if pattern:
+            dsl_result = RuleDslEvaluator(context).evaluate(
+                {
+                    "field": "url",
+                    "operator": "contains",
+                    "value": pattern,
+                }
+            )
+            return self._result(
+                rule,
+                bool(dsl_result["matched"]),
+                f"pattern fallback: {dsl_result['reason']}",
+                dsl_result["raw_feature"],
+                float(dsl_result["observed_value"]),
+            )
+
+        return self._result(
+            rule,
+            False,
+            "Rule config exists, but no checker, valid DSL content, or pattern fallback is available",
+            {"rule_key": rule.rule_key, "content": rule.content, "pattern": rule.pattern},
+            0.0,
+        )
+
+    def _extract_dsl_condition(self, content: Any) -> dict[str, Any] | None:
+        if not content:
+            return None
+        parsed: Any = content
+        if isinstance(content, str):
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(parsed, dict):
+            return None
+        if isinstance(parsed.get("condition"), dict):
+            parsed = parsed["condition"]
+        if self._looks_like_dsl_condition(parsed):
+            return parsed
+        return None
+
+    def _looks_like_dsl_condition(self, value: Any) -> bool:
+        return isinstance(value, dict) and any(key in value for key in ("field", "all", "any", "not"))
+
     def execute_rules(self, features: Dict[str, Any]) -> Dict[str, Any]:
         raw_features = features.get("raw_features", {}) or {}
         context = {
@@ -425,7 +485,7 @@ class RuleEngine:
 
         rule_details: list[dict[str, Any]] = []
         for rule in self.rules:
-            checker = checkers.get(rule.rule_key)
+            checker = checkers.get(rule.rule_key) or self.check_custom_rule
             if checker is None:
                 rule_details.append(
                     self._result(rule, False, "规则配置存在，但后端尚未实现对应执行逻辑", {"rule_key": rule.rule_key}, 0.0)
