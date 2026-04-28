@@ -21,33 +21,52 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin-platform"])
 
 
 class AdminRuleRequest(BaseModel):
+    rule_key: str | None = None
     name: str = Field(..., min_length=1)
     type: str = "heuristic"
     scope: str = Field("global", pattern="^(global|user|plugin)$")
     status: str = Field("active", pattern="^(active|disabled)$")
+    enabled: bool | None = None
     version: str = "v1"
     pattern: str | None = None
     content: str | None = None
     description: str | None = None
     category: str = "general"
-    severity: str = "medium"
+    severity: str = Field("medium", pattern="^(low|medium|high|critical)$")
     weight: float = Field(10, ge=0, le=100)
     threshold: float = Field(1, ge=0)
 
 
 class AdminRulePatch(BaseModel):
+    rule_key: str | None = None
     name: str | None = None
     type: str | None = None
     scope: str | None = Field(default=None, pattern="^(global|user|plugin)$")
     status: str | None = Field(default=None, pattern="^(active|disabled)$")
+    enabled: bool | None = None
     version: str | None = None
     pattern: str | None = None
     content: str | None = None
     description: str | None = None
     category: str | None = None
-    severity: str | None = None
+    severity: str | None = Field(default=None, pattern="^(low|medium|high|critical)$")
     weight: float | None = Field(default=None, ge=0, le=100)
     threshold: float | None = Field(default=None, ge=0)
+
+
+class AdminRuleTestSample(BaseModel):
+    url: str = ""
+    title: str = ""
+    visible_text: str = ""
+    button_texts: list[str] = Field(default_factory=list)
+    input_labels: list[str] = Field(default_factory=list)
+    form_action_domains: list[str] = Field(default_factory=list)
+    has_password_input: bool = False
+
+
+class AdminRuleTestRequest(BaseModel):
+    rule: AdminRuleRequest
+    sample: AdminRuleTestSample = Field(default_factory=AdminRuleTestSample)
 
 
 class AdminDomainRequest(BaseModel):
@@ -145,6 +164,18 @@ def create_admin_rule(
     return ok(AdminRuleService(db).create_rule(request.model_dump()), "rule created")
 
 
+@router.post("/rules/test")
+def test_admin_rule(
+    request: AdminRuleTestRequest,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    return ok(AdminRuleService(db).test_rule(request.model_dump()), "rule tested")
+
+
 @router.patch("/rules/{rule_id}")
 def update_admin_rule(
     rule_id: int,
@@ -170,9 +201,10 @@ def delete_admin_rule(
     denied = require_admin(principal)
     if denied:
         return denied
-    if not AdminRuleService(db).delete_rule(rule_id):
+    rule = AdminRuleService(db).delete_rule(rule_id)
+    if not rule:
         return fail("rule not found", 404)
-    return ok({"id": rule_id}, "rule disabled")
+    return ok({"id": rule_id, "rule": rule}, "rule disabled")
 
 
 @router.get("/domains")

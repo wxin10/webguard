@@ -562,6 +562,7 @@ export interface AnalysisReport {
 export interface AdminRuleItem {
   id: number;
   name: string;
+  rule_name?: string;
   rule_key: string;
   type: string;
   scope: 'global' | 'user' | 'plugin' | string;
@@ -575,12 +576,73 @@ export interface AdminRuleItem {
   enabled?: boolean;
   weight?: number;
   threshold?: number;
+  created_at?: string;
   updated_at?: string;
 }
 
 export interface AdminRuleList {
   total: number;
   rules: AdminRuleItem[];
+}
+
+export interface AdminRuleCreateRequest {
+  rule_key?: string | null;
+  name: string;
+  type: string;
+  scope: 'global' | 'user' | 'plugin' | string;
+  status: 'active' | 'disabled';
+  enabled?: boolean | null;
+  version: string;
+  pattern?: string | null;
+  content?: string | null;
+  description?: string | null;
+  category?: string | null;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  weight: number;
+  threshold: number;
+}
+
+export interface AdminRulePatchRequest {
+  rule_key?: string | null;
+  name?: string;
+  type?: string;
+  scope?: 'global' | 'user' | 'plugin' | string;
+  status?: 'active' | 'disabled';
+  enabled?: boolean | null;
+  version?: string;
+  pattern?: string | null;
+  content?: string | null;
+  description?: string | null;
+  category?: string | null;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  weight?: number;
+  threshold?: number;
+}
+
+export interface AdminRuleTestSample {
+  url: string;
+  title: string;
+  visible_text: string;
+  button_texts: string[];
+  input_labels: string[];
+  form_action_domains: string[];
+  has_password_input: boolean;
+}
+
+export interface AdminRuleTestRequest {
+  rule: AdminRuleCreateRequest;
+  sample: AdminRuleTestSample;
+}
+
+export interface AdminRuleTestResponse {
+  matched: boolean;
+  applied: boolean;
+  enabled: boolean;
+  contribution: number;
+  reason: string;
+  raw_feature: Record<string, unknown>;
+  observed_value: number;
+  rule_result: Record<string, unknown>;
 }
 
 export interface AdminPluginConfig {

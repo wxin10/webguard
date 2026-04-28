@@ -449,7 +449,7 @@ class RuleEngine:
     def _looks_like_dsl_condition(self, value: Any) -> bool:
         return isinstance(value, dict) and any(key in value for key in ("field", "all", "any", "not"))
 
-    def execute_rules(self, features: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_context(self, features: Dict[str, Any]) -> dict[str, Any]:
         raw_features = features.get("raw_features", {}) or {}
         context = {
             "url": raw_features.get("url") or "",
@@ -469,8 +469,10 @@ class RuleEngine:
                 " ".join(context["input_labels"]),
             ]
         )
+        return context
 
-        checkers: dict[str, Callable[[RuleConfig, dict[str, Any]], dict[str, Any]]] = {
+    def _checkers(self) -> dict[str, Callable[[RuleConfig, dict[str, Any]], dict[str, Any]]]:
+        return {
             "url_length": self.check_url_length,
             "ip_direct": self.check_ip_direct,
             "suspicious_subdomain": self.check_suspicious_subdomain,
@@ -483,6 +485,14 @@ class RuleEngine:
             "suspicious_redirect": self.check_suspicious_redirect,
         }
 
+    def evaluate_rule(self, rule: RuleConfig, features: Dict[str, Any]) -> dict[str, Any]:
+        context = self._build_context(features)
+        checker = self._checkers().get(rule.rule_key) or self.check_custom_rule
+        return checker(rule, context)
+
+    def execute_rules(self, features: Dict[str, Any]) -> Dict[str, Any]:
+        context = self._build_context(features)
+        checkers = self._checkers()
         rule_details: list[dict[str, Any]] = []
         for rule in self.rules:
             checker = checkers.get(rule.rule_key) or self.check_custom_rule
