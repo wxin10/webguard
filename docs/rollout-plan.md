@@ -1,6 +1,6 @@
 # WebGuard Rollout Plan
 
-Version: P2-A local internal-test baseline
+Version: P2-J local internal-test baseline
 
 This plan records the current convergence path. It is not a production release checklist yet.
 
@@ -194,3 +194,18 @@ Completed:
 - Formal login and refresh update memory auth state and only mirror to localStorage in development compatibility mode.
 - Page reloads recover the Web session through `/api/v1/auth/refresh` and the HttpOnly refresh cookie.
 - Logout clears memory state and removes the compatibility localStorage key.
+
+## P2-J Production Configuration Draft
+
+Completed:
+
+- Local and production environment templates are separated.
+- Production draft templates exist for root, backend, and frontend environment values.
+- `docs/deployment-checklist.md` records HTTPS, reverse proxy, CORS, Secure cookie, extension origin, migration, token, and release verification requirements.
+- README and local setup docs now point operators away from local `.env.example` values for production planning.
+
+Remaining:
+
+- Real HTTPS/reverse-proxy configuration is still not implemented.
+- Secret management and environment-specific deployment injection are still not implemented.
+- Production extension package, store ID, and final extension-origin allowlist are still release blockers.

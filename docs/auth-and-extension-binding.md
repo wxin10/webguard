@@ -469,6 +469,7 @@ Because extension storage is accessible to the extension context, plugin tokens 
 
 - Production Web origins must be allowlisted.
 - Extension origins must be explicitly allowlisted after publishing or during development.
+- Production configuration must replace `chrome-extension://<published-extension-id>` with the final store-issued extension origin before release.
 - No production wildcard CORS.
 - Backend must validate `X-Plugin-Instance-Id` against token claims and database state.
 - Production startup must use `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong non-placeholder `JWT_SECRET`, and Secure refresh cookies.

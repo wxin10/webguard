@@ -21,6 +21,14 @@ Frontend:    http://127.0.0.1:5173
 PostgreSQL:  postgresql://webguard:webguard@127.0.0.1:5432/webguard
 ```
 
+Environment templates:
+
+- Local development: `.env.example`, `backend/.env.example`, `frontend/.env.example`.
+- Production draft: `.env.production.example`, `backend/.env.production.example`, `frontend/.env.production.example`.
+- Production readiness checklist: `docs/deployment-checklist.md`.
+
+Production templates are placeholders for operators and CI/release planning. They do not contain real secrets and are not a complete deployment recipe.
+
 Create the local PostgreSQL user and database if they do not exist:
 
 ```sql
@@ -184,7 +192,7 @@ The CI workflow does not require secrets or a PostgreSQL service.
 
 ## Production Safety Notes
 
-The committed defaults are for local internal testing. Before any staging or production deployment, set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, and exact `CORS_ORIGINS` values. The backend refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, wildcard CORS, or runtime schema guards while `DEBUG=false`.
+The committed defaults are for local internal testing. Before any staging or production deployment, start from the production template files and set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, production PostgreSQL `DATABASE_URL`, exact `CORS_ORIGINS`, and the final published extension origin. The backend refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, wildcard CORS, or runtime schema guards while `DEBUG=false`.
 
 Runtime schema guard behavior:
 
@@ -195,6 +203,7 @@ Runtime schema guard behavior:
 Known release blockers before production:
 
 - HTTPS, reverse proxy, and production CORS allowlist are not finalized.
-- Secrets management and environment-specific deployment configuration are not finalized.
+- Secrets management and environment-specific deployment injection are not finalized.
+- Production extension ID/origin allowlist and release packaging are not finalized.
 - Manual extension token fallback remains only for development compatibility.
 - Production Web access tokens are kept in memory. The `webguard_dev_user` localStorage mirror is disabled by default and only available when `VITE_ENABLE_DEV_TOKEN_STORAGE=true` for local manual-token fallback.

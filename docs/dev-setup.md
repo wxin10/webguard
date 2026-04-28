@@ -1,8 +1,10 @@
 # WebGuard Development Setup
 
-Version: P2-H local internal-test baseline
+Version: P2-J local internal-test baseline
 
 This document describes the current local workflow after P1-D. It is intentionally focused on repeatable development and acceptance, not production deployment.
+
+For production planning, use `docs/deployment-checklist.md` together with `.env.production.example`, `backend/.env.production.example`, and `frontend/.env.production.example`. The local `.env.example` files are not production templates.
 
 ## 1. Required Local Services
 
@@ -366,7 +368,7 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 
 ## 14. Production Safety Gate
 
-This document describes local development, not production deployment. For staging or production, use a separate environment file and set at least:
+This document describes local development, not production deployment. For staging or production, use the production template files and set at least:
 
 ```text
 DEBUG=false
@@ -375,6 +377,7 @@ ENABLE_RUNTIME_SCHEMA_GUARD=false
 JWT_SECRET=<strong unique secret, at least 32 characters>
 REFRESH_TOKEN_COOKIE_SECURE=true
 CORS_ORIGINS=https://<web-origin>,chrome-extension://<published-extension-id>
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>
 ```
 
 The backend fails fast when `DEBUG=false` is combined with development auth, runtime schema guards, placeholder/short JWT secrets, insecure refresh cookies, or wildcard CORS origins. This guard is intentional so local defaults cannot silently become production defaults.
@@ -382,3 +385,5 @@ The backend fails fast when `DEBUG=false` is combined with development auth, run
 Do not publish with manual extension token fallback as the primary user path. It remains available only to keep development and emergency local debugging workflows usable.
 
 Production Web access tokens should stay in memory. Web session recovery should rely on the HttpOnly refresh cookie, and the extension production path should use plugin binding tokens.
+
+Additional production planning requirements are tracked in `docs/deployment-checklist.md`, including HTTPS/reverse proxy, exact CORS allowlists, production extension origin, secret management, and release smoke tests.
