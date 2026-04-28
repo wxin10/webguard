@@ -26,6 +26,7 @@ Environment templates:
 - Local development: `.env.example`, `backend/.env.example`, `frontend/.env.example`.
 - Production draft: `.env.production.example`, `backend/.env.production.example`, `frontend/.env.production.example`.
 - Production readiness checklist: `docs/deployment-checklist.md`.
+- Extension release checklist: `docs/extension-release-checklist.md`.
 
 Production templates are placeholders for operators and CI/release planning. They do not contain real secrets and are not a complete deployment recipe.
 
@@ -205,5 +206,6 @@ Known release blockers before production:
 - HTTPS, reverse proxy, and production CORS allowlist are not finalized.
 - Secrets management and environment-specific deployment injection are not finalized.
 - Production extension ID/origin allowlist and release packaging are not finalized.
+- Extension store privacy materials and production permission review remain tracked in `docs/extension-release-checklist.md`.
 - Manual extension token fallback remains only for development compatibility.
 - Production Web access tokens are kept in memory. The `webguard_dev_user` localStorage mirror is disabled by default and only available when `VITE_ENABLE_DEV_TOKEN_STORAGE=true` for local manual-token fallback.

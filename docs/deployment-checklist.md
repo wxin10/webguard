@@ -97,6 +97,7 @@ Before publishing the extension:
 - Keep content-script matches only as broad as the detection product requires.
 - Replace local backend host permissions or release settings with the production API origin if required by the browser.
 - Add the published extension origin to backend `CORS_ORIGINS`.
+- Complete `docs/extension-release-checklist.md`, including permission rationale, privacy disclosure, store smoke test, and production API origin review.
 - Re-run the real-browser smoke test after installing the production-like extension package.
 
 ## 8. Release Verification
@@ -137,10 +138,12 @@ P0 blockers:
 - Secret management and environment-specific deployment injection are not implemented.
 - Production CORS and published extension origin allowlist need real deployment values.
 - Production extension packaging and store ID validation are not complete.
+- Extension privacy policy and store listing materials are not complete.
 
 P1 blockers:
 
 - Manual extension token fallback should be hidden or disabled in production UX.
+- Extension production console diagnostics should avoid full browsing URLs.
 - Device-management UX is still minimal.
 - Rate limiting and audit hardening are not complete.
 

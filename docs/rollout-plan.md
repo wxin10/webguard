@@ -209,3 +209,19 @@ Remaining:
 - Real HTTPS/reverse-proxy configuration is still not implemented.
 - Secret management and environment-specific deployment injection are still not implemented.
 - Production extension package, store ID, and final extension-origin allowlist are still release blockers.
+
+## P2-K Extension Manifest and Store Review
+
+Completed:
+
+- Manifest V3, permission list, host permissions, service worker, Options, Popup, icons, and warning-page resources were reviewed.
+- No `<all_urls>` host permission is present.
+- `storage`, `tabs`, and `notifications` permissions are documented with release rationale.
+- Broad HTTP/HTTPS content-script matches are documented as required for the current real-time scan product scope.
+- `docs/extension-release-checklist.md` records permission, privacy, data collection, store smoke test, production API origin, and manual token fallback requirements.
+
+Remaining:
+
+- Production extension ID and store-issued origin are not available yet.
+- Production API origin is not wired into a release-specific extension package.
+- Public privacy policy and store listing materials are still blockers.
