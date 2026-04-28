@@ -239,3 +239,18 @@ Remaining:
 
 - Browser extension UI still requires manual smoke validation.
 - Real HTTPS/reverse-proxy deployment and official extension packaging remain outside P2-L.
+
+## P2-M Final Status and Defense Materials
+
+Completed:
+
+- `docs/project-status-report.md` summarizes current completion, validation evidence, and risk boundaries.
+- `docs/demo-script.md` provides a 10-minute defense/demo flow.
+- `docs/technical-highlights.md` organizes architecture, security, and engineering highlights.
+- `docs/roadmap.md` records P3 production deployment, security, extension release, model, and observability follow-up.
+
+Positioning:
+
+- Current project state is local internal-test / pre-deployment readiness.
+- It is not a formal production deployment or browser-store release.
+- Future work should prioritize production infrastructure, release compliance, audit/rate limiting, observability, and model quality.
