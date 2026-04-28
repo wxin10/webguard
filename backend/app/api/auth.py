@@ -86,7 +86,6 @@ def _clear_refresh_cookie(response: JSONResponse) -> None:
 @router.post("/login", response_model=ApiResponse[AuthTokenResponse])
 def login(request_body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     auth_service = AuthService(db)
-    UserService(db).ensure_default_users()
     user = auth_service.authenticate_user(request_body.username, request_body.password)
     if not user:
         raise WebGuardException(status_code=401, detail="invalid username or password", code=40101)
@@ -113,11 +112,10 @@ def login(request_body: LoginRequest, request: Request, db: Session = Depends(ge
 
 @router.post("/register", response_model=ApiResponse[UserProfileResponse])
 def register(request_body: RegisterRequest, db: Session = Depends(get_db)):
-    user_service = UserService(db)
-    user_service.ensure_default_users()
     username = request_body.username.strip()
     if username.lower() == "admin":
         raise WebGuardException(status_code=422, detail="admin username is reserved", code=42201)
+    user_service = UserService(db)
     user = user_service.create_user(
         username=username,
         password=request_body.password,

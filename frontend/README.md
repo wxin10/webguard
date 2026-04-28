@@ -29,4 +29,4 @@ http://127.0.0.1:8000
 
 ## 本地开发登录
 
-当前登录页调用 `POST /api/v1/auth/mock-login`。这是本地开发入口，用于检查 admin / user 两类工作区；后续正式上线应替换为真实鉴权、会话管理和后端权限校验。开发阶段的角色切换入口已收进账户设置页，不再作为主界面流程。
+当前登录页调用 `POST /api/v1/auth/login`，注册页调用 `POST /api/v1/auth/register`。WebGuard 认证只走真实账号密码登录、真实注册、refresh/logout；旧的开发登录入口已移除。

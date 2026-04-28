@@ -41,11 +41,14 @@ The current local dependency stack is FastAPI 0.135.3, Pydantic 2.12.5, pydantic
 
 `backend/.env.example` 提供本地 MySQL 示例。复制为 `backend/.env` 后可按需调整。也可以不创建 `.env`，代码默认会组装同一条本地 MySQL 连接串。
 
-## Development-only 接口
+## 认证接口
 
-- `POST /api/v1/auth/mock-login`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
 
-该接口仅用于本地开发期间切换 admin / user 权限视图，不是正式登录方案。后续应替换为真实鉴权、token/session 管理和后端权限校验。
+WebGuard 认证只走真实账号密码登录、真实注册、refresh/logout。旧的开发登录入口已移除。
 
 ## 主要接口
 

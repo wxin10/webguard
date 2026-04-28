@@ -81,7 +81,7 @@ Production database requirements:
 
 Production auth requirements:
 
-- `mock-login` remains disabled by `DEBUG=false` and `ENABLE_DEV_AUTH=false`.
+- Legacy development login shortcuts are removed; Web authentication uses real login, registration, refresh, and logout.
 - Web access tokens stay in memory and are restored through the HttpOnly refresh cookie.
 - `VITE_ENABLE_DEV_TOKEN_STORAGE=false` so `webguard_dev_user` is not created by production Web builds.
 - Web refresh tokens are HttpOnly, Secure cookies and server-side hashes only.

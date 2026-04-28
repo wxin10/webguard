@@ -13,7 +13,7 @@ Verified after P1-D:
 - PostgreSQL local development path works.
 - Alembic initial baseline exists and `alembic upgrade head` is part of startup.
 - Backend `/health` returns the unified `code/message/data` envelope.
-- Development mock-login returns an access token.
+- Real Web login returns an access token.
 - Extension Options can store API URL, Web URL, Access Token, and Plugin Instance ID.
 - Extension bootstrap succeeds with `Authorization`, `X-Plugin-Instance-Id`, and `X-Plugin-Version`.
 - Safe URL scan returns `ALLOW`.
@@ -64,7 +64,7 @@ Completed:
 Completed:
 
 - JWT access-token skeleton exists.
-- `mock-login` is explicitly development-only.
+- Legacy development login shortcuts have been removed from Web auth.
 - `require_auth` / current-user dependency exists.
 - Frontend API client sends `Authorization`.
 - Extension API client can send `Authorization`, `X-Plugin-Instance-Id`, and `X-Plugin-Version`.
@@ -140,7 +140,7 @@ Recommended focus:
 
 These are intentional current limits, not bugs in the local internal-test build:
 
-- `mock-login` is development-only.
+- Web authentication uses real username/password login, registration, refresh, and logout.
 - Web access tokens are kept in memory by default; localStorage mirroring is gated by `VITE_ENABLE_DEV_TOKEN_STORAGE=true` for development fallback only.
 - Web Refresh Token and plugin refresh tokens are implemented.
 - Minimal formal plugin binding is implemented; QR-code pairing is not implemented.

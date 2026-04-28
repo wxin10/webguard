@@ -125,6 +125,7 @@ def test_default_guest_user_exists_with_user_role():
 
 
 def test_admin_login_success_returns_admin_profile():
+    ensure_defaults()
     token, data = login("admin", "admin")
     assert data["token_type"] == "Bearer"
     assert data["user"]["username"] == "admin"
@@ -134,6 +135,7 @@ def test_admin_login_success_returns_admin_profile():
 
 
 def test_guest_login_success_returns_user_profile():
+    ensure_defaults()
     token, data = login("guest", "guest")
     assert data["user"]["username"] == "guest"
     assert data["user"]["role"] == "user"
@@ -243,6 +245,7 @@ def test_refresh_returns_database_role():
 
 
 def test_logout_revokes_refresh_token():
+    ensure_defaults()
     login("admin", "admin")
     response = client.post("/api/v1/auth/logout")
     assert response.status_code == 200
@@ -261,6 +264,7 @@ def test_logout_revokes_refresh_token():
 
 
 def test_regular_user_cannot_access_admin_users():
+    ensure_defaults()
     token, _ = login("guest", "guest")
     response = client.get("/api/v1/admin/users", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403

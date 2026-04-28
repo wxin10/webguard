@@ -80,9 +80,9 @@ extension/  -> 浏览器插件
    - `docker-compose.yml` 使用 PostgreSQL；
    - 根 `.env.example` 和 `backend/.env.example` 仍以 MySQL 为主。
 
-2. **鉴权仍偏开发态**：
-   - 仍保留 `mock-login` 作为本地流程入口；
-   - 正式鉴权和插件绑定机制尚未完全替代。
+2. **鉴权已切换到真实 Web 账号体系**：
+   - Web 平台只走真实账号密码登录、真实注册、refresh/logout；
+   - 旧的开发登录入口已移除，插件绑定机制仍按独立阶段推进。
 
 3. **部署与开发说明没有完全统一**：
    - README、环境变量、容器配置之间语义存在偏差。

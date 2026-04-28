@@ -94,7 +94,7 @@ class AdminUserResponse(BaseModel):
 
 class AdminUserCreate(BaseModel):
     username: str = Field(..., min_length=1)
-    password: str = Field(..., min_length=4)
+    password: str = Field(..., min_length=6)
     email: str | None = None
     display_name: str | None = None
     role: str = Field("user", pattern="^(admin|user)$")
@@ -108,7 +108,7 @@ class AdminUserPatch(BaseModel):
 
 
 class AdminPasswordReset(BaseModel):
-    password: str = Field(..., min_length=4)
+    password: str = Field(..., min_length=6)
 
 
 def _user_response(user) -> dict:

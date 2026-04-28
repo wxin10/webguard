@@ -239,5 +239,5 @@ class UserService:
 
     @staticmethod
     def _validate_password(password: str) -> None:
-        if not password or len(password) < 4:
-            raise WebGuardException(status_code=422, detail="password must be at least 4 characters", code=42201)
+        if not password or len(password) < 6:
+            raise WebGuardException(status_code=422, detail="password must be at least 6 characters", code=42201)

@@ -61,9 +61,9 @@ WebGuard 没有把浏览器插件做成孤立主产品，而是采用：
 
 ## 2. 安全亮点
 
-### mock-login 开发态隔离
+### 真实 Web 认证边界
 
-`mock-login` 保留为本地开发能力，但被配置闸门隔离：
+WebGuard 认证只走真实账号密码登录、真实注册、refresh/logout。旧的开发登录入口已移除，开发请求头仍被配置闸门隔离：
 
 - `DEBUG=true` 且 `ENABLE_DEV_AUTH=true` 时可用。
 - 生产模式默认不可用。

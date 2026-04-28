@@ -70,8 +70,8 @@ export default function Users() {
     setEditForm({
       email: item.email || '',
       display_name: item.display_name,
-      role: item.role,
-      is_active: item.is_active,
+      role: item.username === 'admin' ? 'admin' : item.username === 'guest' ? 'user' : item.role,
+      is_active: item.username === 'admin' ? true : item.is_active,
     });
   };
 
@@ -81,10 +81,15 @@ export default function Users() {
     setSaving(true);
     setError('');
     try {
-      await adminUsersService.updateUser(editing.id, {
+      const protectedPatch: AdminUserPatchRequest = {
         ...editForm,
-        email: editForm.email?.trim() || null,
-        display_name: editForm.display_name?.trim() || editing.username,
+        role: editing.username === 'admin' ? 'admin' : editing.username === 'guest' ? 'user' : editForm.role,
+        is_active: editing.username === 'admin' ? true : editForm.is_active,
+      };
+      await adminUsersService.updateUser(editing.id, {
+        ...protectedPatch,
+        email: protectedPatch.email?.trim() || null,
+        display_name: protectedPatch.display_name?.trim() || editing.username,
       });
       setEditing(null);
       await loadUsers();
@@ -94,6 +99,10 @@ export default function Users() {
       setSaving(false);
     }
   };
+
+  const isDefaultAdmin = (item: AdminUserItem) => item.username === 'admin';
+  const isDefaultGuest = (item: AdminUserItem) => item.username === 'guest';
+  const isBuiltInUser = (item: AdminUserItem) => isDefaultAdmin(item) || isDefaultGuest(item);
 
   const handleResetPassword = async (event: FormEvent) => {
     event.preventDefault();
@@ -201,7 +210,13 @@ export default function Users() {
               <tr><td className="px-4 py-8 text-center text-slate-500" colSpan={7}>正在加载...</td></tr>
             ) : users.length ? users.map((item) => (
               <tr key={item.id}>
-                <td className="px-4 py-3 font-semibold text-slate-900">{item.username}</td>
+                <td className="px-4 py-3 font-semibold text-slate-900">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{item.username}</span>
+                    {isDefaultAdmin(item) && <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">系统内置管理员账号</span>}
+                    {isDefaultGuest(item) && <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">内置普通账号</span>}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-slate-700">{item.display_name || '-'}</td>
                 <td className="px-4 py-3 text-slate-700">{item.email || '-'}</td>
                 <td className="px-4 py-3 text-slate-700">{item.role === 'admin' ? '管理员' : '普通用户'}</td>
@@ -216,11 +231,19 @@ export default function Users() {
                     <button type="button" onClick={() => startEdit(item)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">编辑</button>
                     <button type="button" onClick={() => setResetUser(item)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">重置密码</button>
                     {item.is_active ? (
-                      <button type="button" onClick={() => runUserAction(() => adminUsersService.disableUser(item.id))} className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50">禁用</button>
+                      isDefaultAdmin(item) ? (
+                        <button type="button" disabled title="系统内置管理员账号不能禁用" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">禁用</button>
+                      ) : (
+                        <button type="button" onClick={() => runUserAction(() => adminUsersService.disableUser(item.id))} className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50">禁用</button>
+                      )
                     ) : (
                       <button type="button" onClick={() => runUserAction(() => adminUsersService.enableUser(item.id))} className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">启用</button>
                     )}
-                    <button type="button" onClick={() => runUserAction(() => adminUsersService.deleteUser(item.id))} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">删除</button>
+                    {isDefaultAdmin(item) ? (
+                      <button type="button" disabled title="系统内置管理员账号不能删除" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">删除</button>
+                    ) : (
+                      <button type="button" onClick={() => runUserAction(() => adminUsersService.deleteUser(item.id))} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">删除</button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -236,12 +259,25 @@ export default function Users() {
           <form onSubmit={handleUpdate} className="space-y-3">
             <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="显示名" value={editForm.display_name || ''} onChange={(event) => setEditForm({ ...editForm, display_name: event.target.value })} />
             <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="邮箱" value={editForm.email || ''} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} />
-            <select className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.role || 'user'} onChange={(event) => setEditForm({ ...editForm, role: event.target.value as UserRole })}>
-              <option value="user">普通用户</option>
-              <option value="admin">管理员</option>
+            {isBuiltInUser(editing) && (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {isDefaultAdmin(editing) ? '系统内置管理员账号不能降级、禁用或删除。' : '内置普通账号不能升级为管理员。'}
+              </p>
+            )}
+            <select className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.role || 'user'} disabled={isBuiltInUser(editing)} onChange={(event) => setEditForm({ ...editForm, role: event.target.value as UserRole })}>
+              {isDefaultAdmin(editing) ? (
+                <option value="admin">管理员</option>
+              ) : isDefaultGuest(editing) ? (
+                <option value="user">普通用户</option>
+              ) : (
+                <>
+                  <option value="user">普通用户</option>
+                  <option value="admin">管理员</option>
+                </>
+              )}
             </select>
             <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={Boolean(editForm.is_active)} onChange={(event) => setEditForm({ ...editForm, is_active: event.target.checked })} />
+              <input type="checkbox" checked={Boolean(editForm.is_active)} disabled={isDefaultAdmin(editing)} onChange={(event) => setEditForm({ ...editForm, is_active: event.target.checked })} />
               启用账号
             </label>
             <button disabled={saving} className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">保存</button>
@@ -252,8 +288,8 @@ export default function Users() {
       {resetUser && (
         <Modal title={`重置密码：${resetUser.username}`} onClose={() => setResetUser(null)}>
           <form onSubmit={handleResetPassword} className="space-y-3">
-            <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="新密码，至少 4 位" type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
-            <button disabled={saving || resetPassword.length < 4} className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">确认重置</button>
+            <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="新密码，至少 6 位" type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
+            <button disabled={saving || resetPassword.length < 6} className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">确认重置</button>
           </form>
         </Modal>
       )}

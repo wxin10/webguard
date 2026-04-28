@@ -8,8 +8,8 @@ Implementation note: the P2-D baseline implements Web login endpoints, password 
 
 ## 1. Goals
 
-- Replace development-only mock login as the production path.
-- Keep `mock-login` available only when development auth is explicitly enabled.
+- Use real username/password login, registration, refresh, and logout as the Web authentication path.
+- Remove legacy development login shortcuts from product and API flows.
 - Give the Web app a standard login and refresh flow.
 - Give the extension its own bound-device token path instead of manually copying a Web access token.
 - Support revoking a single browser extension instance without logging the user out everywhere.
@@ -494,7 +494,7 @@ Because extension storage is accessible to the extension context, plugin tokens 
 
 ### Phase 1: Keep Development Auth Stable
 
-- Keep `mock-login` behind development config.
+- Keep development headers gated by development config only.
 - Keep current manual extension token configuration for local development.
 - Keep legacy `X-WebGuard-User` / `X-WebGuard-Role` compatibility only when development auth is enabled.
 
@@ -548,7 +548,7 @@ Recommended scope:
 - Implement login, refresh, logout, and me endpoints.
 - Update frontend auth context and API client refresh behavior.
 - Add backend tests for login, refresh rotation, logout, and expired access token.
-- Preserve mock-login as development-only.
+- Keep legacy development login shortcuts removed from the Web auth path.
 
 ### P2-D: Extension Binding
 

@@ -210,6 +210,7 @@ Formal login endpoints:
 
 ```text
 POST /api/v1/auth/login
+POST /api/v1/auth/register
 POST /api/v1/auth/refresh
 POST /api/v1/auth/logout
 GET  /api/v1/auth/me
@@ -227,8 +228,14 @@ REFRESH_TOKEN_COOKIE_SECURE=false
 VITE_SHOW_DEV_LOGIN_OPTIONS=false
 ```
 
-Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_AUTH=true`.
-The Web login page hides mock-login by default and uses real username/password login as the main path. Set `VITE_SHOW_DEV_LOGIN_OPTIONS=true` only when a local validation run explicitly needs the auxiliary fixed-account entry. Mock-login only accepts `admin/admin` and `guest/user`; it cannot create arbitrary users or change roles.
+WebGuard authentication uses real username/password login, real registration, refresh, and logout. The old development login shortcut has been removed from both API and Web UI flows.
+
+Local initialization seeds two baseline accounts for development and competition deployment bootstrap:
+
+- `admin / admin`, role `admin`
+- `guest / guest`, role `user`
+
+For production, set strong `DEFAULT_ADMIN_PASSWORD` and `DEFAULT_GUEST_PASSWORD` values before startup. With `DEBUG=false`, the backend refuses to start if these values remain weak defaults.
 
 Admin user management is available at:
 
@@ -254,26 +261,26 @@ Manual token flow:
 
 1. Open `http://127.0.0.1:5173/login`.
 2. Set `VITE_ENABLE_DEV_TOKEN_STORAGE=true` and restart the frontend dev server.
-3. Log in with the seeded formal test user, or use the development mock-login option.
+3. Log in with a seeded or registered user.
 4. Open browser DevTools.
 5. Read localStorage key `webguard_dev_user`.
 6. Copy `access_token` into the extension Options page.
 
 Without `VITE_ENABLE_DEV_TOKEN_STORAGE=true`, new Web access tokens are not written to localStorage.
 
-Equivalent development-only mock-login API call:
+Equivalent local login API call:
 
 ```powershell
 $login = Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/auth/mock-login `
+  -Uri http://127.0.0.1:8000/api/v1/auth/login `
   -Method Post `
   -ContentType 'application/json' `
-  -Body '{"username":"guest","role":"user"}'
+  -Body '{"username":"guest","password":"guest"}'
 
 $login.data.access_token
 ```
 
-`mock-login` is development-only and must not be treated as production authentication.
+Use these local seed credentials only for development or initial competition deployment bootstrap.
 
 ## 10. End-to-End Acceptance
 
@@ -381,8 +388,8 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 
 ## 13. Current Development Limits
 
-- Development mock-login is still present and only valid in development mode.
-- Formal Web login requires seeded or otherwise pre-created users; registration and password reset are not implemented.
+- Web authentication uses real login, registration, refresh, and logout.
+- Formal Web login requires seeded, registered, or admin-created users.
 - Manual Access Token entry remains available in extension Options as a development-compatible fallback, but the Web localStorage mirror is disabled by default.
 - Web Refresh Token exists for the Web app; plugin refresh tokens exist for bound extension instances.
 - Minimal formal plugin binding is implemented through challenge, Web confirmation, token exchange, refresh, revoke, and unbind endpoints.

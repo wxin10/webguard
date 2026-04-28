@@ -215,8 +215,9 @@ The CI workflow does not require secrets or a PostgreSQL service.
 
 ## Development-Only Limits
 
-- `POST /api/v1/auth/mock-login` is development-only.
-- Formal Web login exists for pre-created users with password hashes.
+- WebGuard authentication uses real username/password login, registration, refresh, and logout flows.
+- Legacy development login shortcuts have been removed.
+- Formal Web login exists for registered or pre-created users with password hashes.
 - `python -m app.scripts.seed_dev_user` is the supported local way to create the first formal login user.
 - Web Refresh Token is stored as an HttpOnly cookie and only the server-side hash is persisted.
 - Minimal plugin binding exists and issues plugin-specific access/refresh tokens.

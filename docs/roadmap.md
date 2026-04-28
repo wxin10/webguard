@@ -14,7 +14,7 @@
 - Alembic baseline 建立。
 - API 响应统一为 `code/message/data`。
 - JWT access-token 骨架建立。
-- mock-login 冻结为开发专用。
+- Web 认证切换为真实登录、注册、refresh/logout。
 
 ### P1 产品闭环
 
