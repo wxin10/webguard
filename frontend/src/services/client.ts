@@ -51,10 +51,6 @@ api.interceptors.request.use((config) => {
   if (user.access_token) {
     headers.Authorization = `Bearer ${user.access_token}`;
   }
-  if (user.username || user.role) {
-    headers['X-WebGuard-User'] = user.username || 'platform-user';
-    headers['X-WebGuard-Role'] = user.role || 'user';
-  }
   return config;
 });
 
@@ -90,8 +86,11 @@ api.interceptors.response.use(
       if (refreshResponse.data.code !== 0 || !refreshData?.access_token) {
         throw new Error(refreshResponse.data.message || 'refresh failed');
       }
+      if (!refreshData.user) {
+        throw new Error('refresh response missing user');
+      }
       const nextUser = {
-        ...(refreshData.user || getAuthSession() || { username: 'platform-user', role: 'user', display_name: 'platform-user' }),
+        ...refreshData.user,
         access_token: refreshData.access_token,
         token_type: refreshData.token_type,
         expires_in: refreshData.expires_in,

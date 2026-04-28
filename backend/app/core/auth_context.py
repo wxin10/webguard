@@ -51,6 +51,8 @@ def _principal_from_token(
         detail = str(exc)
         code = 40102 if detail == "token expired" else 40101
         raise WebGuardException(status_code=401, detail=detail, code=code) from exc
+    username = payload["sub"].strip()
+    role = payload["role"].strip()
     plugin_instance_id = payload.get("plugin_instance_id")
     if payload.get("token_scope") == "plugin":
         if not isinstance(plugin_instance_id, str) or not plugin_instance_id.strip():
@@ -60,11 +62,24 @@ def _principal_from_token(
         if db is not None:
             from ..services.plugin_binding_service import PluginBindingService
 
-            PluginBindingService(db).get_active_instance(plugin_instance_id.strip())
+            instance = PluginBindingService(db).get_active_instance(plugin_instance_id.strip())
+            from ..models import User
+
+            user = db.query(User).filter(User.id == instance.user_id).first()
+            if not user or not user.is_active or user.username != username:
+                raise WebGuardException(status_code=401, detail="user inactive", code=40101)
+            role = user.role
+    elif db is not None:
+        from ..models import User
+
+        user = db.query(User).filter(User.username == username).first()
+        if not user or not user.is_active:
+            raise WebGuardException(status_code=401, detail="user inactive", code=40101)
+        role = user.role
 
     return Principal(
-        username=payload["sub"].strip(),
-        role=payload["role"].strip(),
+        username=username,
+        role=role,
         auth_mode="plugin-token" if payload.get("token_scope") == "plugin" else "token",
         plugin_instance_id=plugin_instance_id.strip() if isinstance(plugin_instance_id, str) else None,
     )
@@ -75,8 +90,11 @@ def _principal_from_dev_headers(x_webguard_user: str | None, x_webguard_role: st
         return None
     if not x_webguard_user and not x_webguard_role:
         return None
-    username = (x_webguard_user or "platform-user").strip() or "platform-user"
+    username = (x_webguard_user or "guest").strip() or "guest"
     role = (x_webguard_role or "user").strip() or "user"
+    allowed = {("admin", "admin"), ("guest", "user")}
+    if (username, role) not in allowed:
+        raise WebGuardException(status_code=403, detail="invalid development auth headers", code=40301)
     return Principal(username=username, role=role, auth_mode="dev-header")
 
 
@@ -105,7 +123,7 @@ def principal_from_headers(
     if dev_principal:
         return dev_principal
     if settings.dev_auth_enabled:
-        return Principal(username="platform-user", role="user", auth_mode="dev-default")
+        return Principal(username="guest", role="user", auth_mode="dev-default")
     return _anonymous_principal()
 
 

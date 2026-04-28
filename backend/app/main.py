@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
 from .core import settings
 from .core.database import Base, engine
+from .core.database import SessionLocal
 from .core.exceptions import WebGuardException
 from .core.response import error_response, success_payload
 from .core.schema_migrations import ensure_runtime_schema
+from .services.user_service import UserService
 
 
 app = FastAPI(
@@ -30,6 +32,12 @@ def on_startup():
     if settings.runtime_schema_guard_enabled:
         Base.metadata.create_all(bind=engine)
         ensure_runtime_schema(engine)
+    db = SessionLocal()
+    try:
+        UserService(db).ensure_default_users()
+        db.commit()
+    finally:
+        db.close()
 
 
 @app.exception_handler(WebGuardException)

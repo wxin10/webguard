@@ -11,8 +11,8 @@ from app.core.security import hash_password, verify_password
 from app.models import User
 
 
-DEFAULT_DEV_USERNAME = "platform-admin"
-DEFAULT_DEV_PASSWORD = "webguard-dev-password"
+DEFAULT_DEV_USERNAME = "admin"
+DEFAULT_DEV_PASSWORD = "admin"
 DEFAULT_DEV_ROLE = "admin"
 
 
@@ -66,6 +66,12 @@ def load_seed_config(env: Mapping[str, str] | None = None, *, allow_dev_defaults
 
 
 def seed_user(db, config: SeedUserConfig) -> SeedUserResult:
+    role = config.role
+    if config.username == "admin":
+        role = "admin"
+    elif config.username == "guest":
+        role = "user"
+
     user = db.query(User).filter(User.username == config.username).first()
     created = user is None
     password_updated = False
@@ -75,7 +81,7 @@ def seed_user(db, config: SeedUserConfig) -> SeedUserResult:
             username=config.username,
             email=config.email,
             display_name=config.display_name,
-            role=config.role,
+            role=role,
             is_active=True,
         )
         db.add(user)
@@ -83,7 +89,7 @@ def seed_user(db, config: SeedUserConfig) -> SeedUserResult:
         if config.email:
             user.email = config.email
         user.display_name = config.display_name
-        user.role = config.role
+        user.role = role
         user.is_active = True
 
     if not verify_password(config.password, user.password_hash):

@@ -9,7 +9,6 @@ interface AuthContextValue {
   login: (username: string, password: string) => Promise<void>;
   mockLogin: (username: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
-  switchRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,19 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const switchRole = async () => {
-    const nextRole: UserRole = user?.role === 'admin' ? 'user' : 'admin';
-    await mockLogin(nextRole === 'admin' ? 'platform-admin' : 'platform-user', nextRole);
-  };
-
   const value = useMemo(
-    () => ({ user, initialized, login, mockLogin, logout, switchRole }),
+    () => ({ user, initialized, login, mockLogin, logout }),
     [initialized, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function tokenResponseToUser(tokenResponse: Awaited<ReturnType<typeof authApi.login>>, fallbackUsername = 'platform-user'): DevelopmentUser {
+function tokenResponseToUser(tokenResponse: Awaited<ReturnType<typeof authApi.login>>, fallbackUsername = 'guest'): DevelopmentUser {
   const profile = tokenResponse.user || {
     username: fallbackUsername,
     role: 'user' as UserRole,

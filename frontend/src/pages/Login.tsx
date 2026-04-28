@@ -1,18 +1,15 @@
 import { FormEvent, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import type { UserRole } from '../types';
 
 const loginImage = 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1400&q=80';
-const SHOW_DEV_LOGIN_OPTIONS = import.meta.env.VITE_SHOW_DEV_LOGIN_OPTIONS === 'true';
 
 export default function Login() {
-  const { user, login, mockLogin } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [validationRole, setValidationRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,26 +22,10 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      const normalizedUsername = username.trim();
-      await login(normalizedUsername, password);
+      await login(username.trim(), password);
       navigate(fromPath, { replace: true });
     } catch {
-      setError('登录失败，请确认后端服务已启动。');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMockLogin = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const normalizedUsername = username.trim();
-      const defaultUsername = validationRole === 'admin' ? 'platform-admin' : 'platform-user';
-      await mockLogin(normalizedUsername || defaultUsername, validationRole);
-      navigate(fromPath, { replace: true });
-    } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : '登录入口不可用');
+      setError('登录失败，请确认账号、密码和服务状态。');
     } finally {
       setLoading(false);
     }
@@ -63,9 +44,9 @@ export default function Login() {
             </Link>
             <div className="max-w-xl">
               <p className="text-sm font-semibold text-emerald-100">Unified Web Security Platform</p>
-              <h1 className="mt-4 text-4xl font-bold leading-tight">把恶意网站检测、风险报告和主动防御放进同一个工作平台。</h1>
+              <h1 className="mt-4 text-4xl font-bold leading-tight">登录 WebGuard 安全工作台</h1>
               <div className="mt-8 grid gap-3 text-sm text-emerald-50 md:grid-cols-3">
-                {['提交检测', '查看报告', '同步浏览器提醒'].map((item) => (
+                {['安全检测', '风险报告', '平台管理'].map((item) => (
                   <div key={item} className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
                     {item}
                   </div>
@@ -82,9 +63,9 @@ export default function Login() {
           </Link>
 
           <p className="text-sm font-semibold text-emerald-700">平台登录</p>
-          <h2 className="mt-2 text-3xl font-bold text-slate-950">进入 WebGuard</h2>
+          <h2 className="mt-2 text-3xl font-bold text-slate-950">登录 WebGuard 安全工作台</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            使用你的平台账号进入个人安全工作台或运营控制台。浏览器助手的报告和提醒会同步到这里继续处理。
+            使用你的 WebGuard 账号访问安全检测、报告、策略与管理功能。
           </p>
 
           <label className="mt-8 block text-sm font-semibold text-slate-700">账号</label>
@@ -93,12 +74,10 @@ export default function Login() {
             onChange={(event) => setUsername(event.target.value)}
             autoComplete="username"
             className="mt-2 w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-            placeholder="name@company.com"
+            placeholder="输入账号或邮箱"
           />
 
-          <div className="mt-5 flex items-center justify-between gap-3">
-            <label className="block text-sm font-semibold text-slate-700">密码</label>
-          </div>
+          <label className="mt-5 block text-sm font-semibold text-slate-700">密码</label>
           <input
             type="password"
             value={password}
@@ -112,41 +91,12 @@ export default function Login() {
             disabled={loading || !username.trim() || !password.trim()}
             className="mt-7 w-full rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? '登录中...' : '登录并进入平台'}
+            {loading ? '登录中...' : '登录'}
           </button>
 
           {error && <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-          {SHOW_DEV_LOGIN_OPTIONS && (
-            <details className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              <summary className="cursor-pointer font-semibold text-slate-700">验证辅助入口</summary>
-              <p className="mt-3 leading-6">
-                该入口仅在显式配置后显示，用于本地验证不同角色页面。
-              </p>
-              <div className="mt-3 flex gap-2">
-                {(['user', 'admin'] as UserRole[]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setValidationRole(item)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
-                      validationRole === item ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'
-                    }`}
-                  >
-                    {item === 'admin' ? '运营管理员' : '普通用户'}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={handleMockLogin}
-                disabled={loading}
-                className="mt-4 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                使用验证入口
-              </button>
-            </details>
-          )}
+          <p className="mt-5 text-center text-sm text-slate-500">没有账号？请联系管理员开通。</p>
 
           <Link to="/" className="mt-6 text-center text-sm font-semibold text-slate-500 hover:text-emerald-700">
             返回产品首页

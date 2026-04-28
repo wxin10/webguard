@@ -31,6 +31,38 @@ export interface AuthTokenResponse {
   user?: DevelopmentUser | null;
 }
 
+export interface AdminUserItem {
+  id: number;
+  username: string;
+  email?: string | null;
+  display_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_login_at?: string | null;
+}
+
+export interface AdminUserList {
+  total: number;
+  items: AdminUserItem[];
+}
+
+export interface AdminUserCreateRequest {
+  username: string;
+  password: string;
+  email?: string | null;
+  display_name?: string | null;
+  role: UserRole;
+}
+
+export interface AdminUserPatchRequest {
+  email?: string | null;
+  display_name?: string | null;
+  role?: UserRole;
+  is_active?: boolean;
+}
+
 export interface PluginBindingChallenge {
   challenge_id: string;
   plugin_instance_id: string;

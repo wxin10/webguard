@@ -7,8 +7,9 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401
 from app.core import get_db
 from app.core.database import Base
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.main import app
+from app.models import User
 from app.services.domain_service import DomainService
 
 
@@ -40,6 +41,25 @@ def client():
 
 
 def auth_headers(username: str = "policy-user", role: str = "user") -> dict[str, str]:
+    db = TestingSessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            user = User(
+                username=username,
+                email=f"{username}@example.test",
+                display_name=username,
+                role=role,
+                password_hash=hash_password("S3cret-pass!"),
+                is_active=True,
+            )
+            db.add(user)
+        else:
+            user.role = role
+            user.is_active = True
+        db.commit()
+    finally:
+        db.close()
     token = create_access_token(subject=username, role=role)
     return {"Authorization": f"Bearer {token}"}
 

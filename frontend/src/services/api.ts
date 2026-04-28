@@ -11,4 +11,5 @@ export { adminDomainsService } from './adminDomainsService';
 export { adminStatsService, adminStatsService as statsApi } from './adminStatsService';
 export { adminPluginService } from './adminPluginService';
 export { adminFeedbackService } from './adminFeedbackService';
+export { adminUsersService } from './adminUsersService';
 export { authApi, blacklistApi, modelApi, rulesApi, userStrategyApi, whitelistApi } from './legacyServices';

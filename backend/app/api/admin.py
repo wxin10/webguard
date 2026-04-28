@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -12,6 +14,7 @@ from ..services.domain_service import DomainService
 from ..services.feedback_service import FeedbackService
 from ..services.plugin_event_service import PluginEventService
 from ..services.policy_service import PolicyService
+from ..services.user_service import UserService
 
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-platform"])
@@ -75,6 +78,51 @@ class PluginConfigPatch(BaseModel):
 class FeedbackPatch(BaseModel):
     status: str
     comment: str | None = None
+
+
+class AdminUserResponse(BaseModel):
+    id: int
+    username: str
+    email: str | None = None
+    display_name: str
+    role: str
+    is_active: bool
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    last_login_at: datetime | None = None
+
+
+class AdminUserCreate(BaseModel):
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=4)
+    email: str | None = None
+    display_name: str | None = None
+    role: str = Field("user", pattern="^(admin|user)$")
+
+
+class AdminUserPatch(BaseModel):
+    email: str | None = None
+    display_name: str | None = None
+    role: str | None = Field(default=None, pattern="^(admin|user)$")
+    is_active: bool | None = None
+
+
+class AdminPasswordReset(BaseModel):
+    password: str = Field(..., min_length=4)
+
+
+def _user_response(user) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "is_active": bool(user.is_active),
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "last_login_at": user.last_login_at,
+    }
 
 
 @router.get("/rules")
@@ -251,3 +299,110 @@ def update_admin_feedback(
     if not case:
         return fail("feedback case not found", 404)
     return ok(FeedbackCaseItem.model_validate(case), "feedback updated")
+
+
+@router.get("/users")
+def list_admin_users(
+    keyword: str | None = Query(default=None),
+    role: str | None = Query(default=None, pattern="^(admin|user)$"),
+    is_active: bool | None = Query(default=None),
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    items = UserService(db).list_users(keyword=keyword, role=role, is_active=is_active)
+    return ok({"total": len(items), "items": [_user_response(item) for item in items]})
+
+
+@router.post("/users")
+def create_admin_user(
+    request: AdminUserCreate,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).create_user(**request.model_dump())
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "user created")
+
+
+@router.patch("/users/{user_id}")
+def update_admin_user(
+    user_id: int,
+    request: AdminUserPatch,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).update_user(user_id, **request.model_dump(exclude_unset=True))
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "user updated")
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_admin_user_password(
+    user_id: int,
+    request: AdminPasswordReset,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).reset_password(user_id, request.password)
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "password reset")
+
+
+@router.post("/users/{user_id}/disable")
+def disable_admin_user(
+    user_id: int,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).set_user_active(user_id, False)
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "user disabled")
+
+
+@router.post("/users/{user_id}/enable")
+def enable_admin_user(
+    user_id: int,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).set_user_active(user_id, True)
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "user enabled")
+
+
+@router.delete("/users/{user_id}")
+def delete_admin_user(
+    user_id: int,
+    principal: Principal = Depends(principal_from_headers),
+    db: Session = Depends(get_db),
+):
+    denied = require_admin(principal)
+    if denied:
+        return denied
+    user = UserService(db).soft_delete_user(user_id)
+    db.commit()
+    db.refresh(user)
+    return ok(_user_response(user), "user disabled")

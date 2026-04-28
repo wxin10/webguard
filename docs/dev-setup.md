@@ -59,19 +59,25 @@ Runtime schema guard behavior:
 - Unsafe combination: `DEBUG=false` with `ENABLE_RUNTIME_SCHEMA_GUARD=true` is rejected during backend settings validation.
 - Production schema changes must be applied through Alembic only.
 
-## 4. Seed a Local Formal User
+## 4. Built-in Local Development Users
 
-Create or update the first local formal login user after migrations:
+After migrations, the backend startup and the formal login endpoint ensure these local development users exist:
 
-```powershell
-cd backend
-$env:WEBGUARD_SEED_USERNAME = "platform-admin"
-$env:WEBGUARD_SEED_PASSWORD = "change-me-local"
-$env:WEBGUARD_SEED_ROLE = "admin"
-$env:WEBGUARD_SEED_EMAIL = "platform-admin@example.local"
-$env:WEBGUARD_SEED_DISPLAY_NAME = "Platform Admin"
-python -m app.scripts.seed_dev_user
+```text
+admin / admin   role=admin display_name=系统管理员
+guest / guest   role=user  display_name=访客用户
 ```
+
+These passwords are for local development and competition demonstrations only. Production deployments must change them through environment variables or an initialization script before exposing the service.
+
+```text
+DEFAULT_ADMIN_PASSWORD=<strong admin password>
+DEFAULT_GUEST_PASSWORD=<strong guest password>
+```
+
+When `DEBUG=false`, the backend refuses to start if these values remain `admin` and `guest`.
+
+The optional seed script can still create or update additional local users:
 
 Seed environment variables:
 
@@ -87,26 +93,7 @@ The command uses the same password hashing function as `/api/v1/auth/login`. It 
 
 When development auth is enabled, omitted values fall back to local-only defaults for convenience. Do not rely on those defaults for production-like environments; provide `WEBGUARD_SEED_PASSWORD` explicitly.
 
-For local demo acceptance, seed both of these local-only accounts if they are not already present:
-
-```powershell
-cd backend
-$env:WEBGUARD_SEED_USERNAME = "admin"
-$env:WEBGUARD_SEED_PASSWORD = "admin"
-$env:WEBGUARD_SEED_ROLE = "admin"
-$env:WEBGUARD_SEED_EMAIL = "admin@example.local"
-$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Admin"
-python -m app.scripts.seed_dev_user
-
-$env:WEBGUARD_SEED_USERNAME = "guest"
-$env:WEBGUARD_SEED_PASSWORD = "guest"
-$env:WEBGUARD_SEED_ROLE = "user"
-$env:WEBGUARD_SEED_EMAIL = "guest@example.local"
-$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Guest"
-python -m app.scripts.seed_dev_user
-```
-
-These two accounts are for local demonstration only. They are not production defaults and must not be shown on the login page.
+The default seed-script fallback is now `admin/admin` with `role=admin` when development auth is enabled. Prefer the built-in default initialization for the standard demo accounts and use the seed script only for extra accounts.
 
 ## 5. Backend
 
@@ -241,7 +228,21 @@ VITE_SHOW_DEV_LOGIN_OPTIONS=false
 ```
 
 Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_AUTH=true`.
-The Web login page hides the auxiliary mock-login role switcher by default. Set `VITE_SHOW_DEV_LOGIN_OPTIONS=true` only when a local validation run explicitly needs that auxiliary entry.
+The Web login page hides mock-login by default and uses real username/password login as the main path. Set `VITE_SHOW_DEV_LOGIN_OPTIONS=true` only when a local validation run explicitly needs the auxiliary fixed-account entry. Mock-login only accepts `admin/admin` and `guest/user`; it cannot create arbitrary users or change roles.
+
+Admin user management is available at:
+
+```text
+GET    /api/v1/admin/users
+POST   /api/v1/admin/users
+PATCH  /api/v1/admin/users/{user_id}
+POST   /api/v1/admin/users/{user_id}/reset-password
+POST   /api/v1/admin/users/{user_id}/disable
+POST   /api/v1/admin/users/{user_id}/enable
+DELETE /api/v1/admin/users/{user_id}
+```
+
+All user-management routes require an authenticated admin Bearer token. The delete route performs a soft delete by setting `is_active=false`.
 
 Frontend token storage behavior:
 
@@ -260,14 +261,14 @@ Manual token flow:
 
 Without `VITE_ENABLE_DEV_TOKEN_STORAGE=true`, new Web access tokens are not written to localStorage.
 
-Equivalent API call:
+Equivalent development-only mock-login API call:
 
 ```powershell
 $login = Invoke-RestMethod `
   -Uri http://127.0.0.1:8000/api/v1/auth/mock-login `
   -Method Post `
   -ContentType 'application/json' `
-  -Body '{"username":"platform-user","role":"user"}'
+  -Body '{"username":"guest","role":"user"}'
 
 $login.data.access_token
 ```

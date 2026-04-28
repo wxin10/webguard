@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_COOKIE_SECURE: bool = False
     PLUGIN_BINDING_CHALLENGE_EXPIRES_MINUTES: int = 5
     PLUGIN_REFRESH_TOKEN_EXPIRES_DAYS: int = 30
+    DEFAULT_ADMIN_PASSWORD: str = "admin"
+    DEFAULT_GUEST_PASSWORD: str = "guest"
 
     MODEL_DIR: str = "./models"
     MODEL_NAME: str = "text_classifier"
@@ -100,6 +102,8 @@ class Settings(BaseSettings):
             errors.append("CORS_ORIGINS must not contain wildcard origins when DEBUG=false")
         if self.runtime_schema_guard_enabled:
             errors.append("ENABLE_RUNTIME_SCHEMA_GUARD must be false when DEBUG=false")
+        if self.DEFAULT_ADMIN_PASSWORD == "admin" or self.DEFAULT_GUEST_PASSWORD == "guest":
+            errors.append("default account passwords must be changed when DEBUG=false")
 
         if errors:
             raise RuntimeError("Unsafe production settings: " + "; ".join(errors))
