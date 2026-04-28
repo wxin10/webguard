@@ -9,7 +9,7 @@ import StatCard from '../components/StatCard';
 import StatusNotice from '../components/StatusNotice';
 import { pluginService } from '../services/pluginService';
 import type { PluginBootstrap, PluginSyncEventItem } from '../types';
-import { formatDate, pluginEventText } from '../utils';
+import { formatDate, formatRuleVersion, pluginEventText } from '../utils';
 
 type FilterKey = 'all' | 'scan' | 'warning' | 'action' | 'feedback';
 
@@ -32,7 +32,7 @@ export default function PluginSync() {
         setEvents(eventData.events || []);
         setBootstrap(bootstrapData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '插件同步事件加载失败。');
+        setError(err instanceof Error ? err.message : '浏览器助手同步事件加载失败。');
       } finally {
         setLoading(false);
       }
@@ -52,14 +52,15 @@ export default function PluginSync() {
   const latestEvent = events[0];
   const warningCount = events.filter((event) => event.event_type === 'warning').length;
   const actionCount = events.filter((event) => ['bypass', 'trust', 'temporary_trust'].includes(event.event_type)).length;
+  const ruleVersion = bootstrap?.current_rule_version;
 
   if (loading) return <LoadingBlock />;
 
   return (
     <div>
       <PageHeader
-        title="插件同步记录"
-        description="插件只上传当前页扫描和现场处置动作；记录、报告和策略都由网站主平台承接。"
+        title="浏览器助手同步记录"
+        description="浏览器助手只上传当前页扫描和现场处置动作；记录、报告和策略都由网站主平台承接。"
         action={
           <Link to="/app/my-domains" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             管理个人策略
@@ -70,8 +71,14 @@ export default function PluginSync() {
       {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="插件配置版本" value={bootstrap?.current_rule_version || '-'} description="来自后端策略同步" tone="blue" />
-        <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent?.plugin_version ? `插件 ${latestEvent.plugin_version}` : '暂无插件事件'} tone={latestEvent ? 'green' : 'slate'} />
+        <StatCard
+          title="策略版本"
+          value={formatRuleVersion(ruleVersion)}
+          valueTitle={ruleVersion}
+          description={bootstrap?.updated_at ? `最近同步：${formatDate(bootstrap.updated_at)}` : '来自后端策略同步'}
+          tone="blue"
+        />
+        <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent?.plugin_version ? `助手版本 ${latestEvent.plugin_version}` : '暂无助手事件'} tone={latestEvent ? 'green' : 'slate'} />
         <StatCard title="安全预警触发" value={warningCount} tone="red" />
         <StatCard title="现场处置动作" value={actionCount} description="继续访问 / 信任 / 暂时信任" tone="amber" />
       </div>
@@ -88,7 +95,7 @@ export default function PluginSync() {
 
       <DataTable
         data={visibleEvents}
-        emptyText="暂无插件同步事件。"
+        emptyText="暂无浏览器助手同步事件。"
         columns={[
           { key: 'created_at', title: '时间', render: (value) => formatDate(String(value || '')) },
           { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },

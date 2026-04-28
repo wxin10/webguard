@@ -75,7 +75,7 @@ export default function MyRecords() {
         <div className="flex flex-wrap gap-2">
           <FilterButton active={source === 'all'} onClick={() => setSource('all')}>全部来源</FilterButton>
           <FilterButton active={source === 'web'} onClick={() => setSource('web')}>网站检测</FilterButton>
-          <FilterButton active={source === 'plugin'} onClick={() => setSource('plugin')}>插件上传</FilterButton>
+          <FilterButton active={source === 'plugin'} onClick={() => setSource('plugin')}>浏览器助手</FilterButton>
           <span className="mx-1 h-9 border-l border-slate-200" />
           <FilterButton active={risk === 'all'} onClick={() => setRisk('all')}>全部风险</FilterButton>
           <FilterButton active={risk === 'malicious'} onClick={() => setRisk('malicious')}>恶意</FilterButton>

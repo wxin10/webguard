@@ -26,7 +26,7 @@ export default function LatestReport() {
     <div>
       <PageHeader
         title="最近报告"
-        description="快速查看最近一次网站检测或插件扫描生成的正式报告摘要，并进入完整报告页追踪证据和处置动作。"
+        description="快速查看最近一次网站检测或浏览器助手扫描生成的正式报告摘要，并进入完整报告页追踪证据和处置动作。"
         action={
           <Link to="/app/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             提交检测

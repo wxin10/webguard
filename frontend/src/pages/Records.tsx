@@ -66,7 +66,7 @@ export default function Records() {
             <select value={source} onChange={(event) => setSource(event.target.value as SourceFilter)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500">
               <option value="all">全部来源</option>
               <option value="web">网站检测</option>
-              <option value="plugin">插件上传</option>
+              <option value="plugin">浏览器助手上传</option>
               <option value="recheck">重新检测</option>
             </select>
           </label>

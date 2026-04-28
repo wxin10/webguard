@@ -13,6 +13,16 @@ export function formatDate(value?: string) {
   }).format(date);
 }
 
+export function formatRuleVersion(value?: string) {
+  if (!value) return '-';
+  const ruleSetMatch = value.match(/rules?[-_\s]*(\d+)/i);
+  if (ruleSetMatch?.[1]) return `规则集 ${ruleSetMatch[1]}`;
+  const numericSuffix = value.match(/(\d+)(?!.*\d)/)?.[1];
+  if (numericSuffix) return `规则集 ${numericSuffix}`;
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 10)}...`;
+}
+
 export function getRiskText(label?: string) {
   const textMap: Record<string, string> = {
     safe: '安全',
@@ -50,7 +60,7 @@ export function riskBar(label?: RiskLabel | string) {
 export function sourceText(source?: string) {
   const sourceMap: Record<string, string> = {
     manual: '手动添加',
-    plugin: '插件同步',
+    plugin: '浏览器助手同步',
     web: '网站平台',
     report: '报告处置',
     recheck: '重新检测',
@@ -63,7 +73,7 @@ export function scanSourceText(source?: string) {
   const sourceMap: Record<string, string> = {
     manual: '网站检测',
     web: '网站检测',
-    plugin: '插件扫描',
+    plugin: '浏览器助手扫描',
     recheck: '重新检测',
   };
   return sourceMap[source || ''] || source || '-';

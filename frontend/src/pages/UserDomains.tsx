@@ -116,7 +116,7 @@ export default function UserDomains() {
     <div>
       <PageHeader
         title="我的安全策略"
-        description="个人信任、阻止和本次继续访问策略沉淀在网站主平台。插件只读取后端下发的策略摘要，并保留最小运行缓存。"
+        description="个人信任、阻止和本次继续访问策略沉淀在网站主平台。浏览器助手只读取后端下发的策略摘要，并保留最小运行缓存。"
       />
 
       {message && <StatusNotice tone="success">{message}</StatusNotice>}
@@ -126,7 +126,7 @@ export default function UserDomains() {
         <StatCard title="个人信任域名" value={trusted.length} tone="green" />
         <StatCard title="个人阻止域名" value={blocked.length} tone="red" />
         <StatCard title="本次继续访问" value={bypass.length} tone="amber" />
-        <StatCard title="全局阻止域名" value={bootstrap?.blocked_hosts.length || 0} description="由管理员维护并下发给插件" tone="slate" />
+        <StatCard title="全局阻止域名" value={bootstrap?.blocked_hosts.length || 0} description="由管理员维护并下发给助手" tone="slate" />
       </div>
 
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -138,7 +138,7 @@ export default function UserDomains() {
 
         <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1fr_140px_140px]">
           <input value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} placeholder="example.com" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="策略原因，插件动作也会同步到这里" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
+          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="策略原因，助手动作也会同步到这里" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
           <input value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: event.target.value })} disabled={tab !== 'temp_bypass' || Boolean(editing)} type="number" min="1" className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-50" />
           <button className="rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">
             {editing ? '更新策略' : '保存策略'}

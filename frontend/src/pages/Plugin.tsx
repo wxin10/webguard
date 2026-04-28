@@ -9,7 +9,7 @@ import StatusNotice from '../components/StatusNotice';
 import { adminPluginService } from '../services/adminPluginService';
 import { pluginService } from '../services/pluginService';
 import type { AdminPluginConfig, PluginDefaultConfig, PluginSyncEventItem } from '../types';
-import { formatDate, pluginEventText } from '../utils';
+import { formatDate, formatRuleVersion, pluginEventText } from '../utils';
 
 export default function Plugin() {
   const [events, setEvents] = useState<PluginSyncEventItem[]>([]);
@@ -31,7 +31,7 @@ export default function Plugin() {
       setDraft(configData.config);
       setEvents(eventData.events || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '插件配置加载失败。');
+      setError(err instanceof Error ? err.message : '浏览器助手配置加载失败。');
     } finally {
       setLoading(false);
     }
@@ -45,19 +45,21 @@ export default function Plugin() {
     event.preventDefault();
     if (!draft) return;
     await adminPluginService.updateConfig(draft);
-    setMessage('插件默认配置已更新，插件下次策略同步时会读取新配置。');
+    setMessage('浏览器助手默认配置已更新，助手下次策略同步时会读取新配置。');
     loadData();
   };
 
   if (loading || !config || !draft) return <LoadingBlock />;
 
   const stats = config.stats;
+  const latestEvent = events[0];
+  const ruleVersionText = formatRuleVersion(config.rule_version);
 
   return (
     <div>
       <PageHeader
-        title="插件运行与同步"
-        description="管理员在网站主平台维护插件默认配置、规则版本和事件回传状态；插件只是浏览器现场执行端。"
+        title="浏览器助手运行状态"
+        description="管理员在网站主平台维护浏览器助手默认设置、规则版本和事件同步状态；助手只负责浏览器现场执行。"
         action={
           <Link to="/app/admin/stats" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             查看统计
@@ -69,46 +71,52 @@ export default function Plugin() {
       {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="规则版本" value={config.rule_version} tone="blue" />
+        <StatCard
+          title="规则版本"
+          value={ruleVersionText}
+          valueTitle={config.rule_version}
+          description={`最近同步：${latestEvent ? formatDate(latestEvent.created_at) : '暂无同步记录'}`}
+          tone="blue"
+        />
         <StatCard title="同步事件" value={stats.total_events} tone="slate" />
         <StatCard title="安全预警触发" value={stats.warning_events} tone="red" />
         <StatCard title="现场处置" value={stats.bypass_events + stats.trust_events} tone="amber" />
       </div>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-950">插件默认配置</h2>
+        <h2 className="text-lg font-bold text-slate-950">浏览器助手默认设置</h2>
         <form onSubmit={saveConfig} className="mt-4 space-y-4">
           <div className="grid gap-3 lg:grid-cols-2">
             <label className="block">
-              <span className="text-sm font-semibold text-slate-600">API 地址</span>
+              <span className="text-sm font-semibold text-slate-600">平台接口地址</span>
               <input value={draft.api_base_url} onChange={(event) => setDraft({ ...draft, api_base_url: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
             </label>
             <label className="block">
-              <span className="text-sm font-semibold text-slate-600">Web 地址</span>
+              <span className="text-sm font-semibold text-slate-600">平台页面地址</span>
               <input value={draft.web_base_url} onChange={(event) => setDraft({ ...draft, web_base_url: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
             </label>
           </div>
           <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
             <Toggle label="自动检测" checked={draft.auto_detect} onChange={(checked) => setDraft({ ...draft, auto_detect: checked })} />
-            <Toggle label="恶意自动拦截" checked={draft.auto_block_malicious} onChange={(checked) => setDraft({ ...draft, auto_block_malicious: checked })} />
-            <Toggle label="可疑站点通知" checked={draft.notify_suspicious} onChange={(checked) => setDraft({ ...draft, notify_suspicious: checked })} />
-            <Toggle label="事件回传" checked={draft.event_upload_enabled} onChange={(checked) => setDraft({ ...draft, event_upload_enabled: checked })} />
+            <Toggle label="高风险网站自动拦截" checked={draft.auto_block_malicious} onChange={(checked) => setDraft({ ...draft, auto_block_malicious: checked })} />
+            <Toggle label="风险提醒通知" checked={draft.notify_suspicious} onChange={(checked) => setDraft({ ...draft, notify_suspicious: checked })} />
+            <Toggle label="事件同步" checked={draft.event_upload_enabled} onChange={(checked) => setDraft({ ...draft, event_upload_enabled: checked })} />
           </div>
-          <button className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">保存配置</button>
+          <button className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">保存设置</button>
         </form>
       </section>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
-            <h2 className="text-lg font-bold text-slate-950">插件事件流</h2>
+            <h2 className="text-lg font-bold text-slate-950">浏览器助手事件流</h2>
             <p className="text-sm text-slate-500">扫描、安全预警、继续访问、信任和反馈都会回传到主平台。</p>
           </div>
           <Link to="/app/admin/samples" className="text-sm font-semibold text-blue-700">处理样本与误报</Link>
         </div>
         <DataTable
           data={events.slice(0, 30)}
-          emptyText="暂无插件同步事件。"
+          emptyText="暂无浏览器助手同步事件。"
           columns={[
             { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },
             { key: 'username', title: '用户', render: (value) => String(value || '-') },

@@ -123,7 +123,7 @@ export default function Rules() {
     <div>
       <PageHeader
         title="规则管理"
-        description="管理员维护本地规则、远端规则、规则版本、作用域和启用状态；插件只读取规则版本摘要，不承担规则管理。"
+        description="管理员维护平台规则、远端规则、规则版本、作用域和启用状态；浏览器助手只读取规则版本摘要，不承担规则管理。"
       />
 
       {message && <StatusNotice tone="success">{message}</StatusNotice>}
@@ -132,7 +132,7 @@ export default function Rules() {
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         <StatCard title="规则总数" value={rules.length} />
         <StatCard title="启用规则" value={rules.filter((rule) => rule.status === 'active' || rule.enabled).length} tone="green" />
-        <StatCard title="插件作用域" value={rules.filter((rule) => rule.scope === 'plugin').length} tone="blue" />
+        <StatCard title="助手作用域" value={rules.filter((rule) => rule.scope === 'plugin').length} tone="blue" />
         <StatCard title="全局规则" value={rules.filter((rule) => rule.scope === 'global').length} tone="slate" />
       </div>
 
@@ -140,17 +140,17 @@ export default function Rules() {
         <form onSubmit={submitRule} className="grid gap-3 xl:grid-cols-[1fr_140px_140px_120px_1fr_120px]">
           <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="规则名称" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
           <select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500">
-            <option value="heuristic">本地规则</option>
+            <option value="heuristic">平台规则</option>
             <option value="remote">远端规则</option>
             <option value="keyword">关键词</option>
           </select>
           <select value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500">
-            <option value="global">global</option>
-            <option value="user">user</option>
-            <option value="plugin">plugin</option>
+            <option value="global">全局</option>
+            <option value="user">用户</option>
+            <option value="plugin">浏览器助手</option>
           </select>
           <input value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} placeholder="版本" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-          <input value={draft.pattern} onChange={(event) => setDraft({ ...draft, pattern: event.target.value })} placeholder="pattern / key" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+          <input value={draft.pattern} onChange={(event) => setDraft({ ...draft, pattern: event.target.value })} placeholder="匹配特征或规则键" className="rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
           <button className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">{editing ? '更新规则' : '新增规则'}</button>
         </form>
         <textarea value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} placeholder="规则内容或说明" className="mt-3 h-24 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
@@ -162,7 +162,7 @@ export default function Rules() {
       </section>
 
       <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索规则名称、类型、作用域或 pattern" className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索规则名称、类型、作用域或匹配特征" className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
       </section>
 
       <DataTable
@@ -170,11 +170,11 @@ export default function Rules() {
         emptyText="暂无规则。"
         columns={[
           { key: 'name', title: '规则' },
-          { key: 'type', title: '类型' },
-          { key: 'scope', title: '作用域' },
-          { key: 'status', title: '状态', render: (value, row) => String(value || (row.enabled ? 'active' : 'disabled')) },
+          { key: 'type', title: '类型', render: (value) => ruleTypeText(String(value || '')) },
+          { key: 'scope', title: '作用域', render: (value) => ruleScopeText(String(value || '')) },
+          { key: 'status', title: '状态', render: (value, row) => ruleStatusText(String(value || (row.enabled ? 'active' : 'disabled'))) },
           { key: 'version', title: '版本' },
-          { key: 'pattern', title: 'Pattern', render: (value) => String(value || '-') },
+          { key: 'pattern', title: '匹配特征', render: (value) => String(value || '-') },
           { key: 'updated_at', title: '更新时间', render: (value) => value ? formatDate(String(value)) : '-' },
           {
             key: 'id',
@@ -191,4 +191,30 @@ export default function Rules() {
       />
     </div>
   );
+}
+
+function ruleTypeText(value: string) {
+  const map: Record<string, string> = {
+    heuristic: '平台规则',
+    remote: '远端规则',
+    keyword: '关键词',
+  };
+  return map[value] || value || '-';
+}
+
+function ruleScopeText(value: string) {
+  const map: Record<string, string> = {
+    global: '全局',
+    user: '用户',
+    plugin: '浏览器助手',
+  };
+  return map[value] || value || '-';
+}
+
+function ruleStatusText(value: string) {
+  const map: Record<string, string> = {
+    active: '启用',
+    disabled: '停用',
+  };
+  return map[value] || value || '-';
 }

@@ -78,7 +78,7 @@ export default function Samples() {
     <div>
       <PageHeader
         title="样本与误报处理"
-        description="风险样本、插件反馈和误报申诉进入管理员处理队列，处理结果沉淀到报告动作和反馈案例。"
+        description="风险样本、浏览器助手反馈和误报申诉进入管理员处理队列，处理结果沉淀到报告动作和反馈案例。"
         action={
           <Link to="/app/admin/rules" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             查看规则

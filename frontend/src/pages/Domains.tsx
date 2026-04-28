@@ -122,7 +122,7 @@ export default function Domains() {
           <select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })} className="rounded-lg border border-slate-200 px-4 py-3 outline-none focus:border-blue-500">
             <option value="manual">手动添加</option>
             <option value="system">系统同步</option>
-            <option value="plugin">插件事件</option>
+            <option value="plugin">浏览器助手事件</option>
           </select>
           <button className="rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">{editing ? '更新' : '保存'}</button>
         </form>

@@ -21,9 +21,15 @@ const adminSections = [
     ],
   },
   {
-    title: '辅助入口',
+    title: '平台管理',
     items: [
       { path: '/app/admin/plugin', label: '浏览器助手' },
+    ],
+  },
+  {
+    title: '账号',
+    items: [
+      { path: '/app/account', label: '账号设置' },
     ],
   },
 ];
@@ -39,17 +45,17 @@ const userSections = [
     ],
   },
   {
-    title: '防护设置',
+    title: '防护策略',
     items: [
       { path: '/app/my-domains', label: '我的安全策略' },
-      { path: '/app/account', label: '账户设置' },
     ],
   },
   {
-    title: '浏览器助手',
+    title: '账号',
     items: [
       { path: '/app/plugin-sync', label: '同步记录' },
       { path: '/app/plugin-guide', label: '安装与连接' },
+      { path: '/app/account', label: '账号设置' },
     ],
   },
 ];
@@ -98,8 +104,8 @@ export default function AppSidebar() {
       </nav>
       <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 p-5">
         <div className="rounded-lg bg-[#f4f7f4] p-4 text-sm text-slate-600">
-          <p className="font-semibold text-slate-900">{isAdmin ? '待处理优先' : '检测优先'}</p>
-          <p className="mt-1 truncate">{user?.display_name || user?.username}</p>
+          <p className="font-semibold text-slate-900">{isAdmin ? '运营视图' : '个人视图'}</p>
+          <p className="mt-1">{isAdmin ? '全局风险与策略管理' : '检测、报告与个人策略'}</p>
         </div>
       </div>
     </aside>

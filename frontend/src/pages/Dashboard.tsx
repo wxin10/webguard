@@ -14,7 +14,7 @@ import { domainsService } from '../services/domainsService';
 import { pluginService } from '../services/pluginService';
 import { recordsService } from '../services/recordsService';
 import type { AdminRuleItem, DomainListItem, PluginSyncEventItem, ScanRecordItem, StatsOverview, TrendPoint } from '../types';
-import { formatDate, scanSourceText } from '../utils';
+import { formatDate, formatRuleVersion, scanSourceText } from '../utils';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -62,7 +62,7 @@ function UserWorkspace() {
     <div>
       <PageHeader
         title="个人安全工作台"
-        description="网站是用户主控制台：检测、记录、报告、个人策略和插件同步都从这里进入。"
+        description="网站是用户主控制台：检测、记录、报告、个人策略和浏览器助手同步都从这里进入。"
         action={
           <Link to="/app/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             提交 URL 检测
@@ -73,9 +73,9 @@ function UserWorkspace() {
       {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <section className="grid gap-4 md:grid-cols-4">
-        <StatCard title="检测记录" value={records.length} description="Web 检测与插件同步" tone="blue" />
+        <StatCard title="检测记录" value={records.length} description="Web 检测与助手同步" tone="blue" />
         <StatCard title="风险提醒" value={riskyRecords.length} description="可疑或恶意结论" tone="amber" />
-        <StatCard title="插件同步" value={pluginRecords.length || events.length} description="来自浏览器执行端" tone="green" />
+        <StatCard title="助手同步" value={pluginRecords.length || events.length} description="来自浏览器执行端" tone="green" />
         <StatCard title="个人策略" value={domains.length} description={`${bypassCount} 个本次继续访问`} tone="slate" />
       </section>
 
@@ -157,7 +157,7 @@ function AdminDashboard() {
     <div>
       <PageHeader
         title="运营控制台"
-        description="管理员从这里进入统计、规则、名单、样本和插件策略管理，后端是统一检测与规则中台。"
+        description="管理员从这里进入统计、规则、名单、样本和浏览器助手策略管理，后端是统一检测与规则中台。"
         action={
           <Link to="/app/admin/rules" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             进入规则管理
@@ -172,7 +172,7 @@ function AdminDashboard() {
         <StatCard title="今日检测" value={overview?.today_scans || 0} tone="slate" />
         <StatCard title="待复核" value={reviewQueue.length} tone="amber" />
         <StatCard title="启用规则" value={activeRules.length} tone="green" />
-        <StatCard title="规则版本" value={pluginVersion} description="下发给插件" tone="slate" />
+        <StatCard title="规则版本" value={formatRuleVersion(pluginVersion)} valueTitle={pluginVersion} description="下发给浏览器助手" tone="slate" />
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -205,7 +205,7 @@ function AdminDashboard() {
               <div key={rule.id} className="rounded-lg bg-slate-50 p-4">
                 <p className="font-semibold text-slate-950">{rule.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{rule.rule_key || rule.pattern}</p>
-                <p className="mt-2 text-sm text-slate-700">{rule.type} · {rule.scope} · {rule.status}</p>
+                <p className="mt-2 text-sm text-slate-700">{ruleTypeText(rule.type)} · {ruleScopeText(rule.scope)} · {ruleStatusText(rule.status || (rule.enabled ? 'active' : 'disabled'))}</p>
               </div>
             ))}
           </div>
@@ -234,6 +234,32 @@ function AdminDashboard() {
       </section>
     </div>
   );
+}
+
+function ruleTypeText(value?: string) {
+  const map: Record<string, string> = {
+    heuristic: '平台规则',
+    remote: '远端规则',
+    keyword: '关键词',
+  };
+  return map[value || ''] || value || '-';
+}
+
+function ruleScopeText(value?: string) {
+  const map: Record<string, string> = {
+    global: '全局',
+    user: '用户',
+    plugin: '浏览器助手',
+  };
+  return map[value || ''] || value || '-';
+}
+
+function ruleStatusText(value?: string) {
+  const map: Record<string, string> = {
+    active: '启用',
+    disabled: '停用',
+  };
+  return map[value || ''] || value || '-';
 }
 
 function TaskLink({ title, text, to, tone }: { title: string; text: string; to: string; tone: 'green' | 'amber' | 'blue' | 'slate' }) {

@@ -46,12 +46,12 @@ type RuntimeMessage = ScanMessage | GetStateMessage | OpenWarningMessage;
 const activeScans = new Set<string>();
 
 chrome.runtime.onInstalled.addListener(() => {
-  logInfo('Installed. Syncing platform bootstrap.');
+  logInfo('Installed. Syncing platform policy.');
   void ensurePluginBootstrapFresh(true);
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  logInfo('Startup. Syncing platform bootstrap.');
+  logInfo('Startup. Syncing platform policy.');
   void ensurePluginBootstrapFresh(true);
 });
 

@@ -160,13 +160,13 @@ async function testConnection(): Promise<void> {
 
 async function clearCache(): Promise<void> {
   await clearRuntimeCache();
-  showMessage('本地运行态缓存已清空。');
+  showMessage('运行缓存已清空。');
 }
 
 async function resetOptions(): Promise<void> {
   await resetSettings();
   await renderSettings();
-  showMessage('插件设置已恢复默认值。');
+  showMessage('助手设置已恢复默认值。');
 }
 
 function readRequiredUrl(input: HTMLInputElement | null, fallback: string): string {

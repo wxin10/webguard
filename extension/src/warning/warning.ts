@@ -28,7 +28,7 @@ function render(): void {
     setText(riskLabelElement, '--');
     setText(riskScoreElement, '--');
     setText(detectedAtElement, '--');
-    setText(summaryElement, '当前安全预警页面缺少必要参数。请关闭此页，并从插件弹窗重新扫描。');
+    setText(summaryElement, '当前安全预警页面缺少必要参数。请关闭此页，并从浏览器助手弹窗重新扫描。');
     disableRiskActions();
     return;
   }

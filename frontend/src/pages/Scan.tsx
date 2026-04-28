@@ -39,7 +39,7 @@ export default function Scan() {
     <div>
       <PageHeader
         title="网站检测"
-        description="在网站主平台发起 URL 检测，后端会生成统一的检测记录和正式报告。插件上传的现场扫描也会进入同一套记录体系。"
+        description="在网站主平台发起 URL 检测，后端会生成统一的检测记录和正式报告。浏览器助手上传的现场扫描也会进入同一套记录体系。"
         action={
           <Link to="/app/my-records" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             查看历史记录
@@ -112,7 +112,7 @@ export default function Scan() {
           </section>
         ) : (
           <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-            检测完成后，这里会展示风险等级、分数和摘要原因；完整证据链、用户动作和插件现场事件会沉淀到报告页。
+            检测完成后，这里会展示风险等级、分数和摘要原因；完整证据链、用户动作和浏览器助手现场事件会沉淀到报告页。
           </section>
         )}
       </div>

@@ -43,11 +43,11 @@ export default function PluginGuide() {
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">本地安装方式</h2>
+          <h2 className="text-lg font-bold text-slate-950">安装与连接</h2>
           <ol className="mt-4 space-y-4 text-sm leading-6 text-slate-700">
-            <li>1. 在 <code className="rounded bg-slate-100 px-2 py-1">extension</code> 目录安装依赖并完成构建。</li>
-            <li>2. 在 Chrome 或 Edge 扩展管理页加载构建后的浏览器助手。</li>
-            <li>3. 确认 API 地址为 <code className="rounded bg-slate-100 px-2 py-1">http://127.0.0.1:8000</code>。</li>
+            <li>1. 获取由团队发布的 WebGuard 浏览器助手包。</li>
+            <li>2. 在 Chrome 或 Edge 扩展管理页加载浏览器助手。</li>
+            <li>3. 打开助手设置，连接平台账号并完成绑定。</li>
             <li>4. 扫描当前页面后，回到 Web 平台查看完整报告和同步记录。</li>
           </ol>
         </section>

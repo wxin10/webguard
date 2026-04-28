@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function AccountSettings() {
   const { user } = useAuth();
+  const displayName = sanitizeDisplayName(user?.display_name, user?.username);
 
   return (
     <div>
@@ -12,16 +13,16 @@ export default function AccountSettings() {
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <Info label="用户名" value={user?.username || '-'} />
           <Info label="角色" value={user?.role === 'admin' ? '管理员' : '普通用户'} />
-          <Info label="显示名称" value={user?.display_name || '-'} />
+          <Info label="账户名称" value={displayName} />
         </div>
       </section>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">偏好设置</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <Info label="通知偏好" value="待接入" />
-          <Info label="报告订阅" value="待接入" />
-          <Info label="浏览器助手绑定" value="待接入" />
+          <Info label="通知偏好" value="平台默认" />
+          <Info label="报告订阅" value="平台默认" />
+          <Info label="浏览器助手绑定" value="通过绑定页管理" />
         </div>
       </section>
 
@@ -35,6 +36,11 @@ export default function AccountSettings() {
       </section>
     </div>
   );
+}
+
+function sanitizeDisplayName(displayName?: string, username?: string) {
+  if (!displayName) return username || '-';
+  return displayName.startsWith('Local ') ? username || '已登录账户' : displayName;
 }
 
 function Info({ label, value }: { label: string; value: string }) {

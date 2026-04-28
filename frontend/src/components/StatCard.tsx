@@ -3,6 +3,7 @@ interface StatCardProps {
   value: string | number;
   description?: string;
   tone?: 'blue' | 'green' | 'amber' | 'red' | 'slate';
+  valueTitle?: string;
 }
 
 const toneMap = {
@@ -13,12 +14,13 @@ const toneMap = {
   slate: 'bg-slate-50 text-slate-700 border-slate-100',
 };
 
-export default function StatCard({ title, value, description, tone = 'blue' }: StatCardProps) {
+export default function StatCard({ title, value, description, tone = 'blue', valueTitle }: StatCardProps) {
+  const displayValue = String(value);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className={`mb-4 inline-flex rounded-lg border px-3 py-1 text-xs font-semibold ${toneMap[tone]}`}>{title}</div>
-      <div className="text-3xl font-bold text-slate-950">{value}</div>
-      {description && <p className="mt-2 text-sm text-slate-500">{description}</p>}
+      <div className="max-w-full break-words text-3xl font-bold leading-tight text-slate-950" title={valueTitle || displayValue}>{displayValue}</div>
+      {description && <p className="mt-2 break-words text-sm text-slate-500">{description}</p>}
     </div>
   );
 }

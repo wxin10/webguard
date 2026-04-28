@@ -66,7 +66,7 @@ export default function Stats() {
     <div>
       <PageHeader
         title="风险统计"
-        description="管理员从这里查看检测趋势、插件事件、来源分布和误报处理趋势，辅助规则与策略运营。"
+        description="管理员从这里查看检测趋势、浏览器助手事件、来源分布和误报处理趋势，辅助规则与策略运营。"
         action={
           <Link to="/app/admin/rules" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             管理规则
@@ -81,7 +81,7 @@ export default function Stats() {
         <StatCard title="今日检测" value={overview?.today_scans || 0} tone="slate" />
         <StatCard title="高风险数" value={overview?.high_risk_count ?? malicious} tone="red" />
         <StatCard title="可疑数" value={suspicious} tone="amber" />
-        <StatCard title="插件事件" value={pluginStats?.total_events ?? overview?.plugin_event_count ?? 0} tone="green" />
+        <StatCard title="助手事件" value={pluginStats?.total_events ?? overview?.plugin_event_count ?? 0} tone="green" />
         <StatCard title="误报反馈" value={overview?.feedback_count ?? pluginStats?.feedback_events ?? 0} tone="amber" />
       </div>
 
@@ -117,7 +117,7 @@ export default function Stats() {
           <h2 className="text-lg font-bold text-slate-950">检测来源分布</h2>
           <div className="mt-6 space-y-5">
             <Distribution label="网站手动检测" value={sourceDistribution?.web ?? sourceDistribution?.manual ?? overview?.source_distribution?.web ?? 0} total={overview?.total_scans || 1} color="bg-blue-500" />
-            <Distribution label="插件上传" value={sourceDistribution?.plugin ?? overview?.source_distribution?.plugin ?? 0} total={overview?.total_scans || 1} color="bg-emerald-500" />
+            <Distribution label="浏览器助手上传" value={sourceDistribution?.plugin ?? overview?.source_distribution?.plugin ?? 0} total={overview?.total_scans || 1} color="bg-emerald-500" />
             <Distribution label="重新检测" value={sourceDistribution?.recheck ?? overview?.source_distribution?.recheck ?? 0} total={overview?.total_scans || 1} color="bg-slate-500" />
           </div>
         </section>
@@ -127,7 +127,7 @@ export default function Stats() {
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-950">规则运营视角</h2>
-            <p className="mt-1 text-sm text-slate-500">高频规则、插件事件和误报反馈会决定下一步规则调优优先级。</p>
+            <p className="mt-1 text-sm text-slate-500">高频规则、助手事件和误报反馈会决定下一步规则调优优先级。</p>
           </div>
           <Link to="/app/admin/rules" className="text-sm font-semibold text-blue-700">调整规则</Link>
         </div>
@@ -149,10 +149,10 @@ export default function Stats() {
                     <p className="font-semibold text-slate-950">{rule.name}</p>
                     <p className="text-xs text-slate-500">{rule.rule_key || rule.pattern}</p>
                   </td>
-                  <td className="px-4 py-4 text-sm">{rule.type}</td>
-                  <td className="px-4 py-4 text-sm">{rule.scope}</td>
+                  <td className="px-4 py-4 text-sm">{ruleTypeText(rule.type)}</td>
+                  <td className="px-4 py-4 text-sm">{ruleScopeText(rule.scope)}</td>
                   <td className="px-4 py-4 text-sm">{rule.version}</td>
-                  <td className="px-4 py-4 text-sm">{rule.status}</td>
+                  <td className="px-4 py-4 text-sm">{ruleStatusText(rule.status || (rule.enabled ? 'active' : 'disabled'))}</td>
                 </tr>
               ))}
             </tbody>
@@ -161,6 +161,32 @@ export default function Stats() {
       </section>
     </div>
   );
+}
+
+function ruleTypeText(value?: string) {
+  const map: Record<string, string> = {
+    heuristic: '平台规则',
+    remote: '远端规则',
+    keyword: '关键词',
+  };
+  return map[value || ''] || value || '-';
+}
+
+function ruleScopeText(value?: string) {
+  const map: Record<string, string> = {
+    global: '全局',
+    user: '用户',
+    plugin: '浏览器助手',
+  };
+  return map[value || ''] || value || '-';
+}
+
+function ruleStatusText(value?: string) {
+  const map: Record<string, string> = {
+    active: '启用',
+    disabled: '停用',
+  };
+  return map[value || ''] || value || '-';
 }
 
 function Distribution({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {

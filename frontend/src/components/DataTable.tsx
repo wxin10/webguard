@@ -26,7 +26,12 @@ export default function DataTable<T>({
   }
 
   if (!data.length) {
-    return <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">{emptyText}</div>;
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
+        <p className="text-sm font-semibold text-slate-700">{emptyText}</p>
+        <p className="mt-2 text-xs text-slate-400">有新记录后会自动显示在这里。</p>
+      </div>
+    );
   }
 
   return (

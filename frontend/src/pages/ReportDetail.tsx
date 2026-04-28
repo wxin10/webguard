@@ -124,7 +124,7 @@ export default function ReportDetail() {
     <div>
       <PageHeader
         title={`风险报告 #${report.id}`}
-        description="完整报告沉淀 URL、host、风险评分、命中规则、页面特征、处置建议、用户动作和插件现场事件。"
+        description="完整报告沉淀 URL、host、风险评分、命中规则、页面特征、处置建议、用户动作和浏览器助手现场事件。"
         action={
           <Link to={isAdmin ? '/app/admin/records' : '/app/my-records'} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             返回记录
@@ -157,7 +157,7 @@ export default function ReportDetail() {
               <ScorePill label="规则分" value={breakdown.rule_score_total} />
               <ScorePill label="模型分" value={breakdown.model_score_total} />
               <ScorePill label="命中规则" value={matchedRules.length} />
-              <ScorePill label="插件事件" value={report.plugin_events?.length || 0} />
+              <ScorePill label="助手事件" value={report.plugin_events?.length || 0} />
             </div>
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function ReportDetail() {
             <p className="text-sm font-semibold text-blue-800">{isAdmin ? '管理员处置' : '用户处置'}</p>
             <h3 className="mt-2 text-xl font-bold text-slate-950">报告页是风险处置入口</h3>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-              {isAdmin ? '管理员动作会写入报告动作记录，并可同步调整全局黑白名单。' : '用户动作会写入个人策略，插件继续从后端拉取同一套策略摘要。'}
+              {isAdmin ? '管理员动作会写入报告动作记录，并可同步调整全局黑白名单。' : '用户动作会写入个人策略，浏览器助手继续从后端拉取同一套策略摘要。'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -219,8 +219,8 @@ export default function ReportDetail() {
             emptyText="暂无命中规则。"
             columns={[
               { key: 'rule_key', title: '规则', render: (_value, row) => <RuleTitle rule={row} /> },
-              { key: 'category', title: '类别', render: (value) => String(value || 'local') },
-              { key: 'severity', title: '严重度', render: (value) => String(value || '-') },
+              { key: 'category', title: '类别', render: (value) => ruleCategoryText(String(value || 'local')) },
+              { key: 'severity', title: '严重度', render: (value) => ruleSeverityText(String(value || '')) },
               { key: 'weight', title: '权重', render: (value) => Number(value || 0).toFixed(1) },
               { key: 'contribution', title: '贡献', render: (value, row) => Number(value ?? row.weighted_score ?? 0).toFixed(1) },
               { key: 'reason', title: '原因', render: (value, row) => <span className="block max-w-lg truncate">{String(value || row.detail || '-')}</span> },
@@ -247,11 +247,11 @@ export default function ReportDetail() {
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-950">插件现场动作</h3>
+          <h3 className="text-lg font-bold text-slate-950">浏览器助手现场动作</h3>
           <div className="mt-4">
             <DataTable
               data={report.plugin_events || []}
-              emptyText="暂无插件现场事件。"
+              emptyText="暂无浏览器助手现场事件。"
               columns={[
                 { key: 'event_type', title: '事件', render: (_value, row) => pluginEventText(row.event_type, row.action) },
                 { key: 'summary', title: '摘要', render: (value) => <span className="block max-w-md truncate">{String(value || '-')}</span> },
@@ -281,6 +281,28 @@ export default function ReportDetail() {
       </section>
     </div>
   );
+}
+
+function ruleCategoryText(value: string) {
+  const map: Record<string, string> = {
+    local: '平台规则',
+    heuristic: '平台规则',
+    remote: '远端规则',
+    keyword: '关键词',
+    url: 'URL 特征',
+    content: '页面内容',
+    form: '表单行为',
+  };
+  return map[value] || value || '-';
+}
+
+function ruleSeverityText(value: string) {
+  const map: Record<string, string> = {
+    high: '高',
+    medium: '中',
+    low: '低',
+  };
+  return map[value] || value || '-';
 }
 
 function buildFallbackBreakdown(report: AnalysisReport): ScoreBreakdown {

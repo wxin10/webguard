@@ -44,7 +44,7 @@ let currentRecord: TabRiskRecord | null = null;
 
 void init().catch((error) => {
   console.error('[WebGuard] Popup init failed.', error);
-  showMessage(`插件初始化失败：${errorMessage(error)}`, true);
+  showMessage(`浏览器助手初始化失败：${errorMessage(error)}`, true);
 });
 
 async function init(): Promise<void> {
@@ -67,7 +67,7 @@ async function init(): Promise<void> {
   if (!isHttpUrl(currentUrl)) {
     setActionAvailability(false);
     reportButton?.removeAttribute('disabled');
-    renderEmptyState('当前页面不是 http/https 页面，WebGuard 不会扫描浏览器内部页、扩展页或本地文件。');
+    renderEmptyState('当前页面不是可扫描网页，WebGuard 不会扫描浏览器内部页、扩展页或本地文件。');
     return;
   }
 
@@ -99,15 +99,15 @@ async function renderBackendStatus(): Promise<void> {
 async function renderConnectionSummary(): Promise<void> {
   const settings = await getSettings();
   const snapshot = await getPluginPolicySnapshot();
-  setText(apiBaseUrlElement, settings.apiBaseUrl);
+  setText(apiBaseUrlElement, '运行中');
   const tokenStatus = settings.pluginAccessToken || settings.accessToken
-    ? '平台账号：已连接'
-    : '平台账号：未连接';
+    ? '已连接'
+    : '未连接';
   setText(tokenStatusElement, tokenStatus);
-  setText(pluginInstanceElement, settings.pluginInstanceId || '未配置');
+  setText(pluginInstanceElement, settings.pluginInstanceId ? '已识别' : '未配置');
   setText(
     bootstrapStatusElement,
-    snapshot ? `已完成 / ${new Date(snapshot.syncedAt).toLocaleString()}` : '尚未同步',
+    snapshot ? `已完成 · ${new Date(snapshot.syncedAt).toLocaleString()}` : '尚未同步',
   );
 }
 

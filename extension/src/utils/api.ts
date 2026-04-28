@@ -376,7 +376,7 @@ async function requestApi<T>(path: string, init: RequestInit, options: RequestOp
 
 export function parsePluginBootstrapSnapshot(value: unknown): PluginPolicySnapshot {
   if (!isRecord(value)) {
-    throw new Error('后端 bootstrap 响应无效');
+    throw new Error('平台策略同步响应无效');
   }
 
   const bootstrap = value as PluginBootstrapResponse;
