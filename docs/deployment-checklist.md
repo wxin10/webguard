@@ -120,6 +120,18 @@ cd ..
 git diff --check
 ```
 
+Pre-production rehearsal docs:
+
+- `docs/production-runbook.md`
+- `docs/demo-acceptance.md`
+
+Optional local HTTP smoke:
+
+```powershell
+.\scripts\smoke-local.ps1 -DryRun
+.\scripts\smoke-local.ps1 -Username platform-admin -Password "<local-demo-password>"
+```
+
 Manual smoke test:
 
 1. Log in with a seeded or provisioned formal user.

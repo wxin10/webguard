@@ -27,6 +27,8 @@ Environment templates:
 - Production draft: `.env.production.example`, `backend/.env.production.example`, `frontend/.env.production.example`.
 - Production readiness checklist: `docs/deployment-checklist.md`.
 - Extension release checklist: `docs/extension-release-checklist.md`.
+- Pre-production runbook: `docs/production-runbook.md`.
+- Demo acceptance guide: `docs/demo-acceptance.md`.
 
 Production templates are placeholders for operators and CI/release planning. They do not contain real secrets and are not a complete deployment recipe.
 
@@ -135,6 +137,15 @@ Expected shape:
 9. In the Web app, open records or reports to confirm the scan was persisted.
 10. On the warning page, choose temporary trust or permanent trust.
 11. Re-run bootstrap or reload the extension flow; the trusted domain should appear in policy and take effect locally.
+
+HTTP smoke helper:
+
+```powershell
+.\scripts\smoke-local.ps1 -DryRun
+.\scripts\smoke-local.ps1 -Username platform-admin -Password "<local-demo-password>"
+```
+
+The smoke helper checks the backend/plugin HTTP path only. It does not automate Chrome or Edge extension UI.
 
 ## Checks
 

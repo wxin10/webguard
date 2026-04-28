@@ -225,3 +225,17 @@ Remaining:
 - Production extension ID and store-issued origin are not available yet.
 - Production API origin is not wired into a release-specific extension package.
 - Public privacy policy and store listing materials are still blockers.
+
+## P2-L Runbook and Demo Acceptance
+
+Completed:
+
+- `docs/production-runbook.md` records the current near-production operating flow without claiming real production deployment.
+- `docs/demo-acceptance.md` records a repeatable demo path for login, plugin binding, safe/risky scans, records/reports, trust policy, and revoke validation.
+- `scripts/smoke-local.ps1` provides an HTTP-only local smoke test with dry-run support.
+- Smoke script avoids printing full access tokens, refresh tokens, and binding codes.
+
+Remaining:
+
+- Browser extension UI still requires manual smoke validation.
+- Real HTTPS/reverse-proxy deployment and official extension packaging remain outside P2-L.
