@@ -96,7 +96,10 @@ export default function Login() {
 
           {error && <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-          <p className="mt-5 text-center text-sm text-slate-500">没有账号？请联系管理员开通。</p>
+          <p className="mt-5 text-center text-sm text-slate-500">
+            没有账号？
+            <Link to="/register" className="font-semibold text-emerald-700 hover:text-emerald-800">立即注册</Link>
+          </p>
 
           <Link to="/" className="mt-6 text-center text-sm font-semibold text-slate-500 hover:text-emerald-700">
             返回产品首页

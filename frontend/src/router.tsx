@@ -14,6 +14,7 @@ import PluginBind from './pages/PluginBind';
 import PluginGuide from './pages/PluginGuide';
 import PluginSync from './pages/PluginSync';
 import ProductHome from './pages/ProductHome';
+import Register from './pages/Register';
 import Records from './pages/Records';
 import ReportDetail from './pages/ReportDetail';
 import Rules from './pages/Rules';
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
   { path: '/welcome', element: <Navigate to="/" replace /> },
   { path: '/plugin-install', element: <PluginGuide /> },
   { path: '/login', element: <Login /> },
+  { path: '/register', element: <Register /> },
   { path: '/reports/:id', element: <LegacyReportRedirect /> },
   { path: '/report/latest', element: <Navigate to="/app/report/latest" replace /> },
   {

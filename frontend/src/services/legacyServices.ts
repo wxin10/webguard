@@ -8,10 +8,10 @@ import type {
   DomainList,
   ModelStatus,
   ModelVersionList,
+  RegisterRequest,
   RuleConfig,
   RuleConfigList,
   RuleStatsList,
-  UserRole,
   UserSiteStrategyItem,
   UserStrategyOverview,
   WhitelistItem,
@@ -23,8 +23,8 @@ export const authApi = {
   refresh: () => unwrap(api.post<ApiResponse<AuthTokenResponse>>('/api/v1/auth/refresh')),
   logout: () => unwrap(api.post<ApiResponse<{ logged_out: boolean }>>('/api/v1/auth/logout')),
   me: () => unwrap(api.get<ApiResponse<DevelopmentUser>>('/api/v1/auth/me')),
-  mockLogin: (data: { username: string; role: UserRole }) =>
-    unwrap(api.post<ApiResponse<DevelopmentUser>>('/api/v1/auth/mock-login', data)),
+  register: (data: RegisterRequest) =>
+    unwrap(api.post<ApiResponse<DevelopmentUser>>('/api/v1/auth/register', data)),
 };
 
 export const userStrategyApi = {

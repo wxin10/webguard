@@ -155,6 +155,8 @@ class UserService:
     def set_user_active(self, user: User | int, is_active: bool) -> User:
         target = self._coerce_user(user)
         if not is_active:
+            if target.username == "admin":
+                raise WebGuardException(status_code=422, detail="default admin cannot be disabled", code=42201)
             self._ensure_can_remove_admin(target, "disable last admin")
         target.is_active = is_active
         self.db.flush()

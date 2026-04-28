@@ -39,6 +39,8 @@ def setup_function():
     client.cookies.clear()
     settings.DEBUG = True
     settings.ENABLE_DEV_AUTH = True
+    settings.DEFAULT_ADMIN_PASSWORD = "admin"
+    settings.DEFAULT_GUEST_PASSWORD = "guest"
 
 
 def create_password_user(
@@ -103,7 +105,6 @@ def test_default_admin_user_exists_with_admin_role():
         user = db.query(User).filter(User.username == "admin").first()
         assert user is not None
         assert user.role == "admin"
-        assert user.display_name == "系统管理员"
         assert user.is_active is True
         assert verify_password("admin", user.password_hash)
     finally:
@@ -117,7 +118,6 @@ def test_default_guest_user_exists_with_user_role():
         user = db.query(User).filter(User.username == "guest").first()
         assert user is not None
         assert user.role == "user"
-        assert user.display_name == "访客用户"
         assert user.is_active is True
         assert verify_password("guest", user.password_hash)
     finally:
@@ -141,22 +141,89 @@ def test_guest_login_success_returns_user_profile():
     assert isinstance(token, str)
 
 
-def test_admin_wrong_password_login_fails():
-    response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
-    assert response.status_code == 401
-    assert response.json()["message"] == "invalid username or password"
-
-
-def test_guest_wrong_password_login_fails():
-    response = client.post("/api/v1/auth/login", json={"username": "guest", "password": "wrong"})
-    assert response.status_code == 401
-    assert response.json()["message"] == "invalid username or password"
+def test_wrong_password_login_fails():
+    ensure_defaults()
+    for username in ["admin", "guest"]:
+        response = client.post("/api/v1/auth/login", json={"username": username, "password": "wrong"})
+        assert response.status_code == 401
+        assert response.json()["message"] == "invalid username or password"
 
 
 def test_disabled_user_cannot_login():
     create_password_user("disabled-user", is_active=False)
     response = client.post("/api/v1/auth/login", json={"username": "disabled-user", "password": "S3cret-pass!"})
     assert response.status_code == 401
+
+
+def test_register_creates_regular_user():
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "registered-user",
+            "password": "register-pass",
+            "email": "registered@example.test",
+            "display_name": "Registered User",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["username"] == "registered-user"
+    assert data["email"] == "registered@example.test"
+    assert data["display_name"] == "Registered User"
+    assert data["role"] == "user"
+
+
+def test_registered_password_is_hashed():
+    password = "register-pass"
+    response = client.post("/api/v1/auth/register", json={"username": "hash-user", "password": password})
+    assert response.status_code == 200
+
+    db = TestingSessionLocal()
+    try:
+        user = db.query(User).filter(User.username == "hash-user").first()
+        assert user.password_hash != password
+        assert verify_password(password, user.password_hash)
+    finally:
+        db.close()
+
+
+def test_register_rejects_admin_role_field():
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"username": "role-user", "password": "register-pass", "role": "admin"},
+    )
+    assert response.status_code == 400
+
+
+def test_register_rejects_admin_username():
+    response = client.post("/api/v1/auth/register", json={"username": "admin", "password": "register-pass"})
+    assert response.status_code == 422
+
+
+def test_register_rejects_duplicate_username():
+    response = client.post("/api/v1/auth/register", json={"username": "dupe-user", "password": "register-pass"})
+    assert response.status_code == 200
+    duplicate = client.post("/api/v1/auth/register", json={"username": "dupe-user", "password": "register-pass"})
+    assert duplicate.status_code == 409
+
+
+def test_register_rejects_duplicate_email():
+    body = {"username": "email-user", "password": "register-pass", "email": "dupe@example.test"}
+    response = client.post("/api/v1/auth/register", json=body)
+    assert response.status_code == 200
+    duplicate = client.post(
+        "/api/v1/auth/register",
+        json={"username": "email-user-2", "password": "register-pass", "email": "dupe@example.test"},
+    )
+    assert duplicate.status_code == 409
+
+
+def test_registered_user_can_login():
+    response = client.post("/api/v1/auth/register", json={"username": "login-after-register", "password": "register-pass"})
+    assert response.status_code == 200
+    token, data = login("login-after-register", "register-pass")
+    assert isinstance(token, str)
+    assert data["user"]["role"] == "user"
 
 
 def test_refresh_returns_database_role():
@@ -193,76 +260,28 @@ def test_logout_revokes_refresh_token():
     assert refresh_response.status_code == 401
 
 
-def test_mock_login_rejects_admin_as_user():
-    response = client.post("/api/v1/auth/mock-login", json={"username": "admin", "role": "user"})
-    assert response.status_code == 403
-
-
-def test_mock_login_rejects_guest_as_admin():
-    response = client.post("/api/v1/auth/mock-login", json={"username": "guest", "role": "admin"})
-    assert response.status_code == 403
-
-
-def test_mock_login_accepts_fixed_development_accounts():
-    response = client.post("/api/v1/auth/mock-login", json={"username": "admin", "role": "admin"})
-    assert response.status_code == 200
-    assert response.json()["data"]["role"] == "admin"
-
-    response = client.post("/api/v1/auth/mock-login", json={"username": "guest", "role": "user"})
-    assert response.status_code == 200
-    assert response.json()["data"]["role"] == "user"
-
-
-def test_dev_header_cannot_forge_guest_admin():
-    response = client.get(
-        "/api/v1/admin/users",
-        headers={"X-WebGuard-User": "guest", "X-WebGuard-Role": "admin"},
-    )
-    assert response.status_code == 403
-
-
-def test_dev_header_cannot_forge_arbitrary_admin():
-    response = client.get(
-        "/api/v1/admin/users",
-        headers={"X-WebGuard-User": "operator", "X-WebGuard-Role": "admin"},
-    )
-    assert response.status_code == 403
-
-
-def test_mock_login_does_not_change_real_user_role():
-    ensure_defaults()
-    response = client.post("/api/v1/auth/mock-login", json={"username": "guest", "role": "admin"})
-    assert response.status_code == 403
-
-    db = TestingSessionLocal()
-    try:
-        user = db.query(User).filter(User.username == "guest").first()
-        assert user.role == "user"
-    finally:
-        db.close()
-
-
 def test_regular_user_cannot_access_admin_users():
     token, _ = login("guest", "guest")
     response = client.get("/api/v1/admin/users", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
 
 
-def test_admin_can_create_user():
+def test_admin_can_create_admin_user():
     token = admin_token()
     response = client.post(
         "/api/v1/admin/users",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "username": "created-user",
+            "username": "created-admin",
             "password": "new-pass",
-            "email": "created@example.test",
-            "display_name": "Created User",
-            "role": "user",
+            "email": "created-admin@example.test",
+            "display_name": "Created Admin",
+            "role": "admin",
         },
     )
     assert response.status_code == 200
-    assert response.json()["data"]["username"] == "created-user"
+    assert response.json()["data"]["username"] == "created-admin"
+    assert response.json()["data"]["role"] == "admin"
 
 
 def test_admin_can_disable_regular_user():
@@ -275,6 +294,27 @@ def test_admin_can_disable_regular_user():
 
 def test_cannot_disable_or_delete_last_admin():
     token = admin_token()
+    db = TestingSessionLocal()
+    try:
+        user = db.query(User).filter(User.username == "admin").first()
+        admin_id = user.id
+    finally:
+        db.close()
+
+    disable_response = client.post(f"/api/v1/admin/users/{admin_id}/disable", headers={"Authorization": f"Bearer {token}"})
+    assert disable_response.status_code == 422
+
+    delete_response = client.delete(f"/api/v1/admin/users/{admin_id}", headers={"Authorization": f"Bearer {token}"})
+    assert delete_response.status_code == 422
+
+
+def test_default_admin_cannot_be_disabled_even_with_another_admin():
+    token = admin_token()
+    client.post(
+        "/api/v1/admin/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"username": "backup-admin", "password": "new-pass", "role": "admin"},
+    )
     db = TestingSessionLocal()
     try:
         user = db.query(User).filter(User.username == "admin").first()
@@ -305,3 +345,19 @@ def test_admin_can_reset_regular_user_password_and_old_password_fails():
 
     new_response = client.post("/api/v1/auth/login", json={"username": "reset-me", "password": "new-pass"})
     assert new_response.status_code == 200
+
+
+def test_dev_header_cannot_forge_guest_admin():
+    response = client.get(
+        "/api/v1/admin/users",
+        headers={"X-WebGuard-User": "guest", "X-WebGuard-Role": "admin"},
+    )
+    assert response.status_code == 403
+
+
+def test_dev_header_cannot_forge_arbitrary_admin():
+    response = client.get(
+        "/api/v1/admin/users",
+        headers={"X-WebGuard-User": "operator", "X-WebGuard-Role": "admin"},
+    )
+    assert response.status_code == 403

@@ -7,7 +7,6 @@ interface AuthContextValue {
   user: DevelopmentUser | null;
   initialized: boolean;
   login: (username: string, password: string) => Promise<void>;
-  mockLogin: (username: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -50,11 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     persist(tokenResponseToUser(tokenResponse, username));
   };
 
-  const mockLogin = async (username: string, role: UserRole) => {
-    const nextUser = await authApi.mockLogin({ username, role });
-    persist(nextUser);
-  };
-
   const logout = async () => {
     try {
       await authApi.logout();
@@ -64,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ user, initialized, login, mockLogin, logout }),
+    () => ({ user, initialized, login, logout }),
     [initialized, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

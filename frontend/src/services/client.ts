@@ -64,7 +64,7 @@ api.interceptors.response.use(
     const requestUrl = originalRequest?.url || '';
     const isAuthEndpoint =
       requestUrl.includes('/api/v1/auth/login') ||
-      requestUrl.includes('/api/v1/auth/mock-login') ||
+      requestUrl.includes('/api/v1/auth/register') ||
       requestUrl.includes('/api/v1/auth/refresh') ||
       requestUrl.includes('/api/v1/auth/logout');
 

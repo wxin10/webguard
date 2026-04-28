@@ -24,6 +24,13 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface RegisterRequest {
+  username: string;
+  password: string;
+  email?: string | null;
+  display_name?: string | null;
+}
+
 export interface AuthTokenResponse {
   access_token: string;
   token_type: 'Bearer';

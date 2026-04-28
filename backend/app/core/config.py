@@ -53,10 +53,6 @@ class Settings(BaseSettings):
         return bool(self.DEBUG and self.ENABLE_DEV_AUTH)
 
     @property
-    def mock_login_enabled(self) -> bool:
-        return self.dev_auth_enabled
-
-    @property
     def runtime_schema_guard_enabled(self) -> bool:
         if self.ENABLE_RUNTIME_SCHEMA_GUARD is None:
             return bool(self.DEBUG)
