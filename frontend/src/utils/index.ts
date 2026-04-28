@@ -72,10 +72,10 @@ export function scanSourceText(source?: string) {
 export function pluginEventText(eventType?: string, action?: string) {
   const eventMap: Record<string, string> = {
     scan: '扫描',
-    warning: 'Warning',
-    bypass: '继续访问',
+    warning: '安全预警',
+    bypass: '本次继续访问',
     trust: '永久信任',
-    temporary_trust: '临时信任',
+    temporary_trust: '暂时信任此网站',
     feedback: '反馈',
     error: '错误',
   };
@@ -86,8 +86,8 @@ export function strategyText(value?: string) {
   const strategyMap: Record<string, string> = {
     trusted: '信任',
     blocked: '阻止',
-    paused: '临时放行',
-    temp_bypass: '临时放行',
+    paused: '本次继续访问',
+    temp_bypass: '本次继续访问',
   };
   return strategyMap[value || ''] || value || '-';
 }

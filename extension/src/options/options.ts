@@ -63,7 +63,7 @@ async function renderSettings(): Promise<void> {
   if (notifySuspiciousCheckbox) notifySuspiciousCheckbox.checked = settings.notifySuspicious;
   if (bindingCodeElement) bindingCodeElement.textContent = settings.pendingBindingCode || '-';
   if (verificationUrlElement) verificationUrlElement.textContent = settings.pendingBindingVerificationUrl || '-';
-  if (pluginTokenStatusElement) pluginTokenStatusElement.textContent = settings.pluginAccessToken ? 'Bound plugin token configured' : 'Not bound';
+  if (pluginTokenStatusElement) pluginTokenStatusElement.textContent = settings.pluginAccessToken ? '已连接' : '未连接';
   openVerificationButton?.toggleAttribute('disabled', !settings.pendingBindingVerificationUrl);
   finishBindingButton?.toggleAttribute('disabled', !(settings.pendingBindingChallengeId && settings.pendingBindingCode));
 }
@@ -89,14 +89,14 @@ async function saveOptions(): Promise<void> {
 
 async function startBinding(): Promise<void> {
   startBindingButton?.setAttribute('disabled', 'true');
-  showBindingMessage('Creating binding challenge...');
+  showBindingMessage('正在创建绑定请求...');
   try {
     await saveOptions();
     const challenge = await createPluginBindingChallenge();
     await renderSettings();
-    showBindingMessage(`Binding code ${challenge.binding_code} created. Confirm it in WebGuard, then finish binding here.`);
+    showBindingMessage(`绑定验证码 ${challenge.binding_code} 已创建。请在 WebGuard 平台确认后回到这里完成绑定。`);
   } catch (error) {
-    showBindingMessage(`Binding challenge failed: ${errorMessage(error)}`, true);
+    showBindingMessage(`绑定请求创建失败：${errorMessage(error)}`, true);
   } finally {
     startBindingButton?.removeAttribute('disabled');
   }
@@ -105,7 +105,7 @@ async function startBinding(): Promise<void> {
 async function openVerificationUrl(): Promise<void> {
   const settings = await getSettings();
   if (!settings.pendingBindingVerificationUrl) {
-    showBindingMessage('No pending verification URL. Start binding first.', true);
+    showBindingMessage('暂无待确认的绑定地址，请先开始绑定。', true);
     return;
   }
   await chrome.tabs.create({ url: settings.pendingBindingVerificationUrl });
@@ -113,13 +113,13 @@ async function openVerificationUrl(): Promise<void> {
 
 async function finishBinding(): Promise<void> {
   finishBindingButton?.setAttribute('disabled', 'true');
-  showBindingMessage('Exchanging confirmed challenge for plugin tokens...');
+  showBindingMessage('正在确认浏览器助手连接...');
   try {
     const token = await exchangePluginBindingToken();
     await renderSettings();
-    showBindingMessage(`Plugin bound as ${token.plugin_instance_id}. Future requests will use plugin tokens.`);
+    showBindingMessage(`浏览器助手 ${token.plugin_instance_id} 已绑定成功。`);
   } catch (error) {
-    showBindingMessage(`Token exchange failed: ${errorMessage(error)}`, true);
+    showBindingMessage(`连接已失效，请重新绑定：${errorMessage(error)}`, true);
   } finally {
     finishBindingButton?.removeAttribute('disabled');
   }
@@ -129,7 +129,7 @@ async function testConnection(): Promise<void> {
   const apiBaseUrl = readRequiredUrl(apiBaseUrlInput, DEFAULT_SETTINGS.apiBaseUrl);
   const webBaseUrl = readRequiredUrl(webBaseUrlInput, DEFAULT_SETTINGS.webBaseUrl);
   testButton?.setAttribute('disabled', 'true');
-  showTestMessage('正在测试后端连接...');
+  showTestMessage('正在检查平台连接...');
   try {
     await saveSettings({
       apiBaseUrl,
@@ -147,12 +147,12 @@ async function testConnection(): Promise<void> {
     }
     showTestMessage(
       health.ok
-        ? `连接正常，耗时 ${health.latencyMs ?? 0}ms。已尝试同步主平台 bootstrap。`
+        ? `连接正常，耗时 ${health.latencyMs ?? 0}ms。已同步主平台策略。`
         : `连接失败：${health.message}`,
       !health.ok,
     );
   } catch (error) {
-    showTestMessage(`连接测试失败：${errorMessage(error)}`, true);
+    showTestMessage(`连接检查失败：${errorMessage(error)}`, true);
   } finally {
     testButton?.removeAttribute('disabled');
   }

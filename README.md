@@ -62,6 +62,27 @@ python -m app.scripts.seed_dev_user
 
 The seed command uses the same password hashing logic as formal login, stores no plaintext password, and is idempotent. In development auth mode it can fall back to local-only defaults, but production-like runs should always provide `WEBGUARD_SEED_PASSWORD` explicitly.
 
+For local demo acceptance, seed these local-only accounts when needed:
+
+```powershell
+cd backend
+$env:WEBGUARD_SEED_USERNAME = "admin"
+$env:WEBGUARD_SEED_PASSWORD = "admin"
+$env:WEBGUARD_SEED_ROLE = "admin"
+$env:WEBGUARD_SEED_EMAIL = "admin@example.local"
+$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Admin"
+python -m app.scripts.seed_dev_user
+
+$env:WEBGUARD_SEED_USERNAME = "guest"
+$env:WEBGUARD_SEED_PASSWORD = "guest"
+$env:WEBGUARD_SEED_ROLE = "user"
+$env:WEBGUARD_SEED_EMAIL = "guest@example.local"
+$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Guest"
+python -m app.scripts.seed_dev_user
+```
+
+`admin` / `admin` and `guest` / `guest` are local demonstration accounts only. They are not production defaults and are not shown in the product login UI.
+
 ## Start
 
 Backend:
@@ -127,7 +148,7 @@ Expected shape:
 
 1. Start PostgreSQL, run `alembic upgrade head`, then start backend and frontend.
 2. Open `http://127.0.0.1:5173/login`.
-3. Log in through the Web page. For local acceptance you may use the seeded formal user, or the development mock-login option.
+3. Log in through the Web page. For local acceptance you may use the seeded formal user, such as `admin` / `admin` or `guest` / `guest`.
 4. Open extension Options and set:
    - API Base URL: `http://127.0.0.1:8000`
    - Web App URL: `http://127.0.0.1:5173`

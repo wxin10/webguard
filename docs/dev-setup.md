@@ -87,6 +87,27 @@ The command uses the same password hashing function as `/api/v1/auth/login`. It 
 
 When development auth is enabled, omitted values fall back to local-only defaults for convenience. Do not rely on those defaults for production-like environments; provide `WEBGUARD_SEED_PASSWORD` explicitly.
 
+For local demo acceptance, seed both of these local-only accounts if they are not already present:
+
+```powershell
+cd backend
+$env:WEBGUARD_SEED_USERNAME = "admin"
+$env:WEBGUARD_SEED_PASSWORD = "admin"
+$env:WEBGUARD_SEED_ROLE = "admin"
+$env:WEBGUARD_SEED_EMAIL = "admin@example.local"
+$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Admin"
+python -m app.scripts.seed_dev_user
+
+$env:WEBGUARD_SEED_USERNAME = "guest"
+$env:WEBGUARD_SEED_PASSWORD = "guest"
+$env:WEBGUARD_SEED_ROLE = "user"
+$env:WEBGUARD_SEED_EMAIL = "guest@example.local"
+$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Guest"
+python -m app.scripts.seed_dev_user
+```
+
+These two accounts are for local demonstration only. They are not production defaults and must not be shown on the login page.
+
 ## 5. Backend
 
 Install dependencies:
@@ -216,9 +237,11 @@ JWT_ACCESS_TOKEN_EXPIRES_MINUTES=30
 JWT_REFRESH_TOKEN_EXPIRES_DAYS=14
 REFRESH_TOKEN_COOKIE_NAME=webguard_refresh_token
 REFRESH_TOKEN_COOKIE_SECURE=false
+VITE_SHOW_DEV_LOGIN_OPTIONS=false
 ```
 
 Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_AUTH=true`.
+The Web login page hides the auxiliary mock-login role switcher by default. Set `VITE_SHOW_DEV_LOGIN_OPTIONS=true` only when a local validation run explicitly needs that auxiliary entry.
 
 Frontend token storage behavior:
 

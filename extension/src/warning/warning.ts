@@ -28,7 +28,7 @@ function render(): void {
     setText(riskLabelElement, '--');
     setText(riskScoreElement, '--');
     setText(detectedAtElement, '--');
-    setText(summaryElement, '当前 warning 页面缺少必要参数。请关闭此页，并从插件弹窗重新扫描。');
+    setText(summaryElement, '当前安全预警页面缺少必要参数。请关闭此页，并从插件弹窗重新扫描。');
     disableRiskActions();
     return;
   }
@@ -117,12 +117,12 @@ async function trustTemporarily(): Promise<void> {
       scan_record_id: params.reportId,
     });
     showMessage(status === 'synced'
-      ? '已临时信任当前站点 30 分钟，并同步到主平台。'
-      : '后端暂不可用，已写入本地临时信任 30 分钟。');
+      ? '已暂时信任此网站 30 分钟，并同步到主平台。'
+      : '平台暂不可用，已暂时信任此网站 30 分钟。');
     await createTemporaryBypass(params.url);
     window.setTimeout(() => window.location.replace(params.url), 450);
   } catch (error) {
-    showMessage(`临时信任失败：${errorMessage(error)}`, true);
+    showMessage(`暂时信任失败：${errorMessage(error)}`, true);
   } finally {
     setBusy(trustTemporaryButton, false);
   }
@@ -149,11 +149,11 @@ async function trustPermanently(): Promise<void> {
       summary: params.summary,
       scan_record_id: params.reportId,
     });
-    showMessage('已永久信任当前站点，并同步到主平台。');
+    showMessage('已信任此网站，并同步到主平台。');
     await createTemporaryBypass(params.url);
     window.setTimeout(() => window.location.replace(params.url), 450);
   } catch (error) {
-    showMessage(`永久信任需要写入主平台，目前失败：${errorMessage(error)}`, true);
+    showMessage(`信任操作需要写入主平台，目前失败：${errorMessage(error)}`, true);
   } finally {
     setBusy(trustPermanentButton, false);
   }

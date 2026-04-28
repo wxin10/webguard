@@ -123,6 +123,25 @@ input[type="checkbox"] {
   margin-bottom: 16px;
 }
 
+.advanced-config {
+  margin: 8px 0 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px 14px;
+}
+
+.advanced-config summary {
+  cursor: pointer;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.advanced-config label {
+  margin-top: 14px;
+}
+
 .binding-grid code {
   display: block;
   min-height: 20px;

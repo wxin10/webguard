@@ -116,7 +116,7 @@ export default function UserDomains() {
     <div>
       <PageHeader
         title="我的安全策略"
-        description="个人信任、阻止和临时放行策略沉淀在网站主平台。插件只读取后端下发的策略摘要，并保留最小运行缓存。"
+        description="个人信任、阻止和本次继续访问策略沉淀在网站主平台。插件只读取后端下发的策略摘要，并保留最小运行缓存。"
       />
 
       {message && <StatusNotice tone="success">{message}</StatusNotice>}
@@ -125,7 +125,7 @@ export default function UserDomains() {
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard title="个人信任域名" value={trusted.length} tone="green" />
         <StatCard title="个人阻止域名" value={blocked.length} tone="red" />
-        <StatCard title="临时放行" value={bypass.length} tone="amber" />
+        <StatCard title="本次继续访问" value={bypass.length} tone="amber" />
         <StatCard title="全局阻止域名" value={bootstrap?.blocked_hosts.length || 0} description="由管理员维护并下发给插件" tone="slate" />
       </div>
 
@@ -133,7 +133,7 @@ export default function UserDomains() {
         <div className="mb-5 flex flex-wrap gap-2">
           <TabButton active={tab === 'trusted'} onClick={() => setTab('trusted')}>信任域名</TabButton>
           <TabButton active={tab === 'blocked'} onClick={() => setTab('blocked')}>阻止域名</TabButton>
-          <TabButton active={tab === 'temp_bypass'} onClick={() => setTab('temp_bypass')}>临时放行</TabButton>
+          <TabButton active={tab === 'temp_bypass'} onClick={() => setTab('temp_bypass')}>本次继续访问</TabButton>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1fr_140px_140px]">

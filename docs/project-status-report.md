@@ -72,8 +72,8 @@ WebGuard 当前已经达到“本地可用内测版 / 准部署前状态”：
 - Manifest V3。
 - background service worker 编排扫描。
 - Options 配置 API/Web URL、插件实例、绑定流程。
-- Popup 展示保护状态、token 状态、bootstrap 状态、最近检测摘要。
-- Warning 页支持提示、阻断、临时信任、永久信任。
+- Popup 展示保护状态、账号连接状态、策略同步状态、最近检测摘要。
+- 安全预警页支持提示、阻断、暂时信任此网站、信任此网站。
 - 插件专用 token 与 `plugin_instance_id` 绑定。
 - revoked 插件实例再次请求会被拒绝。
 
@@ -81,7 +81,7 @@ WebGuard 当前已经达到“本地可用内测版 / 准部署前状态”：
 
 - 尚未发布到浏览器商店。
 - 正式 extension ID / origin allowlist 尚未落地。
-- 手动 token fallback 仍保留为开发兼容路径，生产隐藏或弱化待做。
+- 高级访问凭证入口仍保留为本地兼容路径，默认不作为主连接方式展示。
 - 生产构建中的完整 URL console 诊断仍需脱敏或关闭。
 
 ## 4. 已验证能力
@@ -91,9 +91,9 @@ WebGuard 当前已经达到“本地可用内测版 / 准部署前状态”：
 - 正式账号登录。
 - 插件绑定。
 - safe URL 放行。
-- risky URL warning/block。
+- risky URL 安全预警 / 阻断。
 - 扫描记录和报告查看。
-- 白名单、黑名单、临时信任、永久信任策略闭环。
+- 白名单、黑名单、暂时信任、信任策略闭环。
 - 插件实例撤销。
 - revoked plugin token 失效。
 - CI 三端检查。
@@ -109,6 +109,13 @@ frontend:  npm run lint/build      -> passed
 extension: npm run build           -> passed
 git:       git diff --check        -> passed
 ```
+
+P2-N 本地页面验收使用的演示账号：
+
+- 管理员：`admin` / `admin`
+- 普通用户：`guest` / `guest`
+
+这些账号仅用于本地演示和验收，不是生产默认账号；产品 UI 不展示这些账号密码。
 
 辅助材料已建立：
 

@@ -14,12 +14,17 @@
 - frontend 运行在 `http://127.0.0.1:5173`。
 - extension 已 `npm run build` 并在 Chrome/Edge 加载 unpacked。
 - 已执行 `python -m app.scripts.seed_dev_user` 创建正式登录用户。
+- 本地演示账号已创建：
+  - 管理员：`admin` / `admin`
+  - 普通用户：`guest` / `guest`
+
+这些账号只用于本地演示和验收，不是生产默认账号。登录页不直接展示账号密码。
 
 备用命令：
 
 ```powershell
 .\scripts\smoke-local.ps1 -DryRun
-.\scripts\smoke-local.ps1 -Username platform-admin -Password "<local-demo-password>"
+.\scripts\smoke-local.ps1 -Username admin -Password "admin"
 ```
 
 ## 2. 10 分钟演示流程
@@ -37,7 +42,7 @@
 操作：
 
 1. 打开 `http://127.0.0.1:5173/login`。
-2. 使用 seed 用户登录。
+2. 使用本地演示用户登录，例如 `admin` / `admin` 或 `guest` / `guest`。
 3. 进入 `/app` 工作区。
 
 展示点：

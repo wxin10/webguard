@@ -2,7 +2,7 @@ import PageHeader from '../components/PageHeader';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AccountSettings() {
-  const { user, switchRole } = useAuth();
+  const { user } = useAuth();
 
   return (
     <div>
@@ -25,15 +25,14 @@ export default function AccountSettings() {
         </div>
       </section>
 
-      <details className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-        <summary className="cursor-pointer text-base font-bold text-slate-800">开发环境临时能力</summary>
-        <p className="mt-3 max-w-3xl leading-6">
-          当前本地环境仍保留 mock 登录与角色切换能力，用于开发阶段检查个人安全工作台和运营控制台。正式上线需要接入真实用户、会话管理、后端权限校验和审计日志。
-        </p>
-        <button onClick={switchRole} className="mt-5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
-          切换开发角色
-        </button>
-      </details>
+      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-950">浏览器助手</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <Info label="连接状态" value="可前往浏览器助手页面查看" />
+          <Info label="绑定管理" value="通过绑定页确认助手连接" />
+          <Info label="安全策略" value="以平台策略为准" />
+        </div>
+      </section>
     </div>
   );
 }

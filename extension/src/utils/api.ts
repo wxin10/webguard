@@ -284,7 +284,7 @@ export async function pauseSite(host: string, minutes = 30): Promise<UserDecisio
       body: JSON.stringify({
         host: cleanHost,
         list_type: 'temp_bypass',
-        reason: `浏览器插件临时信任 ${minutes} 分钟`,
+        reason: `浏览器助手暂时信任此网站 ${minutes} 分钟`,
         source: 'plugin',
         minutes,
       }),
@@ -294,19 +294,19 @@ export async function pauseSite(host: string, minutes = 30): Promise<UserDecisio
       event_type: 'temporary_trust',
       action: 'pause_site',
       domain: cleanHost,
-      summary: `用户在插件中临时信任 ${minutes} 分钟`,
+      summary: `用户在浏览器助手中暂时信任此网站 ${minutes} 分钟`,
       metadata: { minutes },
     });
     await syncPluginBootstrap();
     return 'synced';
   } catch (error) {
-    console.warn('[WebGuard] Temporary trust sync failed, keeping a local runtime fallback.', error);
+    console.warn('[WebGuard] Temporary trust sync failed, keeping a local runtime cache.', error);
     await pauseHostProtection(cleanHost, minutes);
     await syncPluginEvent({
       event_type: 'temporary_trust',
       action: 'pause_site_offline_cached',
       domain: cleanHost,
-      summary: `后端暂不可用，插件仅保留本地临时信任 ${minutes} 分钟`,
+      summary: `平台暂不可用，浏览器助手已暂时信任此网站 ${minutes} 分钟`,
       metadata: { minutes },
     });
     return 'offline-cache';

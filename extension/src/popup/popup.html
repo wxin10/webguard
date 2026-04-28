@@ -9,7 +9,7 @@
     <main class="popup-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">WebGuard 浏览器执行端</p>
+          <p class="eyebrow">WebGuard 浏览器助手</p>
           <h1>当前页面检测</h1>
         </div>
         <span id="backend-status" class="badge unknown">连接中</span>
@@ -23,19 +23,19 @@
       <section class="connection-card">
         <dl class="connection-grid">
           <div>
-            <dt>API 地址</dt>
+            <dt>平台服务</dt>
             <dd id="api-base-url-status">--</dd>
           </div>
           <div>
-            <dt>Token</dt>
+            <dt>平台账号</dt>
             <dd id="token-status">--</dd>
           </div>
           <div>
-            <dt>Plugin ID</dt>
+            <dt>助手实例</dt>
             <dd id="plugin-instance-status">--</dd>
           </div>
           <div>
-            <dt>Bootstrap</dt>
+            <dt>策略同步</dt>
             <dd id="bootstrap-status">--</dd>
           </div>
         </dl>
@@ -71,11 +71,11 @@
 
       <div class="actions">
         <button id="scan-button" class="primary">重新扫描</button>
-        <button id="warning-button" class="secondary">打开 warning 页面</button>
+        <button id="warning-button" class="secondary">打开安全预警</button>
         <button id="report-button" class="secondary">打开网站报告</button>
-        <button id="pause-button" class="secondary">临时信任本站</button>
-        <button id="trust-button" class="secondary">永久信任本站</button>
-        <button id="options-button" class="ghost">插件设置</button>
+        <button id="pause-button" class="secondary">暂时信任此网站</button>
+        <button id="trust-button" class="secondary">信任此网站</button>
+        <button id="options-button" class="ghost">助手设置</button>
       </div>
     </main>
     <script type="module" src="popup.js"></script>

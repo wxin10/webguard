@@ -76,7 +76,7 @@ function UserWorkspace() {
         <StatCard title="检测记录" value={records.length} description="Web 检测与插件同步" tone="blue" />
         <StatCard title="风险提醒" value={riskyRecords.length} description="可疑或恶意结论" tone="amber" />
         <StatCard title="插件同步" value={pluginRecords.length || events.length} description="来自浏览器执行端" tone="green" />
-        <StatCard title="个人策略" value={domains.length} description={`${bypassCount} 个临时放行`} tone="slate" />
+        <StatCard title="个人策略" value={domains.length} description={`${bypassCount} 个本次继续访问`} tone="slate" />
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -101,9 +101,9 @@ function UserWorkspace() {
           <h2 className="text-xl font-bold text-slate-950">常用入口</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <TaskLink title="提交 URL 检测" text="生成风险等级、分数、摘要原因和正式报告。" to="/app/scan" tone="blue" />
-            <TaskLink title="查看我的记录" text="统一查看网站检测和插件上传的 ScanRecord。" to="/app/my-records" tone="amber" />
-            <TaskLink title="维护站点策略" text="管理信任、阻止和临时放行域名。" to="/app/my-domains" tone="slate" />
-            <TaskLink title="插件同步状态" text="查看 warning、bypass、trust 和 feedback 回传。" to="/app/plugin-sync" tone="green" />
+            <TaskLink title="查看我的记录" text="统一查看网站检测和浏览器助手上传的检测记录。" to="/app/my-records" tone="amber" />
+            <TaskLink title="维护站点策略" text="管理信任、阻止和本次继续访问域名。" to="/app/my-domains" tone="slate" />
+            <TaskLink title="助手同步状态" text="查看安全预警、继续访问、信任和反馈回传。" to="/app/plugin-sync" tone="green" />
           </div>
         </div>
       </section>

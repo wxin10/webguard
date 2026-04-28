@@ -204,7 +204,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
         action: 'temporary_trust_active',
         url,
         domain: host,
-        summary: '当前站点处于临时信任期，本次扫描已跳过。',
+        summary: '当前站点已暂时信任，本次扫描已跳过。',
       });
       return { ok: true, record };
     }

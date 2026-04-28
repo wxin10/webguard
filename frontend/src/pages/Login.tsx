@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types';
 
 const loginImage = 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1400&q=80';
+const SHOW_DEV_LOGIN_OPTIONS = import.meta.env.VITE_SHOW_DEV_LOGIN_OPTIONS === 'true';
 
 export default function Login() {
   const { user, login, mockLogin } = useAuth();
@@ -11,7 +12,7 @@ export default function Login() {
   const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [developmentRole, setDevelopmentRole] = useState<UserRole>('user');
+  const [validationRole, setValidationRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,11 +40,11 @@ export default function Login() {
     setError('');
     try {
       const normalizedUsername = username.trim();
-      const fallbackUsername = developmentRole === 'admin' ? 'platform-admin' : 'platform-user';
-      await mockLogin(normalizedUsername || fallbackUsername, developmentRole);
+      const defaultUsername = validationRole === 'admin' ? 'platform-admin' : 'platform-user';
+      await mockLogin(normalizedUsername || defaultUsername, validationRole);
       navigate(fromPath, { replace: true });
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'mock login failed');
+      setError(loginError instanceof Error ? loginError.message : '登录入口不可用');
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,6 @@ export default function Login() {
 
           <div className="mt-5 flex items-center justify-between gap-3">
             <label className="block text-sm font-semibold text-slate-700">密码</label>
-            <span className="text-xs text-slate-400">当前本地环境仅做前端兼容</span>
           </div>
           <input
             type="password"
@@ -117,34 +117,36 @@ export default function Login() {
 
           {error && <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-          <details className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            <summary className="cursor-pointer font-semibold text-slate-700">开发环境临时选项</summary>
-            <p className="mt-3 leading-6">
-              真实鉴权接入前，mock 登录会按这里的身份进入对应工作区。该选项仅用于本地开发检查，不作为正式登录路径。
-            </p>
-            <div className="mt-3 flex gap-2">
-              {(['user', 'admin'] as UserRole[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setDevelopmentRole(item)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
-                    developmentRole === item ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'
-                  }`}
-                >
-                  {item === 'admin' ? '运营管理员' : '普通用户'}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleMockLogin}
-              disabled={loading}
-              className="mt-4 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Use development mock-login
-            </button>
-          </details>
+          {SHOW_DEV_LOGIN_OPTIONS && (
+            <details className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <summary className="cursor-pointer font-semibold text-slate-700">验证辅助入口</summary>
+              <p className="mt-3 leading-6">
+                该入口仅在显式配置后显示，用于本地验证不同角色页面。
+              </p>
+              <div className="mt-3 flex gap-2">
+                {(['user', 'admin'] as UserRole[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setValidationRole(item)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                      validationRole === item ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    {item === 'admin' ? '运营管理员' : '普通用户'}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleMockLogin}
+                disabled={loading}
+                className="mt-4 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                使用验证入口
+              </button>
+            </details>
+          )}
 
           <Link to="/" className="mt-6 text-center text-sm font-semibold text-slate-500 hover:text-emerald-700">
             返回产品首页

@@ -70,17 +70,17 @@ export default function PluginSync() {
       {error && <StatusNotice tone="error">{error}</StatusNotice>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="插件配置版本" value={bootstrap?.current_rule_version || '-'} description="来自后端 bootstrap" tone="blue" />
+        <StatCard title="插件配置版本" value={bootstrap?.current_rule_version || '-'} description="来自后端策略同步" tone="blue" />
         <StatCard title="最近同步" value={latestEvent ? formatDate(latestEvent.created_at) : '-'} description={latestEvent?.plugin_version ? `插件 ${latestEvent.plugin_version}` : '暂无插件事件'} tone={latestEvent ? 'green' : 'slate'} />
-        <StatCard title="Warning 触发" value={warningCount} tone="red" />
-        <StatCard title="现场处置动作" value={actionCount} description="bypass / trust / temporary trust" tone="amber" />
+        <StatCard title="安全预警触发" value={warningCount} tone="red" />
+        <StatCard title="现场处置动作" value={actionCount} description="继续访问 / 信任 / 暂时信任" tone="amber" />
       </div>
 
       <section className="my-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap gap-2">
           <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>全部事件</FilterButton>
           <FilterButton active={filter === 'scan'} onClick={() => setFilter('scan')}>扫描事件</FilterButton>
-          <FilterButton active={filter === 'warning'} onClick={() => setFilter('warning')}>Warning</FilterButton>
+          <FilterButton active={filter === 'warning'} onClick={() => setFilter('warning')}>安全预警</FilterButton>
           <FilterButton active={filter === 'action'} onClick={() => setFilter('action')}>处置动作</FilterButton>
           <FilterButton active={filter === 'feedback'} onClick={() => setFilter('feedback')}>反馈</FilterButton>
         </div>

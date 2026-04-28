@@ -45,7 +45,7 @@ export default function Plugin() {
     event.preventDefault();
     if (!draft) return;
     await adminPluginService.updateConfig(draft);
-    setMessage('插件默认配置已更新，插件下次 bootstrap 时会读取新配置。');
+    setMessage('插件默认配置已更新，插件下次策略同步时会读取新配置。');
     loadData();
   };
 
@@ -71,8 +71,8 @@ export default function Plugin() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard title="规则版本" value={config.rule_version} tone="blue" />
         <StatCard title="同步事件" value={stats.total_events} tone="slate" />
-        <StatCard title="Warning 触发" value={stats.warning_events} tone="red" />
-        <StatCard title="Bypass / Trust" value={stats.bypass_events + stats.trust_events} tone="amber" />
+        <StatCard title="安全预警触发" value={stats.warning_events} tone="red" />
+        <StatCard title="现场处置" value={stats.bypass_events + stats.trust_events} tone="amber" />
       </div>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -102,7 +102,7 @@ export default function Plugin() {
         <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-950">插件事件流</h2>
-            <p className="text-sm text-slate-500">扫描、warning、bypass、trust 和 feedback 都回传到主平台。</p>
+            <p className="text-sm text-slate-500">扫描、安全预警、继续访问、信任和反馈都会回传到主平台。</p>
           </div>
           <Link to="/app/admin/samples" className="text-sm font-semibold text-blue-700">处理样本与误报</Link>
         </div>

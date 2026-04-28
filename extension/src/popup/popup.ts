@@ -89,10 +89,10 @@ function bindEvents(): void {
 async function renderBackendStatus(): Promise<void> {
   const health = await testBackendConnection();
   if (!backendStatusElement) return;
-  backendStatusElement.textContent = health.ok ? '后端在线' : '后端不可达';
+  backendStatusElement.textContent = health.ok ? '平台在线' : '平台不可达';
   backendStatusElement.className = `badge ${health.ok ? 'connected' : 'disconnected'}`;
   if (!health.ok) {
-    showMessage(`后端不可达：${health.message}`, true);
+    showMessage(`平台连接不可用：${health.message}`, true);
   }
 }
 
@@ -100,16 +100,14 @@ async function renderConnectionSummary(): Promise<void> {
   const settings = await getSettings();
   const snapshot = await getPluginPolicySnapshot();
   setText(apiBaseUrlElement, settings.apiBaseUrl);
-  const tokenStatus = settings.pluginAccessToken
-    ? 'Plugin token configured'
-    : settings.accessToken
-      ? 'Manual token configured'
-      : 'Not configured';
+  const tokenStatus = settings.pluginAccessToken || settings.accessToken
+    ? '平台账号：已连接'
+    : '平台账号：未连接';
   setText(tokenStatusElement, tokenStatus);
   setText(pluginInstanceElement, settings.pluginInstanceId || '未配置');
   setText(
     bootstrapStatusElement,
-    snapshot ? `${new Date(snapshot.syncedAt).toLocaleString()} / ${snapshot.configVersion || snapshot.ruleVersion}` : '尚未同步',
+    snapshot ? `已完成 / ${new Date(snapshot.syncedAt).toLocaleString()}` : '尚未同步',
   );
 }
 
@@ -123,7 +121,7 @@ async function renderRecordWithDecisions(record: TabRiskRecord | null): Promise<
       return;
     }
     if (await isHostPaused(host)) {
-      renderEmptyState('当前站点处于临时信任期，保护将在到期后恢复。', 'idle');
+      renderEmptyState('当前站点已暂时信任，保护将在到期后恢复。', 'idle');
       return;
     }
     renderEmptyState('暂无当前页面检测结果。可以点击重新扫描。');
@@ -196,11 +194,11 @@ async function scanCurrentTab(): Promise<void> {
 
 async function openWarningPage(): Promise<void> {
   if (!currentTab?.id || !currentRecord?.result) {
-    showMessage('当前页面还没有可用于 warning 的检测结果。', true);
+    showMessage('当前页面还没有可用于安全预警的检测结果。', true);
     return;
   }
   if (currentRecord.result.label !== 'suspicious' && currentRecord.result.label !== 'malicious') {
-    showMessage('当前检测结果不是可疑或恶意状态，无需打开 warning 页面。', true);
+    showMessage('当前检测结果不是可疑或恶意状态，无需打开安全预警页面。', true);
     return;
   }
   await sendRuntimeMessage<unknown>({
@@ -233,7 +231,7 @@ async function openReport(): Promise<void> {
 async function pauseCurrentSite(): Promise<void> {
   const host = hostFromCurrentTab();
   if (!host) {
-    showMessage('当前页面无法临时信任。', true);
+    showMessage('当前页面无法暂时信任。', true);
     return;
   }
 
@@ -241,10 +239,10 @@ async function pauseCurrentSite(): Promise<void> {
   try {
     const status = await pauseSite(host, 30);
     showMessage(status === 'synced'
-      ? `${host} 已临时信任 30 分钟，并同步到主平台。`
-      : `${host} 已写入本地临时信任 30 分钟；后端恢复后请在主平台确认。`);
+      ? `${host} 已暂时信任 30 分钟，并同步到主平台。`
+      : `${host} 已暂时信任 30 分钟；平台恢复后请在主平台确认。`);
   } catch (error) {
-    showMessage(`临时信任失败：${errorMessage(error)}`, true);
+    showMessage(`暂时信任失败：${errorMessage(error)}`, true);
   } finally {
     pauseButton?.removeAttribute('disabled');
   }
@@ -253,16 +251,16 @@ async function pauseCurrentSite(): Promise<void> {
 async function trustCurrentSite(): Promise<void> {
   const host = hostFromCurrentTab();
   if (!host) {
-    showMessage('当前页面无法加入永久信任。', true);
+    showMessage('当前页面无法加入信任列表。', true);
     return;
   }
 
   trustButton?.setAttribute('disabled', 'true');
   try {
     await trustSite(host);
-    showMessage(`${host} 已永久信任，并同步到主平台。`);
+    showMessage(`${host} 已信任，并同步到主平台。`);
   } catch (error) {
-    showMessage(`永久信任需要写入主平台，目前失败：${errorMessage(error)}`, true);
+    showMessage(`信任操作需要写入主平台，目前失败：${errorMessage(error)}`, true);
   } finally {
     trustButton?.removeAttribute('disabled');
   }

@@ -45,7 +45,7 @@ export default function Records() {
     <div>
       <PageHeader
         title="检测记录"
-        description="管理员查看全平台 ScanRecord，包含网站检测、插件上传和重新检测来源，并可进入完整报告。"
+        description="管理员查看全平台检测记录，包含网站检测、浏览器助手上传和重新检测来源，并可进入完整报告。"
       />
 
       {error && <StatusNotice tone="error">{error}</StatusNotice>}

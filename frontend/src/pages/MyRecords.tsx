@@ -61,7 +61,7 @@ export default function MyRecords() {
     <div>
       <PageHeader
         title="我的检测记录"
-        description="网站手动检测和插件上传扫描都会生成统一 ScanRecord，并关联正式报告。这里是用户侧记录中心入口。"
+        description="网站手动检测和浏览器助手上传扫描都会生成统一检测记录，并关联正式报告。这里是用户侧记录中心入口。"
         action={
           <Link to="/app/scan" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             提交检测
