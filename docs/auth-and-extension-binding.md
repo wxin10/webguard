@@ -58,7 +58,7 @@ Recommended properties:
   - `session_id`: refresh-token session id.
   - `iat`, `exp`.
 
-The Web frontend should not persist the access token in localStorage for production.
+The Web frontend does not persist the access token in localStorage by default. `VITE_ENABLE_DEV_TOKEN_STORAGE=true` may mirror the token to `webguard_dev_user` for local extension manual-token fallback only.
 
 ### 4.3 Refresh Token
 
@@ -473,6 +473,7 @@ Because extension storage is accessible to the extension context, plugin tokens 
 - Backend must validate `X-Plugin-Instance-Id` against token claims and database state.
 - Production startup must use `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong non-placeholder `JWT_SECRET`, and Secure refresh cookies.
 - Manual extension token fallback is a development compatibility path, not the production binding path.
+- Production Web sessions should recover through the HttpOnly refresh cookie, not a stored Web access token.
 
 ### 8.4 Binding Code
 

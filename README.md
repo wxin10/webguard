@@ -117,7 +117,7 @@ Expected shape:
 4. Open extension Options and set:
    - API Base URL: `http://127.0.0.1:8000`
    - Web App URL: `http://127.0.0.1:5173`
-   - Access Token: value from `webguard_dev_user.access_token` if using the development-compatible manual token path
+   - Access Token: optional, only when using the development-compatible manual token path with `VITE_ENABLE_DEV_TOKEN_STORAGE=true`
    - Plugin Instance ID: for example `local-dev-plugin`, or let the extension generate one
 5. For the formal plugin path, click Start binding in Options, open the Web verification URL, confirm the binding code as the logged-in Web user, then return to Options and finish binding to store plugin tokens.
 6. Click the connection test button. It must pass backend health and plugin bootstrap.
@@ -197,4 +197,4 @@ Known release blockers before production:
 - HTTPS, reverse proxy, and production CORS allowlist are not finalized.
 - Secrets management and environment-specific deployment configuration are not finalized.
 - Manual extension token fallback remains only for development compatibility.
-- Web access token still has a localStorage-compatible frontend path and must be migrated in P2-I before production release.
+- Production Web access tokens are kept in memory. The `webguard_dev_user` localStorage mirror is disabled by default and only available when `VITE_ENABLE_DEV_TOKEN_STORAGE=true` for local manual-token fallback.

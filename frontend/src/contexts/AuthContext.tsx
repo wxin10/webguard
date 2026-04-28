@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../services/api';
-import { readStoredAuthUser, writeStoredAuthUser } from '../services/client';
+import { readStoredAuthUser, setAuthSession } from '../services/client';
 import type { DevelopmentUser, UserRole } from '../types';
 
 interface AuthContextValue {
@@ -16,26 +16,39 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<DevelopmentUser | null>(() => readStoredAuthUser());
-  const initialized = true;
+  const [initialized, setInitialized] = useState(false);
 
   const persist = (nextUser: DevelopmentUser | null) => {
     setUser(nextUser);
-    writeStoredAuthUser(nextUser);
+    setAuthSession(nextUser);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreSession() {
+      try {
+        const tokenResponse = await authApi.refresh();
+        if (cancelled) return;
+        persist(tokenResponseToUser(tokenResponse));
+      } catch {
+        if (cancelled) return;
+        const devStoredUser = readStoredAuthUser();
+        persist(devStoredUser);
+      } finally {
+        if (!cancelled) setInitialized(true);
+      }
+    }
+
+    void restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = async (username: string, password: string) => {
     const tokenResponse = await authApi.login({ username, password });
-    const profile = tokenResponse.user || {
-      username,
-      role: 'user' as UserRole,
-      display_name: username,
-    };
-    persist({
-      ...profile,
-      access_token: tokenResponse.access_token,
-      token_type: tokenResponse.token_type,
-      expires_in: tokenResponse.expires_in,
-    });
+    persist(tokenResponseToUser(tokenResponse, username));
   };
 
   const mockLogin = async (username: string, role: UserRole) => {
@@ -61,6 +74,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [initialized, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function tokenResponseToUser(tokenResponse: Awaited<ReturnType<typeof authApi.login>>, fallbackUsername = 'platform-user'): DevelopmentUser {
+  const profile = tokenResponse.user || {
+    username: fallbackUsername,
+    role: 'user' as UserRole,
+    display_name: fallbackUsername,
+  };
+  return {
+    ...profile,
+    access_token: tokenResponse.access_token,
+    token_type: tokenResponse.token_type,
+    expires_in: tokenResponse.expires_in,
+  };
 }
 
 export function useAuth() {

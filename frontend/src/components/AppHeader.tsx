@@ -32,9 +32,9 @@ export default function AppHeader() {
     : { to: '/app/scan', label: '检测网址' };
   const assistantLink = isAdmin ? '/app/admin/plugin' : '/app/plugin-sync';
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   return (

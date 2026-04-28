@@ -4,10 +4,13 @@ import type { ApiResponse, AuthTokenResponse, DevelopmentUser } from '../types';
 
 export const AUTH_STORAGE_KEY = 'webguard_dev_user';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+export const ENABLE_DEV_TOKEN_STORAGE = import.meta.env.VITE_ENABLE_DEV_TOKEN_STORAGE === 'true';
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _webguardRetry?: boolean;
 }
+
+let authSession: DevelopmentUser | null = readStoredAuthUser();
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,6 +20,7 @@ export const api = axios.create({
 });
 
 export function readStoredAuthUser(): DevelopmentUser | null {
+  if (!ENABLE_DEV_TOKEN_STORAGE) return null;
   const rawUser = localStorage.getItem(AUTH_STORAGE_KEY);
   if (!rawUser) return null;
   try {
@@ -27,12 +31,21 @@ export function readStoredAuthUser(): DevelopmentUser | null {
 }
 
 export function writeStoredAuthUser(user: DevelopmentUser | null): void {
-  if (user) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  if (user && ENABLE_DEV_TOKEN_STORAGE) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   else localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
+export function getAuthSession(): DevelopmentUser | null {
+  return authSession;
+}
+
+export function setAuthSession(user: DevelopmentUser | null): void {
+  authSession = user;
+  writeStoredAuthUser(user);
+}
+
 api.interceptors.request.use((config) => {
-  const user = readStoredAuthUser();
+  const user = getAuthSession();
   const headers = config.headers as unknown as Record<string, string>;
   if (!user) return config;
   if (user.access_token) {
@@ -78,17 +91,17 @@ api.interceptors.response.use(
         throw new Error(refreshResponse.data.message || 'refresh failed');
       }
       const nextUser = {
-        ...(refreshData.user || readStoredAuthUser() || { username: 'platform-user', role: 'user', display_name: 'platform-user' }),
+        ...(refreshData.user || getAuthSession() || { username: 'platform-user', role: 'user', display_name: 'platform-user' }),
         access_token: refreshData.access_token,
         token_type: refreshData.token_type,
         expires_in: refreshData.expires_in,
       } as DevelopmentUser;
-      writeStoredAuthUser(nextUser);
+      setAuthSession(nextUser);
       const headers = originalRequest.headers as unknown as Record<string, string>;
       headers.Authorization = `Bearer ${refreshData.access_token}`;
       return api(originalRequest);
     } catch {
-      writeStoredAuthUser(null);
+      setAuthSession(null);
       return Promise.reject(error);
     }
   },

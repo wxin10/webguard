@@ -218,13 +218,22 @@ REFRESH_TOKEN_COOKIE_SECURE=false
 
 Development mock-login remains available only when `DEBUG=true` and `ENABLE_DEV_AUTH=true`.
 
+Frontend token storage behavior:
+
+- Default: Web access tokens are kept in memory only.
+- Refresh: page reloads restore the Web session through `/api/v1/auth/refresh` and the HttpOnly refresh cookie.
+- Development compatibility: set `VITE_ENABLE_DEV_TOKEN_STORAGE=true` in `frontend/.env` only when you need the `webguard_dev_user` localStorage mirror for extension manual-token fallback.
+
 Manual token flow:
 
 1. Open `http://127.0.0.1:5173/login`.
-2. Log in with the seeded formal test user, or use the development mock-login option.
-3. Open browser DevTools.
-4. Read localStorage key `webguard_dev_user`.
-5. Copy `access_token` into the extension Options page.
+2. Set `VITE_ENABLE_DEV_TOKEN_STORAGE=true` and restart the frontend dev server.
+3. Log in with the seeded formal test user, or use the development mock-login option.
+4. Open browser DevTools.
+5. Read localStorage key `webguard_dev_user`.
+6. Copy `access_token` into the extension Options page.
+
+Without `VITE_ENABLE_DEV_TOKEN_STORAGE=true`, new Web access tokens are not written to localStorage.
 
 Equivalent API call:
 
@@ -250,6 +259,8 @@ Web App URL:        http://127.0.0.1:5173
 Access Token:       <webguard_dev_user.access_token>
 Plugin Instance ID: local-dev-plugin
 ```
+
+The Access Token field is optional for the formal plugin binding path. In production-like validation, prefer Start binding / Finish binding so the extension uses plugin-specific tokens instead of a copied Web token.
 
 Click "Test connection". It must validate both backend health and plugin bootstrap.
 
@@ -346,7 +357,7 @@ The current CI baseline does not require secrets and does not start PostgreSQL.
 
 - Development mock-login is still present and only valid in development mode.
 - Formal Web login requires seeded or otherwise pre-created users; registration and password reset are not implemented.
-- Manual Access Token entry remains available in extension Options as a development-compatible fallback.
+- Manual Access Token entry remains available in extension Options as a development-compatible fallback, but the Web localStorage mirror is disabled by default.
 - Web Refresh Token exists for the Web app; plugin refresh tokens exist for bound extension instances.
 - Minimal formal plugin binding is implemented through challenge, Web confirmation, token exchange, refresh, revoke, and unbind endpoints.
 - Plugin Instance ID can be generated and persisted by the extension, but full device-management UI is not implemented.
@@ -370,4 +381,4 @@ The backend fails fast when `DEBUG=false` is combined with development auth, run
 
 Do not publish with manual extension token fallback as the primary user path. It remains available only to keep development and emergency local debugging workflows usable.
 
-P2-I should address the remaining Web access token localStorage compatibility path by moving the production Web client toward memory-only access tokens plus HttpOnly refresh cookies.
+Production Web access tokens should stay in memory. Web session recovery should rely on the HttpOnly refresh cookie, and the extension production path should use plugin binding tokens.
