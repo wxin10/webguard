@@ -62,6 +62,53 @@ python -m app.scripts.seed_dev_user
 
 The seed command uses the same password hashing logic as formal login, stores no plaintext password, and is idempotent. In development auth mode it can fall back to local-only defaults, but production-like runs should always provide `WEBGUARD_SEED_PASSWORD` explicitly.
 
+## External Threat Intelligence Blocklists
+
+WebGuard can import external malicious website blocklists into the existing backend `DomainBlacklist` table. This first version reuses `DomainBlacklist` instead of introducing a separate threat-intel schema.
+
+Imported records use this shape:
+
+```text
+domain=<malicious domain>
+source=threat_intel:<source_key>
+risk_type=scam|malware|malicious_url|cryptomining|hacked_malware|...
+reason=命中外部恶意网站规则库：<source name>；风险类型：<risk_type>
+status=active
+```
+
+The browser extension does not maintain large rule libraries. The backend owns synchronization, parsing, storage, lookup, and final risk decisions.
+
+Blocklists are not downloaded on FastAPI startup. Synchronization is explicit:
+
+```powershell
+cd backend
+python -m app.scripts.sync_threat_intel --limit-per-source 500
+```
+
+Full import:
+
+```powershell
+cd backend
+python -m app.scripts.sync_threat_intel
+```
+
+Dry run:
+
+```powershell
+cd backend
+python -m app.scripts.sync_threat_intel --dry-run
+```
+
+Supported sources:
+
+- MalwareDomainList
+- Scam Blocklist by DurableNapkin
+- Spam404
+- The Big List of Hacked Malware Web Sites
+- URLHaus / Online Malicious URL Blocklist
+- NoCoin Filter List
+- AdGuard DNS filter
+
 For local demo acceptance, seed these local-only accounts when needed:
 
 ```powershell

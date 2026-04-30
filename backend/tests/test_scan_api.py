@@ -8,7 +8,7 @@ import app.models  # noqa: F401
 from app.core import get_db
 from app.core.database import Base
 from app.main import app
-from app.models import Report, ScanRecord
+from app.models import DomainBlacklist, Report, ScanRecord
 
 
 engine = create_engine(
@@ -133,6 +133,48 @@ def test_plugin_analyze_current_high_risk_can_trigger_block_flow(client: TestCli
     assert report_payload["code"] == 0
     assert report_payload["data"]["risk_level"] == "malicious"
     assert report_payload["data"]["record_id"] == data["record_id"]
+
+
+def test_scan_url_threat_intel_blacklist_hit_blocks_and_explains(client: TestClient):
+    db = TestingSessionLocal()
+    try:
+        db.add(
+            DomainBlacklist(
+                domain="phish.example",
+                source="threat_intel:scamblocklist",
+                risk_type="scam",
+                reason="命中外部恶意网站规则库：Scam Blocklist by DurableNapkin；风险类型：scam",
+                status="active",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post("/api/v1/scan/url", json={"url": "https://phish.example/login"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    data = payload["data"]
+    assert data["label"] == "malicious"
+    assert data["risk_score"] == 100.0
+    assert data["action"] == "BLOCK"
+    assert data["should_block"] is True
+    assert data["policy_hit"]["hit"] is True
+    assert data["policy_hit"]["source"] == "threat_intel:scamblocklist"
+    assert data["threat_intel_hit"] is True
+    assert data["threat_intel_matches"] == [
+        {
+            "domain": "phish.example",
+            "source": "threat_intel:scamblocklist",
+            "risk_type": "scam",
+            "reason": "命中外部恶意网站规则库：Scam Blocklist by DurableNapkin；风险类型：scam",
+        }
+    ]
+    assert "外部恶意网站规则库" in data["summary"]
+    assert "外部恶意网站规则库" in data["explanation"]
+    assert any("外部恶意网站规则库" in item for item in data["reason_summary"])
 
 
 def test_scan_url_invalid_format_returns_40002(client: TestClient):
