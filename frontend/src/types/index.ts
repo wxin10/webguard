@@ -136,6 +136,52 @@ export interface HitRule {
   severity?: string;
   raw_feature?: Record<string, unknown>;
   observed_value?: number;
+  evidence?: Record<string, unknown>;
+  caution?: boolean;
+  false_positive_note?: string;
+}
+
+export interface PolicyHit {
+  hit?: boolean;
+  scope?: string | null;
+  list_type?: string | null;
+  source?: string | null;
+  reason?: string | null;
+}
+
+export interface ThreatIntelMatch {
+  domain?: string;
+  source?: string;
+  risk_type?: string | null;
+  reason?: string | null;
+}
+
+export interface BehaviorSignal {
+  rule_key?: string;
+  rule_name?: string;
+  matched?: boolean;
+  severity?: string | null;
+  category?: string | null;
+  score?: number;
+  evidence?: Record<string, unknown>;
+  reason?: string | null;
+  caution?: boolean;
+  false_positive_note?: string | null;
+}
+
+export interface AIAnalysis {
+  status?: string;
+  provider?: string | null;
+  model?: string | null;
+  risk_score?: number | null;
+  label?: string | null;
+  risk_types?: string[];
+  reasons?: string[];
+  recommendation?: string;
+  confidence?: number;
+  error?: string | null;
+  trigger_reasons?: string[];
+  reason?: string | null;
 }
 
 export interface RuleStats {
@@ -188,6 +234,15 @@ export interface ScoreBreakdown {
     text_length?: number;
     [key: string]: unknown;
   };
+  ai_analysis?: AIAnalysis;
+  ai_score?: number | null;
+  ai_fusion_used?: boolean;
+  fallback?: string;
+  behavior_score?: number;
+  threat_intel_hit?: boolean;
+  threat_intel_matches?: ThreatIntelMatch[];
+  policy_hit?: PolicyHit;
+  [key: string]: unknown;
 }
 
 export interface ScanResult {
@@ -196,7 +251,7 @@ export interface ScanResult {
   label: RiskLabel;
   risk_score: number;
   summary: string;
-  reason_summary: string[];
+  reason_summary?: string[];
   action: 'ALLOW' | 'WARN' | 'BLOCK';
   should_warn: boolean;
   should_block: boolean;
@@ -210,6 +265,13 @@ export interface ScanResult {
   recommendation: string;
   record_id: number;
   report_id?: number;
+  policy_hit?: PolicyHit;
+  threat_intel_hit?: boolean;
+  threat_intel_matches?: ThreatIntelMatch[];
+  behavior_score?: number;
+  behavior_signals?: BehaviorSignal[];
+  ai_score?: number | null;
+  ai_analysis?: AIAnalysis;
 }
 
 export interface ScanRecordList {
@@ -547,6 +609,14 @@ export interface AnalysisReport {
   hit_rules: HitRule[];
   matched_rules: HitRule[];
   applied_rules?: HitRule[];
+  reason_summary?: string[];
+  policy_hit?: PolicyHit;
+  threat_intel_hit?: boolean;
+  threat_intel_matches?: ThreatIntelMatch[];
+  behavior_score?: number;
+  behavior_signals?: BehaviorSignal[];
+  ai_score?: number | null;
+  ai_analysis?: AIAnalysis;
   explanation?: string;
   summary?: string;
   reasons?: Record<string, unknown>[];

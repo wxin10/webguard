@@ -4,11 +4,12 @@ import DataTable from '../components/DataTable';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import RiskBadge from '../components/RiskBadge';
+import RuleHitList from '../components/RuleHitList';
 import StatusNotice from '../components/StatusNotice';
 import { useAuth } from '../contexts/AuthContext';
 import { feedbackService } from '../services/feedbackService';
 import { reportsService } from '../services/reportsService';
-import type { AnalysisReport, HitRule, ScanRecordItem, ScoreBreakdown } from '../types';
+import type { AIAnalysis, AnalysisReport, BehaviorSignal, HitRule, PolicyHit, ScanRecordItem, ScoreBreakdown, ThreatIntelMatch } from '../types';
 import { feedbackStatusText, formatDate, pluginEventText, riskBar, scanSourceText } from '../utils';
 
 export default function ReportDetail() {
@@ -70,6 +71,16 @@ export default function ReportDetail() {
 
   const host = report.host || report.domain;
   const summary = report.summary || report.explanation || report.conclusion || '暂无摘要。';
+  const behaviorScore = report.behavior_score ?? breakdown.behavior_score ?? breakdown.rule_score_total;
+  const behaviorSignals = report.behavior_signals?.length ? report.behavior_signals : rulesToBehaviorSignals(matchedRules);
+  const policyHit = report.policy_hit ?? breakdown.policy_hit ?? {};
+  const threatIntelHit = report.threat_intel_hit ?? Boolean(breakdown.threat_intel_hit);
+  const threatIntelMatches = report.threat_intel_matches ?? breakdown.threat_intel_matches ?? [];
+  const aiAnalysis = report.ai_analysis ?? breakdown.ai_analysis ?? { status: 'not_available' };
+  const aiScore = report.ai_score ?? breakdown.ai_score ?? aiAnalysis.risk_score ?? null;
+  const reasonSummary = report.reason_summary?.length
+    ? report.reason_summary
+    : [report.explanation || report.summary || report.conclusion].filter(Boolean);
   const userActions = [
     {
       label: '加入信任域名',
@@ -160,6 +171,64 @@ export default function ReportDetail() {
               <ScorePill label="助手事件" value={report.plugin_events?.length || 0} />
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+          <div>
+            <h3 className="text-lg font-bold text-slate-950">多源融合检测解释</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              最终风险等级由页面行为风险、AI 语义研判和确定性规则共同生成；旧报告缺少新字段时会自动回退到基础检测结果。
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {breakdown.ai_fusion_used ? '已使用 AI 融合评分' : '基础检测结果'}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-4">
+          <SourceCard title="策略命中" active={Boolean(policyHit.hit)} activeText="命中站点访问策略" description={policyDescription(policyHit)} />
+          <SourceCard title="外部规则库" active={threatIntelHit} activeText="命中外部恶意网站规则库" description={threatIntelDescription(threatIntelHit, threatIntelMatches)} />
+          <SourceCard title="页面行为风险信号" active={behaviorSignals.length > 0} activeText="页面行为风险信号" description={`行为风险评分 ${behaviorScore.toFixed(1)}。`} />
+          <SourceCard title="AI 语义研判" active={aiAnalysis.status === 'used'} activeText="AI 语义研判已参与本次分析" description={aiStatusDescription(aiAnalysis)} />
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h4 className="font-semibold text-slate-950">页面行为风险信号</h4>
+            <div className="mt-3">
+              <RuleHitList rules={behaviorSignals.slice(0, 6)} />
+            </div>
+          </section>
+          <section className="space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 className="font-semibold text-slate-950">AI 语义研判</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{aiStatusDescription(aiAnalysis)}</p>
+              {aiAnalysis.status === 'used' && (
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  <p>AI 评分：{typeof aiScore === 'number' ? aiScore.toFixed(1) : '--'}</p>
+                  <p>置信度：{typeof aiAnalysis.confidence === 'number' ? `${(aiAnalysis.confidence * 100).toFixed(0)}%` : '--'}</p>
+                  <p>风险类型：{aiAnalysis.risk_types?.length ? aiAnalysis.risk_types.join('、') : '未提供'}</p>
+                  {(aiAnalysis.reasons || []).slice(0, 3).map((reason, index) => <p key={index}>原因：{reason}</p>)}
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 className="font-semibold text-slate-950">融合说明</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {breakdown.ai_fusion_used ? '最终分数融合了页面行为风险与 AI 语义研判。' : breakdown.fusion_summary || '最终分数基于基础检测结果生成。'}
+              </p>
+              {breakdown.fallback && <p className="mt-2 text-xs text-slate-500">降级策略：{String(breakdown.fallback)}</p>}
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-5 rounded-lg bg-slate-50 p-4">
+          <h4 className="font-semibold text-slate-950">摘要原因</h4>
+          <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-700">
+            {reasonSummary.map((reason, index) => <li key={index}>{reason}</li>)}
+          </ul>
         </div>
       </section>
 
@@ -354,6 +423,56 @@ function RuleTitle({ rule }: { rule: HitRule }) {
       <div className="mt-1 text-xs text-slate-500">{rule.rule_key}</div>
     </div>
   );
+}
+
+function SourceCard({ title, active, activeText, description }: { title: string; active: boolean; activeText: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="font-semibold text-slate-950">{title}</h4>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+          {active ? activeText : '未命中'}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    </div>
+  );
+}
+
+function rulesToBehaviorSignals(rules: HitRule[]): BehaviorSignal[] {
+  return rules.map((rule) => ({
+    rule_key: rule.rule_key,
+    rule_name: rule.rule_name || rule.name,
+    matched: rule.matched,
+    severity: rule.severity,
+    category: rule.category,
+    score: rule.weighted_score ?? rule.contribution,
+    evidence: rule.evidence || rule.raw_feature,
+    reason: rule.reason || rule.detail || null,
+    caution: rule.caution,
+    false_positive_note: rule.false_positive_note,
+  }));
+}
+
+function policyDescription(policy: PolicyHit): string {
+  if (!policy.hit) return '未命中站点访问策略。';
+  return [policy.scope, policy.list_type, policy.source, policy.reason].filter(Boolean).join(' · ') || '命中站点访问策略。';
+}
+
+function threatIntelDescription(hit: boolean, matches: ThreatIntelMatch[]): string {
+  if (!hit) return '未命中外部恶意网站规则库。';
+  const first = matches[0];
+  if (!first) return '命中外部恶意网站规则库。';
+  return `${first.source || '未知来源'} · ${first.risk_type || '未知风险'}${first.reason ? ` · ${first.reason}` : ''}`;
+}
+
+function aiStatusDescription(analysis: AIAnalysis): string {
+  if (analysis.status === 'used') return 'AI 语义研判已参与本次分析。';
+  if (analysis.status === 'not_triggered') return '当前页面风险信号较低，未触发 AI 语义研判。';
+  if (analysis.status === 'disabled' || analysis.status === 'no_api_key' || analysis.status === 'timeout' || analysis.status === 'error' || analysis.status === 'invalid_response') {
+    return 'AI 语义研判暂不可用，已使用基础检测结果。';
+  }
+  return 'AI 语义研判未参与本次分析。';
 }
 
 function stringifyList(value: unknown) {

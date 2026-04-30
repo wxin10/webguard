@@ -10,6 +10,8 @@ const riskLabelElement = document.getElementById('risk-label');
 const riskScoreElement = document.getElementById('risk-score');
 const detectedAtElement = document.getElementById('detected-at');
 const summaryElement = document.getElementById('risk-summary');
+const sourceBadgesElement = document.getElementById('source-badges');
+const sourceExplanationElement = document.getElementById('source-explanation');
 const messageElement = document.getElementById('action-message');
 
 const backButton = document.getElementById('back-button') as HTMLButtonElement | null;
@@ -29,6 +31,7 @@ function render(): void {
     setText(riskScoreElement, '--');
     setText(detectedAtElement, '--');
     setText(summaryElement, '当前安全预警页面缺少必要参数。请关闭此页，并从浏览器助手弹窗重新扫描。');
+    setText(sourceExplanationElement, '检测来源参数不可用。');
     disableRiskActions();
     return;
   }
@@ -39,6 +42,7 @@ function render(): void {
   setText(riskScoreElement, params.riskScore.toFixed(1));
   setText(detectedAtElement, new Date(params.detectedAt).toLocaleString());
   setText(summaryElement, params.summary);
+  renderSourceExplanation();
 }
 
 function bindEvents(): void {
@@ -202,6 +206,47 @@ function riskLabelText(label: string): string {
   if (label === 'suspicious') return '可疑';
   if (label === 'safe') return '安全';
   return '未知';
+}
+
+function renderSourceExplanation(): void {
+  if (!params || !sourceBadgesElement || !sourceExplanationElement) return;
+  sourceBadgesElement.textContent = '';
+  const badges = params.sourceBadges.length ? params.sourceBadges : ['base'];
+  for (const badge of badges) {
+    const element = document.createElement('span');
+    element.className = `source-badge ${badge}`;
+    element.textContent = sourceBadgeText(badge);
+    sourceBadgesElement.appendChild(element);
+  }
+  sourceExplanationElement.textContent = warningSourceSummary();
+}
+
+function warningSourceSummary(): string {
+  if (!params) return '检测来源参数不可用。';
+  if (params.threatIntelHit) return '命中外部恶意网站规则库，当前站点属于已知风险来源。';
+  if (params.aiStatus === 'used') return 'AI 语义研判发现风险，请在完整报告中查看风险类型、原因和建议。';
+  if (params.aiStatus === 'not_triggered') return '当前结果来自基础检测；本次未触发 AI 语义研判。';
+  if (isAiFallbackStatus(params.aiStatus)) return 'AI 语义研判暂不可用，当前结果来自基础检测。';
+  return '当前结果来自基础检测和页面行为风险信号。';
+}
+
+function sourceBadgeText(value: string): string {
+  const labels: Record<string, string> = {
+    policy: '策略',
+    threat_intel: '外部规则库',
+    behavior: '行为规则',
+    ai: 'AI',
+    base: '基础检测',
+  };
+  return labels[value] || value;
+}
+
+function isAiFallbackStatus(status: string | undefined): boolean {
+  return status === 'disabled'
+    || status === 'no_api_key'
+    || status === 'timeout'
+    || status === 'error'
+    || status === 'invalid_response';
 }
 
 function errorMessage(error: unknown): string {
