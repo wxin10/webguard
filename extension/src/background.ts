@@ -168,7 +168,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
 
     const host = hostFromUrl(url);
     if (await isBlockedByPolicy(host)) {
-      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中平台下发的阻止策略。');
+      const blockedResult = createLocalDecisionResult(url, 'malicious', '当前站点命中平台下发的阻止策略。', 'blocked');
       const record = await handleDetectionResult(tabId, url, blockedResult);
       await syncPluginEvent({
         event_type: 'scan',
@@ -183,7 +183,7 @@ async function scheduleScan(tabId: number, url: string, trigger: ScanTrigger): P
     }
 
     if (await isTrustedHost(host)) {
-      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点命中平台下发的信任策略，本次未调用后端扫描。');
+      const trustedResult = createLocalDecisionResult(url, 'safe', '当前站点命中平台下发的信任策略，本次未调用后端扫描。', 'trusted');
       const record = await setTabState(tabId, url, 'safe', trustedResult);
       await syncPluginEvent({
         event_type: 'scan',
@@ -307,7 +307,7 @@ async function getStoredState(tabId: number, url: string): Promise<TabRiskRecord
   return getTabRiskRecord(tabId, url);
 }
 
-function createLocalDecisionResult(url: string, label: 'safe' | 'malicious', summary: string): DetectionResult {
+function createLocalDecisionResult(url: string, label: 'safe' | 'malicious', summary: string, listType: 'trusted' | 'blocked'): DetectionResult {
   return {
     url,
     label,
@@ -316,6 +316,14 @@ function createLocalDecisionResult(url: string, label: 'safe' | 'malicious', sum
     action: label === 'malicious' ? 'BLOCK' : 'ALLOW',
     should_warn: label === 'malicious',
     should_block: label === 'malicious',
+    policy_hit: {
+      hit: true,
+      scope: 'local',
+      list_type: listType,
+      source: 'plugin_policy',
+      reason: summary,
+    },
+    ai_analysis: { status: 'not_triggered', reason: '命中站点访问策略，未触发 AI 语义研判。' },
     timestamp: Date.now(),
   };
 }

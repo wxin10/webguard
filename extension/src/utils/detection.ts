@@ -56,6 +56,14 @@ export function parseDetectionResult(value: unknown, fallbackUrl: string): Detec
     model_suspicious_prob: parseOptionalNumber(value.model_suspicious_prob),
     model_malicious_prob: parseOptionalNumber(value.model_malicious_prob),
     hit_rules: parseHitRules(value.hit_rules),
+    policy_hit: parsePolicyHit(value.policy_hit),
+    threat_intel_hit: parseOptionalBoolean(value.threat_intel_hit),
+    threat_intel_matches: parseRecordArray(value.threat_intel_matches),
+    behavior_score: parseOptionalNumber(value.behavior_score),
+    behavior_signals: parseRecordArray(value.behavior_signals),
+    ai_score: value.ai_score === null ? null : parseOptionalNumber(value.ai_score),
+    ai_analysis: parseAIAnalysis(value.ai_analysis),
+    score_breakdown: isRecord(value.score_breakdown) ? value.score_breakdown : undefined,
     timestamp: Date.now(),
   };
 }
@@ -117,6 +125,45 @@ function parseOptionalBoolean(value: unknown): boolean | undefined {
 function parseHitRules(value: unknown): Array<Record<string, unknown>> | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter(isRecord);
+}
+
+function parseRecordArray(value: unknown): Array<Record<string, unknown>> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(isRecord);
+}
+
+function parsePolicyHit(value: unknown): DetectionResult['policy_hit'] {
+  if (!isRecord(value)) return undefined;
+  return {
+    hit: parseOptionalBoolean(value.hit),
+    scope: parseOptionalNullableString(value.scope),
+    list_type: parseOptionalNullableString(value.list_type),
+    source: parseOptionalNullableString(value.source),
+    reason: parseOptionalNullableString(value.reason),
+  };
+}
+
+function parseAIAnalysis(value: unknown): DetectionResult['ai_analysis'] {
+  if (!isRecord(value)) return undefined;
+  return {
+    status: parseOptionalNullableString(value.status) ?? undefined,
+    provider: parseOptionalNullableString(value.provider),
+    model: parseOptionalNullableString(value.model),
+    risk_score: value.risk_score === null ? null : parseOptionalNumber(value.risk_score),
+    label: parseOptionalNullableString(value.label),
+    risk_types: Array.isArray(value.risk_types) ? value.risk_types.filter(isNonEmptyString) : undefined,
+    reasons: Array.isArray(value.reasons) ? value.reasons.filter(isNonEmptyString) : undefined,
+    recommendation: firstNonEmptyString(value.recommendation),
+    confidence: parseOptionalNumber(value.confidence),
+    error: parseOptionalNullableString(value.error),
+    trigger_reasons: Array.isArray(value.trigger_reasons) ? value.trigger_reasons.filter(isNonEmptyString) : undefined,
+    reason: parseOptionalNullableString(value.reason),
+  };
+}
+
+function parseOptionalNullableString(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return isNonEmptyString(value) ? value.trim() : undefined;
 }
 
 function firstNonEmptyString(...values: unknown[]): string | undefined {

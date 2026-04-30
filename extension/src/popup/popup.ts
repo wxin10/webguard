@@ -26,6 +26,8 @@ const riskBarElement = document.getElementById('risk-bar');
 const scanTimeElement = document.getElementById('scan-time');
 const riskLabelElement = document.getElementById('risk-label');
 const riskSummaryElement = document.getElementById('risk-summary');
+const sourceBadgesElement = document.getElementById('source-badges');
+const sourceExplanationElement = document.getElementById('source-explanation');
 const pageMessageElement = document.getElementById('page-message');
 const apiBaseUrlElement = document.getElementById('api-base-url-status');
 const tokenStatusElement = document.getElementById('token-status');
@@ -144,7 +146,8 @@ function renderRecord(record: TabRiskRecord): void {
   setText(riskScoreElement, score === null ? '--' : score.toFixed(1));
   setText(scanTimeElement, new Date(record.updatedAt).toLocaleString());
   setText(riskLabelElement, labelText);
-  setText(riskSummaryElement, summary);
+  setText(riskSummaryElement, primaryReasons(result) || summary);
+  renderSourceExplanation(result);
   updateRiskBar(score ?? 0, state);
 
   currentRecord = record;
@@ -160,6 +163,7 @@ function renderEmptyState(message: string, state: TabRiskState = 'idle'): void {
   setText(scanTimeElement, '--');
   setText(riskLabelElement, '--');
   setText(riskSummaryElement, message);
+  renderSourceExplanation(null);
   updateRiskBar(0, state);
   warningButton?.setAttribute('disabled', 'true');
   currentRecord = null;
@@ -311,6 +315,64 @@ function stateSummary(state: TabRiskState): string {
     error: '检测失败，请检查后端服务或刷新页面后重试。',
   };
   return summaries[state];
+}
+
+function renderSourceExplanation(result: TabRiskRecord['result'] | null | undefined): void {
+  if (!sourceBadgesElement || !sourceExplanationElement) return;
+  sourceBadgesElement.textContent = '';
+
+  if (!result) {
+    sourceExplanationElement.textContent = '暂无多源检测解释。';
+    return;
+  }
+
+  const badges = sourceBadges(result);
+  for (const badge of badges) {
+    const element = document.createElement('span');
+    element.className = `source-badge ${badge.kind}`;
+    element.textContent = badge.label;
+    sourceBadgesElement.appendChild(element);
+  }
+  sourceExplanationElement.textContent = sourceSummary(result);
+}
+
+function sourceBadges(result: NonNullable<TabRiskRecord['result']>): Array<{ label: string; kind: string }> {
+  const badges: Array<{ label: string; kind: string }> = [];
+  if (result.policy_hit?.hit) badges.push({ label: '策略', kind: 'policy' });
+  if (result.threat_intel_hit) badges.push({ label: '外部规则库', kind: 'threat' });
+  if ((result.behavior_signals?.length || 0) > 0 || typeof result.behavior_score === 'number' || (result.hit_rules?.length || 0) > 0) {
+    badges.push({ label: '行为规则', kind: 'behavior' });
+  }
+  if (result.ai_analysis?.status) badges.push({ label: aiBadgeText(result.ai_analysis.status), kind: 'ai' });
+  return badges.length ? badges : [{ label: '基础检测', kind: 'base' }];
+}
+
+function sourceSummary(result: NonNullable<TabRiskRecord['result']>): string {
+  if (result.threat_intel_hit) return '命中外部恶意网站规则库，请优先参考完整报告中的来源和风险类型。';
+  if (result.ai_analysis?.status === 'used') return 'AI 语义研判已参与本次分析，并与页面行为风险共同形成最终解释。';
+  if (result.ai_analysis?.status === 'not_triggered') return '当前页面风险信号较低，未触发 AI 语义研判。';
+  if (isAiFallbackStatus(result.ai_analysis?.status)) return 'AI 语义研判暂不可用，已使用基础检测结果。';
+  if (result.policy_hit?.hit) return '命中站点访问策略，本次结果来自后端或本地同步策略。';
+  return '最终结果基于基础检测结果生成。';
+}
+
+function primaryReasons(result: TabRiskRecord['result'] | null | undefined): string {
+  if (!result?.reason_summary?.length) return '';
+  return result.reason_summary.slice(0, 2).join('；');
+}
+
+function aiBadgeText(status: string): string {
+  if (status === 'used') return 'AI';
+  if (status === 'not_triggered') return 'AI 未触发';
+  return 'AI 降级';
+}
+
+function isAiFallbackStatus(status: string | undefined): boolean {
+  return status === 'disabled'
+    || status === 'no_api_key'
+    || status === 'timeout'
+    || status === 'error'
+    || status === 'invalid_response';
 }
 
 function showMessage(message: string, isError = false): void {

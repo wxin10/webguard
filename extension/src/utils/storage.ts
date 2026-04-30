@@ -2,6 +2,49 @@ export type RiskLabel = 'safe' | 'suspicious' | 'malicious' | 'unknown';
 export type TabRiskState = 'idle' | 'scanning' | 'safe' | 'suspicious' | 'malicious' | 'error';
 export type DetectionAction = 'ALLOW' | 'WARN' | 'BLOCK';
 
+export interface PolicyHit {
+  hit?: boolean;
+  scope?: string | null;
+  list_type?: string | null;
+  source?: string | null;
+  reason?: string | null;
+}
+
+export interface ThreatIntelMatch {
+  domain?: string;
+  source?: string;
+  risk_type?: string | null;
+  reason?: string | null;
+}
+
+export interface BehaviorSignal {
+  rule_key?: string;
+  rule_name?: string;
+  matched?: boolean;
+  severity?: string | null;
+  category?: string | null;
+  score?: number;
+  evidence?: Record<string, unknown>;
+  reason?: string | null;
+  caution?: boolean;
+  false_positive_note?: string | null;
+}
+
+export interface AIAnalysis {
+  status?: string;
+  provider?: string | null;
+  model?: string | null;
+  risk_score?: number | null;
+  label?: string | null;
+  risk_types?: string[];
+  reasons?: string[];
+  recommendation?: string;
+  confidence?: number;
+  error?: string | null;
+  trigger_reasons?: string[];
+  reason?: string | null;
+}
+
 export interface PageInfo {
   url: string;
   title: string;
@@ -32,6 +75,14 @@ export interface DetectionResult {
   model_suspicious_prob?: number;
   model_malicious_prob?: number;
   hit_rules?: Array<Record<string, unknown>>;
+  policy_hit?: PolicyHit;
+  threat_intel_hit?: boolean;
+  threat_intel_matches?: ThreatIntelMatch[];
+  behavior_score?: number;
+  behavior_signals?: BehaviorSignal[];
+  ai_score?: number | null;
+  ai_analysis?: AIAnalysis;
+  score_breakdown?: Record<string, unknown>;
   timestamp: number;
 }
 

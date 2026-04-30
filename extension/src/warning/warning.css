@@ -114,6 +114,51 @@ h1 {
   line-height: 1.7;
 }
 
+.source-detail {
+  background: #f8fafc;
+}
+
+.source-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.source-badge {
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+
+.source-badge.policy {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.source-badge.threat_intel {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.source-badge.behavior {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.source-badge.ai {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
 .actions {
   margin-top: 22px;
   display: flex;
