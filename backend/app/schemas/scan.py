@@ -79,6 +79,13 @@ class ScanResult(BaseModel):
     model_suspicious_prob: float
     model_malicious_prob: float
     hit_rules: List[HitRule]
+    policy_hit: Dict[str, Any] = Field(default_factory=dict)
+    threat_intel_hit: bool = False
+    threat_intel_matches: List[Dict[str, Any]] = Field(default_factory=list)
+    behavior_score: float = 0.0
+    behavior_signals: List[Dict[str, Any]] = Field(default_factory=list)
+    ai_score: Optional[float] = None
+    ai_analysis: Dict[str, Any] = Field(default_factory=dict)
     score_breakdown: Optional[Dict[str, Any]] = None
     explanation: str
     recommendation: str

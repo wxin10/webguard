@@ -55,6 +55,17 @@ def test_scan_url_safe_result_persists_record_and_report(client: TestClient):
     assert isinstance(data["summary"], str) and data["summary"]
     assert data["record_id"] > 0
     assert data["report_id"] > 0
+    assert data["policy_hit"]["hit"] is False
+    assert data["threat_intel_hit"] is False
+    assert data["threat_intel_matches"] == []
+    assert data["behavior_score"] == data["rule_score"]
+    assert data["ai_score"] is None
+    assert data["ai_analysis"] == {
+        "status": "not_used",
+        "provider": None,
+        "reason": "AI analysis is not integrated in phase 1",
+    }
+    assert data["score_breakdown"]["behavior_score"] == data["rule_score"]
 
     record_response = client.get(f"/api/v1/records/{data['record_id']}")
     assert record_response.status_code == 200
@@ -108,6 +119,13 @@ def test_plugin_analyze_current_high_risk_can_trigger_block_flow(client: TestCli
     assert data["report_id"] > 0
     assert data["domain"] == "login-paypal-account-security.example-phish.com"
     assert len(data["reason_summary"]) >= 1
+    assert data["policy_hit"]["hit"] is False
+    assert data["threat_intel_hit"] is False
+    assert data["threat_intel_matches"] == []
+    assert data["behavior_score"] == data["rule_score"]
+    assert len(data["behavior_signals"]) >= 1
+    assert data["ai_score"] is None
+    assert data["ai_analysis"]["status"] == "not_used"
 
     report_response = client.get(f"/api/v1/reports/{data['report_id']}")
     assert report_response.status_code == 200

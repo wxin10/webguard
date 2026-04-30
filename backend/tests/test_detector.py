@@ -73,7 +73,38 @@ def test_build_result():
     assert result['rule_score'] == 0.0
     assert result['model_safe_prob'] == 0.0
     assert result['model_malicious_prob'] == 1.0
-    
+    assert result["policy_hit"]["hit"] is False
+    assert result["threat_intel_hit"] is False
+    assert result["threat_intel_matches"] == []
+    assert result["behavior_score"] == result["rule_score"]
+    assert result["behavior_signals"] == []
+    assert result["ai_score"] is None
+    assert result["ai_analysis"] == {
+        "status": "not_used",
+        "provider": None,
+        "reason": "AI analysis is not integrated in phase 1",
+    }
+    assert result["score_breakdown"]["behavior_score"] == result["rule_score"]
+
+    policy_result = detector._build_result(
+        {
+            "label": "safe",
+            "reason": "trusted by user policy",
+            "policy_hit": {
+                "hit": True,
+                "scope": "user",
+                "list_type": "trusted",
+                "source": "web",
+                "reason": "trusted by user policy",
+            },
+        },
+        None,
+    )
+    assert policy_result["label"] == "safe"
+    assert policy_result["policy_hit"]["hit"] is True
+    assert policy_result["policy_hit"]["scope"] == "user"
+    assert policy_result["score_breakdown"]["policy_hit"]["hit"] is True
+     
     # 测试流水线结果
     pipeline_result = {
         'fuse_result': {
@@ -99,6 +130,9 @@ def test_build_result():
     assert result['risk_score'] == 10.0
     assert result['rule_score'] == 5.0
     assert result['model_safe_prob'] == 0.9
+    assert result["policy_hit"]["hit"] is False
+    assert result["behavior_score"] == 5.0
+    assert result["ai_score"] is None
     
     # 测试默认结果
     result = detector._build_result(None, None)
@@ -106,5 +140,8 @@ def test_build_result():
     assert result['risk_score'] == 0.0
     assert result['rule_score'] == 0.0
     assert result['model_safe_prob'] == 1.0
+    assert result["policy_hit"]["hit"] is False
+    assert result["threat_intel_hit"] is False
+    assert result["behavior_score"] == 0.0
     
     db.close()
