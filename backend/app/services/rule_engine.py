@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Iterable, Optional
+from urllib.parse import parse_qsl, unquote, urlparse
 
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -15,101 +16,161 @@ from .rule_dsl import RuleDslEvaluator
 DEFAULT_RULES: list[dict[str, Any]] = [
     {
         "rule_key": "url_length",
-        "rule_name": "URL 长度异常",
-        "description": "URL 长度超过阈值时提高风险分。",
+        "rule_name": "URL complexity signal",
+        "description": "Detects unusually long or complex URLs, redirect parameters, nested URLs, and obfuscated tokens.",
         "category": "url",
         "severity": "low",
-        "weight": 10.0,
-        "threshold": 200.0,
+        "weight": 8.0,
+        "threshold": 120.0,
         "enabled": True,
     },
     {
         "rule_key": "ip_direct",
-        "rule_name": "URL 使用 IP 地址",
-        "description": "检测 URL 是否直接使用 IPv4 地址代替域名。",
+        "rule_name": "Direct IP host",
+        "description": "Detects URLs that use an IPv4 address instead of a domain name.",
         "category": "url",
         "severity": "high",
-        "weight": 18.0,
+        "weight": 14.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
         "rule_key": "suspicious_subdomain",
-        "rule_name": "可疑子域名",
-        "description": "检测 login、secure、verify 等高风险子域名。",
+        "rule_name": "Sensitive subdomain wording",
+        "description": "Detects sensitive words such as login, secure, verify, or account in subdomains.",
         "category": "domain",
-        "severity": "medium",
-        "weight": 12.0,
+        "severity": "low",
+        "weight": 8.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
         "rule_key": "risky_path",
-        "rule_name": "高风险路径词",
-        "description": "检测路径中是否出现 login、verify、account、secure 等高风险词。",
+        "rule_name": "Sensitive path wording",
+        "description": "Detects login, verification, payment, banking, wallet, and recovery words in URL paths.",
         "category": "url",
-        "severity": "medium",
-        "weight": 14.0,
-        "threshold": 1.0,
-        "enabled": True,
-    },
-    {
-        "rule_key": "password_field",
-        "rule_name": "页面含密码输入框",
-        "description": "检测页面是否存在密码输入框。",
-        "category": "page",
         "severity": "medium",
         "weight": 12.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
+        "rule_key": "password_field",
+        "rule_name": "Password input present",
+        "description": "Detects whether the page can collect user credentials through a password input.",
+        "category": "page",
+        "severity": "low",
+        "weight": 7.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
         "rule_key": "cross_domain_form",
-        "rule_name": "表单提交跨域",
-        "description": "检测表单 action 域名是否与当前域名不一致。",
+        "rule_name": "Cross-domain form submission",
+        "description": "Detects form submissions to unknown third-party domains while allowing same-site and trusted providers.",
         "category": "form",
+        "severity": "medium",
+        "weight": 12.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "risky_keywords",
+        "rule_name": "Risky persuasion wording",
+        "description": "Detects sensitive objects, urgency, reward, and action wording as grouped persuasion signals.",
+        "category": "content",
+        "severity": "medium",
+        "weight": 12.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "brand_impersonation",
+        "rule_name": "Possible brand impersonation",
+        "description": "Detects brand wording on domains that do not match official brand markers, especially with login or payment context.",
+        "category": "content",
+        "severity": "high",
+        "weight": 14.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "title_domain_mismatch",
+        "rule_name": "Low title-domain similarity",
+        "description": "Detects low similarity between title words and domain words as a weak supporting signal.",
+        "category": "content",
+        "severity": "low",
+        "weight": 5.0,
+        "threshold": 0.3,
+        "enabled": True,
+    },
+    {
+        "rule_key": "suspicious_redirect",
+        "rule_name": "Redirect or countdown signal",
+        "description": "Detects redirect, countdown, loading, and external redirect parameter signals.",
+        "category": "behavior",
+        "severity": "low",
+        "weight": 6.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "credential_exfiltration_combo",
+        "rule_name": "Credential exfiltration combination",
+        "description": "Combines password collection with unknown cross-domain forms, direct IP hosts, or non-HTTPS pages.",
+        "category": "combo",
         "severity": "high",
         "weight": 18.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
-        "rule_key": "risky_keywords",
-        "rule_name": "页面含高风险诱导词",
-        "description": "检测标题、正文、按钮或输入标签中是否出现高风险词。",
-        "category": "content",
-        "severity": "medium",
-        "weight": 14.0,
+        "rule_key": "brand_login_mismatch_combo",
+        "rule_name": "Brand login mismatch combination",
+        "description": "Combines brand wording, credential or verification context, and a non-official domain.",
+        "category": "combo",
+        "severity": "high",
+        "weight": 18.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
-        "rule_key": "brand_impersonation",
-        "rule_name": "疑似品牌冒充",
-        "description": "页面出现品牌词但域名不包含对应官方域名关键词时提高风险分。",
-        "category": "content",
+        "rule_key": "ip_sensitive_input_combo",
+        "rule_name": "Direct IP with sensitive input combination",
+        "description": "Combines direct IP access with password, verification, payment, bank, or wallet signals.",
+        "category": "combo",
         "severity": "high",
+        "weight": 16.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "payment_urgency_combo",
+        "rule_name": "Payment urgency combination",
+        "description": "Combines payment, bank card, or verification-code wording with urgent action pressure.",
+        "category": "combo",
+        "severity": "high",
+        "weight": 16.0,
+        "threshold": 1.0,
+        "enabled": True,
+    },
+    {
+        "rule_key": "wallet_secret_combo",
+        "rule_name": "Wallet secret phrase combination",
+        "description": "Detects wallet pages that ask for private keys, seed phrases, or mnemonic phrases.",
+        "category": "combo",
+        "severity": "critical",
         "weight": 20.0,
         "threshold": 1.0,
         "enabled": True,
     },
     {
-        "rule_key": "title_domain_mismatch",
-        "rule_name": "标题与域名匹配度低",
-        "description": "页面标题关键词与域名关键词匹配度低于阈值时提高风险分。",
-        "category": "content",
-        "severity": "low",
-        "weight": 8.0,
-        "threshold": 0.3,
-        "enabled": True,
-    },
-    {
-        "rule_key": "suspicious_redirect",
-        "rule_name": "可疑跳转提示",
-        "description": "检测页面文本是否提示跳转、重定向或倒计时。",
-        "category": "behavior",
+        "rule_key": "suspicious_redirect_combo",
+        "rule_name": "Suspicious redirect combination",
+        "description": "Combines external redirect parameters with sensitive input, persuasion, payment, or login context.",
+        "category": "combo",
         "severity": "medium",
-        "weight": 10.0,
+        "weight": 12.0,
         "threshold": 1.0,
         "enabled": True,
     },
@@ -117,43 +178,135 @@ DEFAULT_RULES: list[dict[str, Any]] = [
 
 
 DEFAULT_BRAND_DOMAIN_MAP: dict[str, list[str]] = {
-    "google": ["google", "gmail", "youtube"],
-    "github": ["github"],
-    "microsoft": ["microsoft", "live", "office"],
-    "paypal": ["paypal"],
-    "apple": ["apple", "icloud"],
-    "amazon": ["amazon"],
-    "支付宝": ["alipay"],
-    "微信": ["wechat", "weixin"],
-    "百度": ["baidu", "baidustatic"],
-    "腾讯": ["tencent", "qq", "wechat", "weixin"],
-    "阿里巴巴": ["alibaba", "taobao", "tmall", "alipay"],
-    "淘宝": ["taobao", "tmall"],
-    "京东": ["jd"],
+    "google": ["google.com", "gmail.com", "youtube.com"],
+    "github": ["github.com"],
+    "microsoft": ["microsoft.com", "live.com", "office.com"],
+    "paypal": ["paypal.com"],
+    "apple": ["apple.com", "icloud.com"],
+    "amazon": ["amazon.com"],
+    "alipay": ["alipay.com"],
+    "wechat": ["wechat.com", "weixin.qq.com"],
+    "weixin": ["wechat.com", "weixin.qq.com"],
+    "baidu": ["baidu.com"],
+    "tencent": ["tencent.com", "qq.com", "wechat.com"],
+    "taobao": ["taobao.com", "tmall.com"],
+    "jd": ["jd.com"],
 }
 
 
-STATIC_RISK_KEYWORDS = [
-    "password",
-    "verify",
-    "account",
-    "login",
-    "signin",
-    "payment",
-    "wallet",
-    "bank",
-    "urgent",
-    "密码",
-    "账号",
-    "登录",
-    "验证",
-    "验证码",
-    "支付",
-    "银行卡",
-    "转账",
-    "领取",
-    "中奖",
-]
+TRUSTED_FORM_DOMAINS = {
+    "google.com",
+    "microsoft.com",
+    "apple.com",
+    "paypal.com",
+    "alipay.com",
+    "qq.com",
+    "wechat.com",
+    "weixin.qq.com",
+    "stripe.com",
+}
+
+
+REDIRECT_PARAM_NAMES = {
+    "redirect",
+    "redirect_uri",
+    "redirect_url",
+    "return",
+    "return_url",
+    "returnurl",
+    "callback",
+    "continue",
+    "next",
+    "target",
+    "url",
+}
+
+
+PATH_WORD_GROUPS = {
+    "low": ["login", "signin", "account", "auth", "user", "登录", "账号"],
+    "medium": ["verify", "verification", "security", "update", "reset", "recover", "unlock", "验证", "解锁", "恢复"],
+    "high": ["payment", "pay", "wallet", "bank", "card", "transfer", "withdraw", "kyc", "支付", "银行卡", "转账", "钱包"],
+}
+
+
+KEYWORD_GROUPS = {
+    "sensitive": [
+        "账号",
+        "账户",
+        "密码",
+        "验证码",
+        "银行卡",
+        "身份证",
+        "钱包",
+        "私钥",
+        "助记词",
+        "account",
+        "password",
+        "verification code",
+        "bank card",
+        "wallet",
+        "private key",
+        "seed phrase",
+        "mnemonic",
+    ],
+    "urgency": [
+        "立即",
+        "马上",
+        "限时",
+        "过期",
+        "冻结",
+        "停用",
+        "异常",
+        "风险",
+        "封禁",
+        "urgent",
+        "immediately",
+        "expired",
+        "frozen",
+        "suspended",
+        "abnormal",
+        "risk",
+    ],
+    "reward": [
+        "中奖",
+        "领取",
+        "红包",
+        "返现",
+        "补贴",
+        "免费",
+        "福利",
+        "reward",
+        "bonus",
+        "cashback",
+        "free",
+        "subsidy",
+        "prize",
+    ],
+    "action": [
+        "点击",
+        "验证",
+        "绑定",
+        "输入",
+        "提交",
+        "授权",
+        "解锁",
+        "恢复",
+        "登录",
+        "重新登录",
+        "click",
+        "verify",
+        "bind",
+        "submit",
+        "authorize",
+        "unlock",
+        "recover",
+        "login",
+        "sign in",
+    ],
+}
+
+
+STATIC_RISK_KEYWORDS = sorted({word for values in KEYWORD_GROUPS.values() for word in values}, key=str.lower)
 
 
 def _min_count(threshold: Optional[float]) -> int:
@@ -167,10 +320,43 @@ def _compact_list(items: Iterable[Any], limit: int = 6) -> list[str]:
     return values[:limit]
 
 
+def _host_without_www(host: str) -> str:
+    return host.lower().strip(".").removeprefix("www.")
+
+
+def _registered_domain(host: str) -> str:
+    host = _host_without_www(host)
+    parts = [part for part in host.split(".") if part]
+    if len(parts) <= 2:
+        return host
+    return ".".join(parts[-2:])
+
+
+def _host_matches_domain(host: str, base_domain: str) -> bool:
+    host = _host_without_www(host)
+    base_domain = _host_without_www(base_domain)
+    return host == base_domain or host.endswith("." + base_domain)
+
+
 def _contains_base_domain(domain: str, action_domain: str) -> bool:
-    current = domain.lower().lstrip(".")
-    target = action_domain.lower().lstrip(".")
-    return target == current or target.endswith("." + current) or current.endswith("." + target)
+    current = _host_without_www(domain)
+    target = _host_without_www(action_domain)
+    return target == current or target.endswith("." + current) or _registered_domain(target) == _registered_domain(current)
+
+
+def _is_ipv4_host(host: str) -> bool:
+    return bool(re.fullmatch(r"(?:\d{1,3}\.){3}\d{1,3}", host))
+
+
+def _looks_like_obfuscated_token(value: str) -> bool:
+    cleaned = re.sub(r"[^A-Za-z0-9_=-]", "", value)
+    if len(cleaned) < 32:
+        return False
+    has_upper = any(char.isupper() for char in cleaned)
+    has_lower = any(char.islower() for char in cleaned)
+    has_digit = any(char.isdigit() for char in cleaned)
+    base64ish = bool(re.fullmatch(r"[A-Za-z0-9+/=_-]{32,}", cleaned))
+    return base64ish and sum([has_upper, has_lower, has_digit]) >= 2
 
 
 def ensure_rule_config_schema(db: Session) -> None:
@@ -187,8 +373,6 @@ def ensure_rule_config_schema(db: Session) -> None:
         "created_at": "DATETIME",
     }
     if dialect == "postgresql":
-        column_sql["category"] = "VARCHAR(50) DEFAULT 'general'"
-        column_sql["severity"] = "VARCHAR(20) DEFAULT 'medium'"
         column_sql["created_at"] = "TIMESTAMP WITH TIME ZONE"
 
     changed = False
@@ -225,7 +409,7 @@ def ensure_default_rules(db: Session) -> None:
 
 
 class RuleEngine:
-    """Rule execution service with explainable per-rule scoring."""
+    """Rule execution service with explainable behavior-signal scoring."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -234,6 +418,7 @@ class RuleEngine:
         self.brand_keywords = self.load_brand_keywords()
         self.risk_keywords = self.load_risk_keywords()
         self.brand_domain_map = DEFAULT_BRAND_DOMAIN_MAP
+        self.trusted_form_domains = TRUSTED_FORM_DOMAINS
 
     def load_rules(self) -> list[RuleConfig]:
         return db_order_rules(self.db.query(RuleConfig).all())
@@ -241,7 +426,7 @@ class RuleEngine:
     def load_brand_keywords(self) -> list[str]:
         keywords = self.db.query(BrandKeyword.keyword).all()
         values = [keyword[0] for keyword in keywords if keyword[0]]
-        return values or list(DEFAULT_BRAND_DOMAIN_MAP.keys())
+        return sorted(set(values or list(DEFAULT_BRAND_DOMAIN_MAP.keys())), key=str.lower)
 
     def load_risk_keywords(self) -> list[str]:
         keywords = self.db.query(RiskKeyword.keyword).all()
@@ -255,11 +440,18 @@ class RuleEngine:
         reason: str,
         raw_feature: Any,
         observed_value: float,
+        *,
+        raw_score: float | None = None,
+        evidence: dict[str, Any] | None = None,
+        caution: bool = False,
+        false_positive_note: str | None = None,
+        severity: str | None = None,
     ) -> dict[str, Any]:
         enabled = bool(rule.enabled)
-        contribution = float(rule.weight or 0) if matched and enabled else 0.0
+        normalized_raw_score = max(0.0, min(1.0, float(raw_score if raw_score is not None else (1.0 if matched else 0.0))))
+        contribution = float(rule.weight or 0) * normalized_raw_score if matched and enabled else 0.0
         if not enabled:
-            reason = f"{reason}；规则已停用，本次不计分"
+            reason = f"{reason}; rule is disabled and does not contribute to this score"
         return {
             "id": rule.id,
             "rule_key": rule.rule_key,
@@ -267,106 +459,409 @@ class RuleEngine:
             "name": rule.rule_name,
             "description": rule.description,
             "category": rule.category or "general",
-            "severity": rule.severity or "medium",
+            "severity": severity or rule.severity or "medium",
             "enabled": enabled,
             "matched": matched,
             "applied": matched and enabled,
             "weight": float(rule.weight or 0),
             "threshold": float(rule.threshold or 0),
-            "raw_score": 1.0 if matched else 0.0,
+            "raw_score": normalized_raw_score if matched else 0.0,
             "weighted_score": contribution,
             "contribution": contribution,
             "reason": reason,
             "detail": reason,
             "raw_feature": raw_feature,
             "observed_value": observed_value,
+            "evidence": evidence or raw_feature if isinstance(raw_feature, dict) else {"value": raw_feature},
+            "caution": caution,
+            "false_positive_note": false_positive_note,
         }
 
-    def check_url_length(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+    def _url_features(self, context: dict[str, Any]) -> dict[str, Any]:
         url = context["url"]
-        threshold = float(rule.threshold or 200)
-        length = len(url)
-        matched = length > threshold
-        reason = f"URL 长度为 {length}，超过阈值 {threshold:g}" if matched else f"URL 长度为 {length}，未超过阈值 {threshold:g}"
-        return self._result(rule, matched, reason, {"url": url, "length": length}, length)
+        parsed = urlparse(url)
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        redirect_params: list[dict[str, str]] = []
+        nested_urls: list[dict[str, str]] = []
+        obfuscated_values: list[str] = []
 
-    def check_ip_direct(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        url = context["url"]
-        matches = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", url)
-        min_hits = _min_count(rule.threshold)
-        matched = len(matches) >= min_hits
-        reason = f"URL 中出现 IP 地址 {', '.join(matches)}，达到阈值 {min_hits}" if matched else f"URL 中未发现足够 IP 地址，当前 {len(matches)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"url": url, "matched_ips": matches}, len(matches))
+        for key, value in query_pairs:
+            key_lower = key.lower()
+            decoded_value = unquote(value or "")
+            if key_lower in REDIRECT_PARAM_NAMES:
+                redirect_params.append({"name": key, "value": decoded_value[:160]})
+            if "http://" in decoded_value.lower() or "https://" in decoded_value.lower():
+                nested_urls.append({"name": key, "value": decoded_value[:160]})
+            if _looks_like_obfuscated_token(decoded_value):
+                obfuscated_values.append(key)
 
-    def check_suspicious_subdomain(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        domain = context["domain"]
-        suspicious = ["login", "secure", "account", "verify", "signin", "auth", "support", "update"]
-        parts = [part.lower() for part in domain.split(".")]
-        hits = [part for part in parts[:-2] if part in suspicious]
-        min_hits = _min_count(rule.threshold)
-        matched = len(hits) >= min_hits
-        reason = f"子域名包含高风险词 {', '.join(hits)}，达到阈值 {min_hits}" if matched else f"子域名高风险词命中 {len(hits)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"domain": domain, "matched_subdomains": hits}, len(hits))
+        path_segments = [segment for segment in re.split(r"[/._\-]+", unquote(parsed.path.lower())) if segment]
+        return {
+            "scheme": parsed.scheme.lower(),
+            "host": _host_without_www(parsed.hostname or context.get("domain") or ""),
+            "path": unquote(parsed.path.lower()),
+            "path_segments": path_segments,
+            "query_pairs": query_pairs,
+            "param_count": len(query_pairs),
+            "redirect_params": redirect_params,
+            "nested_urls": nested_urls,
+            "obfuscated_values": obfuscated_values,
+            "length": len(url),
+        }
 
-    def check_risky_path(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        url = context["url"].lower()
-        words = ["phish", "login", "verify", "account", "secure", "signin", "update", "wallet", "payment"]
-        hits = [word for word in words if word in url]
-        min_hits = _min_count(rule.threshold)
-        matched = len(hits) >= min_hits
-        reason = f"URL 路径或参数包含高风险词 {', '.join(hits)}，达到阈值 {min_hits}" if matched else f"URL 高风险路径词命中 {len(hits)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"url": context["url"], "matched_keywords": hits}, len(hits))
-
-    def check_password_field(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        has_password_input = bool(context["has_password_input"])
-        matched = has_password_input and _min_count(rule.threshold) <= 1
-        reason = "页面检测到密码输入框" if matched else "页面未检测到密码输入框，或阈值要求超过 1 个密码框"
-        return self._result(rule, matched, reason, {"has_password_input": has_password_input}, 1.0 if has_password_input else 0.0)
-
-    def check_cross_domain_form(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        domain = context["domain"]
-        action_domains = context["form_action_domains"]
-        cross_domain = [item for item in action_domains if item and not _contains_base_domain(domain, item)]
-        min_hits = _min_count(rule.threshold)
-        matched = len(cross_domain) >= min_hits
-        reason = f"表单提交域 {', '.join(cross_domain)} 与当前域 {domain} 不一致，达到阈值 {min_hits}" if matched else f"跨域表单提交命中 {len(cross_domain)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"domain": domain, "form_action_domains": action_domains, "cross_domain_actions": cross_domain}, len(cross_domain))
-
-    def check_risky_keywords(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+    def _keyword_groups(self, context: dict[str, Any]) -> dict[str, list[str]]:
         text_value = context["all_text"].lower()
-        hits = [keyword for keyword in self.risk_keywords if keyword and keyword.lower() in text_value]
-        hits = _compact_list(dict.fromkeys(hits), limit=10)
-        min_hits = _min_count(rule.threshold)
-        matched = len(hits) >= min_hits
-        reason = f"页面文本、按钮或输入标签包含高风险词 {', '.join(hits)}，达到阈值 {min_hits}" if matched else f"页面高风险词命中 {len(hits)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"matched_keywords": hits, "text_length": len(context["all_text"])}, len(hits))
+        grouped: dict[str, list[str]] = {}
+        for group, words in KEYWORD_GROUPS.items():
+            grouped[group] = _compact_list(dict.fromkeys(word for word in words if word.lower() in text_value), limit=12)
+        return grouped
 
-    def check_brand_impersonation(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+    def _path_hits(self, context: dict[str, Any]) -> dict[str, list[str]]:
+        url_features = context["url_features"]
+        searchable = " ".join([url_features["path"], urlparse(context["url"]).query]).lower()
+        return {
+            group: _compact_list(dict.fromkeys(word for word in words if word.lower() in searchable), limit=12)
+            for group, words in PATH_WORD_GROUPS.items()
+        }
+
+    def _form_classification(self, context: dict[str, Any]) -> dict[str, list[str]]:
+        domain = context["domain"]
+        actions = [_host_without_www(item) for item in context["form_action_domains"] if item]
+        same_site: list[str] = []
+        trusted: list[str] = []
+        unknown: list[str] = []
+        for action_domain in actions:
+            if _contains_base_domain(domain, action_domain):
+                same_site.append(action_domain)
+            elif any(_host_matches_domain(action_domain, trusted_domain) for trusted_domain in self.trusted_form_domains):
+                trusted.append(action_domain)
+            else:
+                unknown.append(action_domain)
+        return {
+            "same_site": sorted(set(same_site)),
+            "trusted_third_party": sorted(set(trusted)),
+            "unknown_cross_domain": sorted(set(unknown)),
+        }
+
+    def _brand_context(self, context: dict[str, Any]) -> dict[str, Any]:
         text_value = context["all_text"].lower()
-        domain = context["domain"].lower()
-        hits: list[str] = []
+        domain = _host_without_www(context["domain"])
+        registered = _registered_domain(domain)
+        mismatched: list[str] = []
+        official: list[str] = []
+        mentioned: list[str] = []
 
-        for brand, official_markers in self.brand_domain_map.items():
-            if brand.lower() in text_value and not any(marker.lower() in domain for marker in official_markers):
-                hits.append(brand)
+        for brand, official_domains in self.brand_domain_map.items():
+            if brand.lower() not in text_value:
+                continue
+            mentioned.append(brand)
+            if any(_host_matches_domain(domain, official_domain) or registered == official_domain for official_domain in official_domains):
+                official.append(brand)
+            else:
+                mismatched.append(brand)
 
         for keyword in self.brand_keywords:
             lower = keyword.lower()
-            if lower in text_value and lower not in domain and keyword not in hits:
-                hits.append(keyword)
+            if lower in text_value and keyword not in mentioned:
+                mentioned.append(keyword)
+                if lower in registered:
+                    official.append(keyword)
+                else:
+                    mismatched.append(keyword)
 
-        hits = _compact_list(dict.fromkeys(hits), limit=10)
-        min_hits = _min_count(rule.threshold)
-        matched = len(hits) >= min_hits
-        reason = f"页面提到品牌 {', '.join(hits)}，但域名 {domain} 未体现对应官方域名关键词" if matched else f"品牌冒充特征命中 {len(hits)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"domain": context["domain"], "matched_brands": hits}, len(hits))
+        return {
+            "mentioned": _compact_list(dict.fromkeys(mentioned), limit=12),
+            "official": _compact_list(dict.fromkeys(official), limit=12),
+            "mismatched": _compact_list(dict.fromkeys(mismatched), limit=12),
+        }
+
+    def _context_flags(self, context: dict[str, Any]) -> dict[str, Any]:
+        keywords = context["keyword_groups"]
+        path_hits = context["path_hits"]
+        all_path_hits = {hit for hits in path_hits.values() for hit in hits}
+        all_keyword_hits = {hit for hits in keywords.values() for hit in hits}
+        text = context["all_text"].lower()
+        return {
+            "has_sensitive_input": bool(context["has_password_input"] or keywords["sensitive"]),
+            "has_login_context": bool({"login", "signin", "auth", "account", "登录", "账号"} & all_path_hits)
+            or any(word in text for word in ["login", "sign in", "登录", "账号"]),
+            "has_verification_context": bool({"verify", "verification", "security", "reset", "recover", "unlock", "验证", "解锁", "恢复"} & all_path_hits)
+            or any(word in text for word in ["verification", "verify", "验证码", "验证"]),
+            "has_payment_context": bool({"payment", "pay", "wallet", "bank", "card", "transfer", "withdraw", "kyc", "支付", "银行卡", "转账", "钱包"} & all_path_hits)
+            or any(word in all_keyword_hits for word in ["银行卡", "钱包", "bank card", "wallet"]),
+            "has_wallet_secret": bool({"wallet", "private key", "seed phrase", "助记词", "私钥", "mnemonic"} & all_keyword_hits),
+            "has_urgency": bool(keywords["urgency"]),
+            "has_reward": bool(keywords["reward"]),
+            "has_action_prompt": bool(keywords["action"]),
+            "has_persuasion_combo": sum(bool(keywords[group]) for group in ("sensitive", "urgency", "reward", "action")) >= 2,
+        }
+
+    def check_url_length(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        features = context["url_features"]
+        length = features["length"]
+        param_count = features["param_count"]
+        redirect_count = len(features["redirect_params"])
+        nested_count = len(features["nested_urls"])
+        obfuscated_count = len(features["obfuscated_values"])
+
+        raw_score = 0.0
+        length_level = "normal"
+        if length > 400:
+            raw_score += 0.65
+            length_level = "strong"
+        elif length > 200:
+            raw_score += 0.45
+            length_level = "medium"
+        elif length >= float(rule.threshold or 120):
+            raw_score += 0.25
+            length_level = "mild"
+        if param_count >= 8:
+            raw_score += 0.2
+        elif param_count >= 4:
+            raw_score += 0.1
+        if redirect_count:
+            raw_score += 0.2
+        if nested_count:
+            raw_score += 0.25
+        if obfuscated_count:
+            raw_score += 0.2
+
+        raw_score = min(1.0, raw_score)
+        matched = raw_score > 0
+        reason = (
+            "URL shows complexity signals: length level=%s, params=%d, redirect params=%d, nested URLs=%d, obfuscated tokens=%d. "
+            "Unusual URL complexity may indicate tracking, redirection, or obfuscation, but this signal alone does not prove malicious behavior."
+            % (length_level, param_count, redirect_count, nested_count, obfuscated_count)
+            if matched
+            else "URL complexity is within the low-risk range."
+        )
+        evidence = {
+            "length": length,
+            "length_level": length_level,
+            "param_count": param_count,
+            "redirect_params": features["redirect_params"],
+            "nested_urls": features["nested_urls"],
+            "obfuscated_param_names": features["obfuscated_values"],
+        }
+        return self._result(
+            rule,
+            matched,
+            reason,
+            evidence,
+            length,
+            raw_score=raw_score,
+            evidence=evidence,
+            caution=True,
+            false_positive_note="Long or complex URLs are common in analytics, SSO, and campaign links; combine with other signals before treating as high risk.",
+        )
+
+    def check_ip_direct(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        host = context["url_features"]["host"]
+        matched = _is_ipv4_host(host)
+        reason = (
+            f"URL uses direct IPv4 host {host}. Direct IP access is sensitive because it bypasses normal domain identity, "
+            "but it is not malicious by itself; risk increases with password, payment, verification, or non-HTTPS signals."
+            if matched
+            else "URL host is not a direct IPv4 address."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"host": host},
+            1.0 if matched else 0.0,
+            raw_score=0.65 if matched else 0.0,
+            evidence={"host": host},
+            caution=True,
+            false_positive_note="Internal tools and routers may use direct IP hosts; combine with sensitive-input signals before escalation.",
+        )
+
+    def check_suspicious_subdomain(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        domain = context["domain"]
+        suspicious = ["login", "secure", "account", "verify", "signin", "auth", "support", "update", "security"]
+        parts = [part.lower() for part in domain.split(".")]
+        hits = [part for part in parts[:-2] if part in suspicious]
+        matched = bool(hits)
+        raw_score = min(0.6, 0.2 + len(hits) * 0.15) if matched else 0.0
+        reason = (
+            f"Subdomain contains sensitive wording {', '.join(hits)}. This is a weak identity signal and needs page-context support."
+            if matched
+            else "Subdomain does not contain sensitive security or login wording."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"domain": domain, "matched_subdomains": hits},
+            len(hits),
+            raw_score=raw_score,
+            evidence={"matched_subdomains": hits},
+            caution=True,
+            false_positive_note="Legitimate services often use login or account subdomains.",
+        )
+
+    def check_risky_path(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        hits = context["path_hits"]
+        matched = any(hits.values())
+        raw_score = 0.0
+        if hits["low"]:
+            raw_score += 0.2
+        if hits["medium"]:
+            raw_score += 0.45
+        if hits["high"]:
+            raw_score += 0.65
+        raw_score = min(1.0, raw_score)
+        reason = (
+            f"URL path/query includes sensitive wording: low={hits['low']}, medium={hits['medium']}, high={hits['high']}. "
+            "Login/account words are low-risk alone; financial or wallet words carry more weight and should be combined with page behavior."
+            if matched
+            else "URL path/query does not include sensitive login, verification, payment, bank, or wallet wording."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"path_hits": hits},
+            sum(len(values) for values in hits.values()),
+            raw_score=raw_score,
+            evidence={"path_hits": hits},
+            caution=True,
+            false_positive_note="Normal applications commonly use login, account, payment, or reset paths.",
+        )
+
+    def check_password_field(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        has_password_input = bool(context["has_password_input"])
+        reason = (
+            "Page contains a password input, so it can collect user credentials. This feature itself is not malicious because normal login pages also contain password fields; risk rises when combined with unknown cross-domain submission, brand mismatch, direct IP access, non-HTTPS, or coercive wording."
+            if has_password_input
+            else "Page does not expose a password input signal."
+        )
+        return self._result(
+            rule,
+            has_password_input,
+            reason,
+            {"has_password_input": has_password_input},
+            1.0 if has_password_input else 0.0,
+            raw_score=0.35 if has_password_input else 0.0,
+            evidence={"has_password_input": has_password_input},
+            caution=True,
+            false_positive_note="Password fields are expected on legitimate login pages and must not be treated as malicious by themselves.",
+        )
+
+    def check_cross_domain_form(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        classification = context["form_classification"]
+        unknown = classification["unknown_cross_domain"]
+        trusted = classification["trusted_third_party"]
+        matched = bool(unknown)
+        raw_score = min(1.0, 0.45 + 0.15 * (len(unknown) - 1)) if matched else 0.0
+        if trusted and not unknown:
+            raw_score = 0.0
+        reason = (
+            f"Form submits to unknown third-party domain(s): {', '.join(unknown)}. Same-site and trusted auth/payment providers are not scored; unknown destinations become higher risk when credentials, payment, or brand signals are present."
+            if matched
+            else f"Form actions are same-site or trusted: same_site={classification['same_site']}, trusted={trusted}."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            classification,
+            len(unknown),
+            raw_score=raw_score,
+            evidence=classification,
+            caution=True,
+            false_positive_note="Federated login and payment providers can legitimately use third-party domains.",
+        )
+
+    def check_risky_keywords(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        grouped = context["keyword_groups"]
+        matched_groups = [group for group, hits in grouped.items() if hits]
+        matched = bool(matched_groups)
+        group_count = len(matched_groups)
+        raw_score = 0.0
+        if matched:
+            raw_score = 0.2 if group_count == 1 else 0.45 if group_count == 2 else 0.75
+        if context["flags"]["has_wallet_secret"]:
+            raw_score = max(raw_score, 0.85)
+        reason = (
+            f"Page wording matched grouped persuasion signals: {grouped}. Single sensitive words are low-risk; cross-group combinations such as account abnormal + verify now or bank card + code + submit are stronger risk signals."
+            if matched
+            else "Page text does not match configured sensitive, urgency, reward, or action wording groups."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"keyword_groups": grouped, "text_length": len(context["all_text"])},
+            sum(len(values) for values in grouped.values()),
+            raw_score=raw_score,
+            evidence={"keyword_groups": grouped, "matched_groups": matched_groups},
+            caution=group_count <= 1,
+            false_positive_note="Individual words such as account, password, or verification code appear on legitimate pages; grouped persuasion context matters.",
+        )
+
+    def check_brand_impersonation(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        brand_context = context["brand_context"]
+        mismatched = brand_context["mismatched"]
+        flags = context["flags"]
+        sensitive_context = (
+            context["has_password_input"]
+            or flags["has_login_context"]
+            or flags["has_verification_context"]
+            or flags["has_payment_context"]
+            or bool(context["form_action_domains"])
+            or flags["has_persuasion_combo"]
+        )
+        matched = bool(mismatched and sensitive_context)
+        raw_score = 0.0
+        if mismatched:
+            raw_score = 0.25
+        if matched:
+            raw_score = 0.65
+            if context["has_password_input"] or context["form_classification"]["unknown_cross_domain"]:
+                raw_score = 0.85
+        reason = (
+            f"Page mentions brand(s) {mismatched} while the domain is {context['domain']} and the page has login/payment/verification context. Brand wording alone is not enough; this score is raised because identity mismatch appears with sensitive behavior."
+            if matched
+            else f"Brand mentions were found but did not combine with enough sensitive page behavior, or the domain matched official markers: {brand_context}."
+        )
+        return self._result(
+            rule,
+            bool(mismatched),
+            reason,
+            {"domain": context["domain"], "brand_context": brand_context},
+            len(mismatched),
+            raw_score=raw_score,
+            evidence={"brand_context": brand_context, "sensitive_context": sensitive_context},
+            caution=not matched,
+            false_positive_note="Brand names can appear in news, help pages, or integrations; risk rises when brand identity is paired with credential, payment, or verification collection on a non-official domain.",
+        )
 
     def check_title_domain_mismatch(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
         title = context["title"]
         domain = context["domain"]
         threshold = float(rule.threshold or 0.3)
         if not title or not domain:
-            return self._result(rule, False, "标题或域名为空，无法判断匹配度", {"title": title, "domain": domain}, 1.0)
+            return self._result(
+                rule,
+                False,
+                "Title or domain is empty, so title-domain similarity was not evaluated.",
+                {"title": title, "domain": domain},
+                1.0,
+                raw_score=0.0,
+                evidence={"title": title, "domain": domain},
+                caution=True,
+                false_positive_note="Missing title metadata is common and should not imply risk.",
+            )
 
         title_words = set(re.findall(r"[a-zA-Z0-9\u4e00-\u9fff]+", title.lower()))
         domain_words = set(re.findall(r"[a-zA-Z0-9]+", domain.lower()))
@@ -374,24 +869,181 @@ class RuleEngine:
         title_words = title_words - stop_words
         domain_words = domain_words - stop_words
         if not title_words:
-            return self._result(rule, False, "标题中没有可用于匹配的关键词", {"title": title, "domain": domain}, 1.0)
+            return self._result(
+                rule,
+                False,
+                "Title has no meaningful words for domain comparison.",
+                {"title": title, "domain": domain},
+                1.0,
+                raw_score=0.0,
+                evidence={"title": title, "domain": domain},
+                caution=True,
+                false_positive_note="Generic titles are common and should not imply malicious behavior.",
+            )
 
         matched_words = sorted(title_words & domain_words)
         match_ratio = len(matched_words) / max(len(title_words), 1)
         matched = match_ratio < threshold
-        reason = f"标题与域名关键词匹配度 {match_ratio:.2f}，低于阈值 {threshold:g}" if matched else f"标题与域名关键词匹配度 {match_ratio:.2f}，达到阈值 {threshold:g}"
-        return self._result(rule, matched, reason, {"title": title, "domain": domain, "matched_words": matched_words}, match_ratio)
+        raw_score = min(0.45, (threshold - match_ratio) / max(threshold, 0.01) * 0.45) if matched else 0.0
+        reason = (
+            f"Title-domain keyword similarity is {match_ratio:.2f}, below threshold {threshold:g}. This is a weak supporting signal only."
+            if matched
+            else f"Title-domain keyword similarity is {match_ratio:.2f}, which is within the expected range."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"title": title, "domain": domain, "matched_words": matched_words},
+            match_ratio,
+            raw_score=raw_score,
+            evidence={"matched_words": matched_words, "match_ratio": match_ratio},
+            caution=True,
+            false_positive_note="Titles often contain marketing or third-party brand words; low similarity should remain a weak signal.",
+        )
 
     def check_suspicious_redirect(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
-        words = ["redirect", "jump", "loading", "重定向", "跳转", "即将前往", "正在跳转", "倒计时"]
+        context = self._ensure_context(context)
         text_value = context["all_text"].lower()
+        words = ["redirect", "jump", "loading", "countdown", "重定向", "跳转", "即将前往", "正在跳转", "倒计时", "加载中"]
         hits = [word for word in words if word.lower() in text_value]
-        min_hits = _min_count(rule.threshold)
-        matched = len(hits) >= min_hits
-        reason = f"页面包含可疑跳转提示 {', '.join(hits)}，达到阈值 {min_hits}" if matched else f"可疑跳转提示命中 {len(hits)}，阈值 {min_hits}"
-        return self._result(rule, matched, reason, {"matched_keywords": hits}, len(hits))
+        redirect_params = context["url_features"]["redirect_params"]
+        nested_urls = context["url_features"]["nested_urls"]
+        raw_score = 0.0
+        if hits:
+            raw_score += 0.25
+        if redirect_params:
+            raw_score += 0.35
+        if nested_urls:
+            raw_score += 0.2
+        matched = raw_score > 0
+        reason = (
+            f"Redirect signal detected: text={hits}, redirect_params={redirect_params}, nested_urls={nested_urls}. Ordinary loading or redirect text is low-risk; risk increases with external targets and sensitive context."
+            if matched
+            else "No redirect, countdown, loading, or redirect-parameter signal was detected."
+        )
+        return self._result(
+            rule,
+            matched,
+            reason,
+            {"matched_keywords": hits, "redirect_params": redirect_params, "nested_urls": nested_urls},
+            len(hits) + len(redirect_params) + len(nested_urls),
+            raw_score=min(1.0, raw_score),
+            evidence={"matched_keywords": hits, "redirect_params": redirect_params, "nested_urls": nested_urls},
+            caution=True,
+            false_positive_note="Redirect and loading pages are common in legitimate SSO, payment, and navigation flows.",
+        )
+
+    def check_credential_exfiltration_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        evidence = {
+            "has_password_input": context["has_password_input"],
+            "unknown_cross_domain_forms": context["form_classification"]["unknown_cross_domain"],
+            "scheme": context["url_features"]["scheme"],
+            "direct_ip": _is_ipv4_host(context["url_features"]["host"]),
+        }
+        triggers = []
+        if context["has_password_input"] and evidence["unknown_cross_domain_forms"]:
+            triggers.append("password_input_with_unknown_cross_domain_form")
+        if context["has_password_input"] and evidence["scheme"] != "https":
+            triggers.append("password_input_over_non_https")
+        if context["has_password_input"] and evidence["direct_ip"]:
+            triggers.append("password_input_on_direct_ip")
+        matched = bool(triggers)
+        raw_score = min(1.0, 0.6 + 0.2 * (len(triggers) - 1)) if matched else 0.0
+        reason = (
+            f"Credential collection risk combination detected: {triggers}. Password collection combined with unknown form destinations, direct IP hosts, or non-HTTPS transport significantly raises account-theft risk."
+            if matched
+            else "Credential exfiltration combination was not detected."
+        )
+        evidence["triggers"] = triggers
+        return self._result(rule, matched, reason, evidence, len(triggers), raw_score=raw_score, evidence=evidence)
+
+    def check_brand_login_mismatch_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        brand_context = context["brand_context"]
+        flags = context["flags"]
+        sensitive_context = context["has_password_input"] or flags["has_login_context"] or flags["has_verification_context"] or flags["has_payment_context"]
+        matched = bool(brand_context["mismatched"] and sensitive_context)
+        evidence = {"brand_context": brand_context, "sensitive_context": sensitive_context}
+        reason = (
+            f"Brand login mismatch detected: brand(s) {brand_context['mismatched']} appear with login, verification, payment, or password context on non-official domain {context['domain']}."
+            if matched
+            else "Brand login mismatch combination was not detected."
+        )
+        raw_score = 0.85 if context["has_password_input"] and matched else 0.7 if matched else 0.0
+        return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=raw_score, evidence=evidence)
+
+    def check_ip_sensitive_input_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        direct_ip = _is_ipv4_host(context["url_features"]["host"])
+        flags = context["flags"]
+        sensitive = context["has_password_input"] or flags["has_verification_context"] or flags["has_payment_context"] or flags["has_wallet_secret"]
+        matched = bool(direct_ip and sensitive)
+        evidence = {"direct_ip": direct_ip, "host": context["url_features"]["host"], "sensitive": sensitive, "flags": flags}
+        reason = (
+            "Direct IP host appears with password, verification, payment, bank, or wallet signals. This combination is significantly riskier than direct IP access alone."
+            if matched
+            else "Direct IP with sensitive input combination was not detected."
+        )
+        return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=0.8 if matched else 0.0, evidence=evidence)
+
+    def check_payment_urgency_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        grouped = context["keyword_groups"]
+        payment_terms = [word for word in grouped["sensitive"] if word in {"银行卡", "bank card", "verification code"}]
+        has_payment = context["flags"]["has_payment_context"] or bool(payment_terms)
+        has_pressure = context["flags"]["has_urgency"] or context["flags"]["has_action_prompt"]
+        matched = bool(has_payment and has_pressure)
+        evidence = {"keyword_groups": grouped, "path_hits": context["path_hits"], "payment_terms": payment_terms}
+        reason = (
+            "Payment or verification-code wording appears with urgency or submit/action pressure. This pattern is common in payment fraud and account verification scams."
+            if matched
+            else "Payment urgency combination was not detected."
+        )
+        return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=0.75 if matched else 0.0, evidence=evidence)
+
+    def check_wallet_secret_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        grouped = context["keyword_groups"]
+        wallet_words = [word for word in grouped["sensitive"] if word in {"钱包", "wallet"}]
+        secret_words = [word for word in grouped["sensitive"] if word in {"私钥", "助记词", "private key", "seed phrase", "mnemonic"}]
+        matched = bool(wallet_words and secret_words)
+        evidence = {"wallet_words": wallet_words, "secret_words": secret_words}
+        reason = (
+            f"Wallet secret request detected: wallet words={wallet_words}, secret words={secret_words}. Asking for seed phrases, private keys, or mnemonic phrases is a critical wallet-theft signal."
+            if matched
+            else "Wallet secret phrase combination was not detected."
+        )
+        return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=1.0 if matched else 0.0, evidence=evidence)
+
+    def check_suspicious_redirect_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
+        has_external_redirect = bool(context["url_features"]["redirect_params"] or context["url_features"]["nested_urls"])
+        flags = context["flags"]
+        sensitive_context = (
+            context["has_password_input"]
+            or flags["has_persuasion_combo"]
+            or flags["has_payment_context"]
+            or flags["has_login_context"]
+            or flags["has_verification_context"]
+        )
+        matched = bool(has_external_redirect and sensitive_context)
+        evidence = {
+            "redirect_params": context["url_features"]["redirect_params"],
+            "nested_urls": context["url_features"]["nested_urls"],
+            "flags": flags,
+            "has_password_input": context["has_password_input"],
+        }
+        reason = (
+            "External redirect parameter appears with sensitive input, persuasion, payment, login, or verification context. This combination is more concerning than a normal redirect page."
+            if matched
+            else "Suspicious redirect combination was not detected."
+        )
+        return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=0.7 if matched else 0.0, evidence=evidence)
 
     def check_custom_rule(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
+        context = self._ensure_context(context)
         dsl_condition = self._extract_dsl_condition(rule.content)
         if dsl_condition is not None:
             dsl_result = RuleDslEvaluator(context).evaluate(dsl_condition)
@@ -449,7 +1101,28 @@ class RuleEngine:
     def _looks_like_dsl_condition(self, value: Any) -> bool:
         return isinstance(value, dict) and any(key in value for key in ("field", "all", "any", "not"))
 
-    def _build_context(self, features: Dict[str, Any]) -> dict[str, Any]:
+    def _ensure_context(self, context: dict[str, Any]) -> dict[str, Any]:
+        if "url_features" in context:
+            return context
+        raw_features = {
+            "url": context.get("url") or "",
+            "domain": context.get("domain") or "",
+            "title": context.get("title") or "",
+            "visible_text": context.get("visible_text") or context.get("all_text") or "",
+            "button_texts": context.get("button_texts") or [],
+            "input_labels": context.get("input_labels") or [],
+            "form_action_domains": context.get("form_action_domains") or [],
+            "has_password_input": bool(context.get("has_password_input", False)),
+        }
+        return self._build_context(
+            {
+                "domain": raw_features["domain"],
+                "has_password_input": raw_features["has_password_input"],
+                "raw_features": raw_features,
+            }
+        )
+
+    def _build_context(self, features: dict[str, Any]) -> dict[str, Any]:
         raw_features = features.get("raw_features", {}) or {}
         context = {
             "url": raw_features.get("url") or "",
@@ -469,6 +1142,12 @@ class RuleEngine:
                 " ".join(context["input_labels"]),
             ]
         )
+        context["url_features"] = self._url_features(context)
+        context["keyword_groups"] = self._keyword_groups(context)
+        context["path_hits"] = self._path_hits(context)
+        context["form_classification"] = self._form_classification(context)
+        context["brand_context"] = self._brand_context(context)
+        context["flags"] = self._context_flags(context)
         return context
 
     def _checkers(self) -> dict[str, Callable[[RuleConfig, dict[str, Any]], dict[str, Any]]]:
@@ -483,27 +1162,28 @@ class RuleEngine:
             "brand_impersonation": self.check_brand_impersonation,
             "title_domain_mismatch": self.check_title_domain_mismatch,
             "suspicious_redirect": self.check_suspicious_redirect,
+            "credential_exfiltration_combo": self.check_credential_exfiltration_combo,
+            "brand_login_mismatch_combo": self.check_brand_login_mismatch_combo,
+            "ip_sensitive_input_combo": self.check_ip_sensitive_input_combo,
+            "payment_urgency_combo": self.check_payment_urgency_combo,
+            "wallet_secret_combo": self.check_wallet_secret_combo,
+            "suspicious_redirect_combo": self.check_suspicious_redirect_combo,
         }
 
-    def evaluate_rule(self, rule: RuleConfig, features: Dict[str, Any]) -> dict[str, Any]:
+    def evaluate_rule(self, rule: RuleConfig, features: dict[str, Any]) -> dict[str, Any]:
         context = self._build_context(features)
         checker = self._checkers().get(rule.rule_key) or self.check_custom_rule
         return checker(rule, context)
 
-    def execute_rules(self, features: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_rules(self, features: dict[str, Any]) -> dict[str, Any]:
         context = self._build_context(features)
         checkers = self._checkers()
         rule_details: list[dict[str, Any]] = []
         for rule in self.rules:
             checker = checkers.get(rule.rule_key) or self.check_custom_rule
-            if checker is None:
-                rule_details.append(
-                    self._result(rule, False, "规则配置存在，但后端尚未实现对应执行逻辑", {"rule_key": rule.rule_key}, 0.0)
-                )
-                continue
             rule_details.append(checker(rule, context))
 
-        rule_score_total = sum(item["contribution"] for item in rule_details)
+        rule_score_total = sum(float(item["contribution"] or 0) for item in rule_details)
         enabled_weight_total = sum(float(rule.weight or 0) for rule in self.rules if rule.enabled)
         rule_score_percent = (rule_score_total / enabled_weight_total * 100) if enabled_weight_total > 0 else 0.0
 
@@ -528,6 +1208,16 @@ def build_raw_feature_summary(context: dict[str, Any]) -> dict[str, Any]:
         "input_labels": context.get("input_labels") or [],
         "visible_text_length": len(context.get("visible_text") or ""),
         "text_length": len(context.get("all_text") or ""),
+        "url_complexity": {
+            "length": context.get("url_features", {}).get("length", 0),
+            "param_count": context.get("url_features", {}).get("param_count", 0),
+            "redirect_params": context.get("url_features", {}).get("redirect_params", []),
+            "nested_urls": context.get("url_features", {}).get("nested_urls", []),
+            "obfuscated_values": context.get("url_features", {}).get("obfuscated_values", []),
+        },
+        "form_classification": context.get("form_classification") or {},
+        "keyword_groups": context.get("keyword_groups") or {},
+        "brand_context": context.get("brand_context") or {},
     }
 
 
@@ -548,7 +1238,7 @@ def build_model_breakdown(model_probs: dict[str, float], model_score: float | No
         "dominant_label": dominant_label,
         "model_score": model_score,
         "contribution": model_score * 0.6,
-        "contribution_summary": f"模型倾向为 {dominant_label}，映射风险分 {model_score:.1f}，在最终融合中按 60% 计入。",
+        "contribution_summary": f"Model leans {dominant_label}, maps to model risk score {model_score:.1f}, and contributes 60% in the current detector fusion.",
     }
 
 
@@ -574,7 +1264,7 @@ def build_score_breakdown(
         "final_score": final_score,
         "label": label,
         "fusion_summary": fusion_summary
-        or f"最终风险分 = 规则分 {rule_score:.1f} x 40% + 模型风险分 {model_score:.1f} x 60%。",
+        or f"Final risk score = rule score {rule_score:.1f} x 40% + model risk score {model_score:.1f} x 60%.",
         "rules": rules,
         "model": model,
         "raw_features": raw_feature_summary or {},
@@ -608,18 +1298,14 @@ def build_rule_stats(db: Session, days: int = 7) -> list[dict[str, Any]]:
             "malicious_hits_7d": 0,
             "false_positive_feedback_7d": 0,
             "last_hit_at": None,
-            "false_positive_tendency": "暂无明显误报信号",
+            "false_positive_tendency": "No clear false-positive signal yet.",
         }
         for rule in db_order_rules(db.query(RuleConfig).all())
     }
 
     for record in records:
         rules = record.hit_rules_json or []
-        matched_keys = {
-            item.get("rule_key")
-            for item in rules
-            if item.get("matched") and item.get("rule_key")
-        }
+        matched_keys = {item.get("rule_key") for item in rules if item.get("matched") and item.get("rule_key")}
         for rule_key in matched_keys:
             if rule_key not in stats:
                 stats[rule_key] = {
@@ -632,7 +1318,7 @@ def build_rule_stats(db: Session, days: int = 7) -> list[dict[str, Any]]:
                     "malicious_hits_7d": 0,
                     "false_positive_feedback_7d": 0,
                     "last_hit_at": None,
-                    "false_positive_tendency": "暂无明显误报信号",
+                    "false_positive_tendency": "No clear false-positive signal yet.",
                 }
             item = stats[rule_key]
             item["recent_hits_7d"] += 1
@@ -652,10 +1338,10 @@ def build_rule_stats(db: Session, days: int = 7) -> list[dict[str, Any]]:
         fp_count = item["false_positive_feedback_7d"]
         hit_count = item["recent_hits_7d"]
         if fp_count >= 3 or (hit_count >= 3 and fp_count / max(hit_count, 1) >= 0.4):
-            item["false_positive_tendency"] = "误报倾向偏高，建议复核阈值或权重"
+            item["false_positive_tendency"] = "False-positive tendency is elevated; review threshold, raw score, or weight."
         elif fp_count > 0:
-            item["false_positive_tendency"] = "存在误报反馈，建议观察"
+            item["false_positive_tendency"] = "False-positive feedback exists; monitor before changing behavior."
         elif item["suspicious_hits_7d"] > item["malicious_hits_7d"] and item["suspicious_hits_7d"] >= 3:
-            item["false_positive_tendency"] = "可疑样本命中较多，建议抽样复核"
+            item["false_positive_tendency"] = "Many suspicious hits; sample recent cases before raising severity."
 
     return list(stats.values())
