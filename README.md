@@ -109,6 +109,26 @@ Supported sources:
 - NoCoin Filter List
 - AdGuard DNS filter
 
+## DeepSeek AI Semantic Analysis
+
+WebGuard can optionally use DeepSeek as an AI semantic risk-analysis layer for unknown pages that are not covered by allow/block policy or external threat intelligence. DeepSeek does not replace blacklists, whitelists, external blocklists, or the local behavior-rule engine.
+
+The backend calls DeepSeek only when behavior rules expose meaningful risk signals, such as password inputs, unknown cross-domain forms, brand impersonation, credential-theft combinations, payment urgency, wallet secret phrases, or suspicious redirect combinations. Clearly low-risk pages and deterministic domain-list decisions skip AI analysis.
+
+Configuration:
+
+```powershell
+DEEPSEEK_API_KEY=<set in local secrets or deployment secrets>
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_ENABLED=auto
+DEEPSEEK_TIMEOUT_SECONDS=20
+```
+
+`DEEPSEEK_ENABLED=auto` enables AI only when `DEEPSEEK_API_KEY` is present. If the key is absent, disabled, timed out, or the model returns invalid JSON, scanning still succeeds and falls back to the existing RuleEngine + ModelService fusion.
+
+The backend sends only structured page features to DeepSeek. It does not send full webpage source, cookies, localStorage, complete HTML, or full form contents. URL secrets, emails, phone numbers, card/ID-like values, JWT-like strings, and long random tokens are redacted before the request, and visible text is truncated.
+
 For local demo acceptance, seed these local-only accounts when needed:
 
 ```powershell

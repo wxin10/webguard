@@ -35,6 +35,11 @@ class Settings(BaseSettings):
 
     MODEL_DIR: str = "./models"
     MODEL_NAME: str = "text_classifier"
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    DEEPSEEK_ENABLED: str = "auto"
+    DEEPSEEK_TIMEOUT_SECONDS: int = 20
 
     @property
     def sqlalchemy_database_url(self) -> str:
