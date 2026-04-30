@@ -7,7 +7,8 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.core.database import Base
-from app.services.rule_engine import RuleEngine
+from app.models import RuleConfig
+from app.services.rule_engine import DEFAULT_RULES, DEFAULT_RULE_VERSION, RuleEngine
 
 
 engine = create_engine(
@@ -79,6 +80,10 @@ def build_features(
 
 def get_rule(rule_engine: RuleEngine, rule_key: str):
     return next(rule for rule in rule_engine.rules if rule.rule_key == rule_key)
+
+
+def default_rule(rule_key: str) -> dict:
+    return next(item for item in DEFAULT_RULES if item["rule_key"] == rule_key)
 
 
 def matched_keys(result: dict) -> set[str]:
@@ -153,6 +158,87 @@ def test_check_title_domain_mismatch_is_low_weight_supporting_signal(rule_engine
     result = rule_engine.check_title_domain_mismatch(rule, build_context(title="Example", domain=""))
     assert result["matched"] is False
     assert result["raw_score"] == 0.0
+
+
+def test_default_rules_upgrade_existing_v1_builtin_weights(db):
+    db.add_all(
+        [
+            RuleConfig(
+                rule_key="password_field",
+                rule_name="Old password rule",
+                description="Old description",
+                type="heuristic",
+                scope="global",
+                version="v1",
+                category="page",
+                severity="high",
+                weight=12.0,
+                threshold=1.0,
+                enabled=True,
+            ),
+            RuleConfig(
+                rule_key="brand_impersonation",
+                rule_name="Old brand rule",
+                description="Old description",
+                type="heuristic",
+                scope="global",
+                version="v1",
+                category="content",
+                severity="critical",
+                weight=20.0,
+                threshold=1.0,
+                enabled=True,
+            ),
+        ]
+    )
+    db.commit()
+
+    RuleEngine(db)
+
+    password_rule = db.query(RuleConfig).filter(RuleConfig.rule_key == "password_field").one()
+    brand_rule = db.query(RuleConfig).filter(RuleConfig.rule_key == "brand_impersonation").one()
+    password_default = default_rule("password_field")
+    brand_default = default_rule("brand_impersonation")
+    assert password_rule.weight == password_default["weight"]
+    assert password_rule.severity == password_default["severity"]
+    assert password_rule.description == password_default["description"]
+    assert password_rule.version == DEFAULT_RULE_VERSION
+    assert brand_rule.weight == brand_default["weight"]
+    assert brand_rule.severity == brand_default["severity"]
+    assert brand_rule.description == brand_default["description"]
+    assert brand_rule.version == DEFAULT_RULE_VERSION
+
+
+def test_default_rules_do_not_delete_or_overwrite_custom_rules(db):
+    custom_rule = RuleConfig(
+        rule_key="custom_sensitive_token_rule",
+        rule_name="Custom sensitive token rule",
+        description="Administrator managed custom rule",
+        type="heuristic",
+        scope="global",
+        version="v1",
+        category="custom",
+        severity="critical",
+        weight=33.0,
+        threshold=2.0,
+        enabled=False,
+        pattern="custom-token",
+    )
+    db.add(custom_rule)
+    db.commit()
+
+    RuleEngine(db)
+
+    stored = db.query(RuleConfig).filter(RuleConfig.rule_key == "custom_sensitive_token_rule").one()
+    assert stored.rule_name == "Custom sensitive token rule"
+    assert stored.description == "Administrator managed custom rule"
+    assert stored.category == "custom"
+    assert stored.severity == "critical"
+    assert stored.weight == 33.0
+    assert stored.threshold == 2.0
+    assert stored.enabled is False
+    assert stored.pattern == "custom-token"
+    assert stored.version == "v1"
 
 
 def test_normal_login_page_does_not_become_high_risk(rule_engine: RuleEngine):
@@ -236,6 +322,26 @@ def test_brand_login_mismatch_raises_behavior_risk(rule_engine: RuleEngine):
     assert phishing["rule_score"] > normal["rule_score"] + 10.0
 
 
+def test_chinese_brand_login_mismatch_triggers_combo(rule_engine: RuleEngine):
+    result = rule_engine.execute_rules(
+        build_features(
+            url="https://alipay-security.example-phish.com/login",
+            title="支付宝安全验证",
+            visible_text="支付宝账户异常，请输入密码完成验证。",
+            button_texts=["立即验证"],
+            input_labels=["账号", "密码"],
+            form_action_domains=["alipay-security.example-phish.com"],
+            has_password_input=True,
+        )
+    )
+
+    keys = matched_keys(result)
+    assert "brand_impersonation" in keys
+    assert "brand_login_mismatch_combo" in keys
+    brand_rule = get_hit(result, "brand_impersonation")
+    assert "支付宝" in brand_rule["evidence"]["brand_context"]["mismatched"]
+
+
 def test_cross_domain_credential_submission_triggers_combo(rule_engine: RuleEngine):
     result = rule_engine.execute_rules(
         build_features(
@@ -302,6 +408,36 @@ def test_payment_urgency_triggers_combo(rule_engine: RuleEngine):
     keys = matched_keys(result)
     assert "risky_keywords" in keys
     assert "payment_urgency_combo" in keys
+
+
+def test_chinese_payment_verification_submit_immediately_triggers_combo(rule_engine: RuleEngine):
+    result = rule_engine.execute_rules(
+        build_features(
+            url="https://example.com/notice",
+            title="支付验证",
+            visible_text="支付 验证码 立即 提交",
+        )
+    )
+
+    keys = matched_keys(result)
+    assert "payment_urgency_combo" in keys
+    combo = get_hit(result, "payment_urgency_combo")
+    assert {"支付", "验证码"} & set(combo["evidence"]["payment_terms"])
+
+
+def test_english_payment_verification_submit_immediately_triggers_combo(rule_engine: RuleEngine):
+    result = rule_engine.execute_rules(
+        build_features(
+            url="https://example.com/notice",
+            title="Payment verification",
+            visible_text="payment verification code submit immediately",
+        )
+    )
+
+    keys = matched_keys(result)
+    assert "payment_urgency_combo" in keys
+    combo = get_hit(result, "payment_urgency_combo")
+    assert {"payment", "verification code"} & set(combo["evidence"]["payment_terms"])
 
 
 def test_complex_url_scores_higher_but_not_alone_malicious(rule_engine: RuleEngine):

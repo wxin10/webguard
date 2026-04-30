@@ -177,6 +177,9 @@ DEFAULT_RULES: list[dict[str, Any]] = [
 ]
 
 
+DEFAULT_RULE_VERSION = "v2-behavior-risk-scoring"
+
+
 DEFAULT_BRAND_DOMAIN_MAP: dict[str, list[str]] = {
     "google": ["google.com", "gmail.com", "youtube.com"],
     "github": ["github.com"],
@@ -191,6 +194,13 @@ DEFAULT_BRAND_DOMAIN_MAP: dict[str, list[str]] = {
     "tencent": ["tencent.com", "qq.com", "wechat.com"],
     "taobao": ["taobao.com", "tmall.com"],
     "jd": ["jd.com"],
+    "支付宝": ["alipay.com"],
+    "微信": ["wechat.com", "weixin.qq.com"],
+    "百度": ["baidu.com"],
+    "腾讯": ["tencent.com", "qq.com", "wechat.com"],
+    "淘宝": ["taobao.com", "tmall.com"],
+    "京东": ["jd.com"],
+    "阿里巴巴": ["alibaba.com", "taobao.com", "tmall.com", "alipay.com"],
 }
 
 
@@ -306,6 +316,21 @@ KEYWORD_GROUPS = {
 }
 
 
+PAYMENT_CONTEXT_TERMS = {
+    "支付",
+    "付款",
+    "转账",
+    "银行卡",
+    "验证码",
+    "payment",
+    "pay",
+    "card",
+    "bank",
+    "transfer",
+    "verification code",
+}
+
+
 STATIC_RISK_KEYWORDS = sorted({word for values in KEYWORD_GROUPS.values() for word in values}, key=str.lower)
 
 
@@ -359,6 +384,19 @@ def _looks_like_obfuscated_token(value: str) -> bool:
     return base64ish and sum([has_upper, has_lower, has_digit]) >= 2
 
 
+def _contains_term(text: str, term: str) -> bool:
+    normalized_text = text.lower()
+    normalized_term = term.lower()
+    if re.fullmatch(r"[a-z0-9 ]+", normalized_term):
+        pattern = r"(?<![a-z0-9])" + re.escape(normalized_term) + r"(?![a-z0-9])"
+        return bool(re.search(pattern, normalized_text))
+    return normalized_term in normalized_text
+
+
+def _matched_terms(text: str, terms: Iterable[str]) -> list[str]:
+    return _compact_list(dict.fromkeys(term for term in terms if _contains_term(text, term)), limit=12)
+
+
 def ensure_rule_config_schema(db: Session) -> None:
     """Keep older local databases usable after RuleConfig gains new columns."""
     try:
@@ -394,15 +432,31 @@ def ensure_default_rules(db: Session) -> None:
     for rule_key, rule_data in defaults_by_key.items():
         rule = existing.get(rule_key)
         if rule is None:
-            db.add(RuleConfig(**rule_data))
+            db.add(
+                RuleConfig(
+                    **rule_data,
+                    type="heuristic",
+                    scope="global",
+                    version=DEFAULT_RULE_VERSION,
+                )
+            )
             changed = True
             continue
-        for field in ("category", "severity", "description"):
-            if not getattr(rule, field, None):
+
+        can_upgrade_default = (
+            getattr(rule, "type", None) in (None, "", "heuristic")
+            and getattr(rule, "scope", None) in (None, "", "global")
+            and getattr(rule, "version", None) in (None, "", "v1", DEFAULT_RULE_VERSION)
+        )
+        if not can_upgrade_default:
+            continue
+
+        for field in ("rule_name", "description", "category", "severity", "weight", "threshold"):
+            if getattr(rule, field, None) != rule_data[field]:
                 setattr(rule, field, rule_data[field])
                 changed = True
-        if not getattr(rule, "rule_name", None):
-            rule.rule_name = rule_data["rule_name"]
+        if getattr(rule, "version", None) != DEFAULT_RULE_VERSION:
+            rule.version = DEFAULT_RULE_VERSION
             changed = True
     if changed:
         db.commit()
@@ -452,6 +506,12 @@ class RuleEngine:
         contribution = float(rule.weight or 0) * normalized_raw_score if matched and enabled else 0.0
         if not enabled:
             reason = f"{reason}; rule is disabled and does not contribute to this score"
+        if evidence is not None:
+            normalized_evidence = evidence
+        elif isinstance(raw_feature, dict):
+            normalized_evidence = raw_feature
+        else:
+            normalized_evidence = {"value": raw_feature}
         return {
             "id": rule.id,
             "rule_key": rule.rule_key,
@@ -472,7 +532,7 @@ class RuleEngine:
             "detail": reason,
             "raw_feature": raw_feature,
             "observed_value": observed_value,
-            "evidence": evidence or raw_feature if isinstance(raw_feature, dict) else {"value": raw_feature},
+            "evidence": normalized_evidence,
             "caution": caution,
             "false_positive_note": false_positive_note,
         }
@@ -581,14 +641,17 @@ class RuleEngine:
         all_path_hits = {hit for hits in path_hits.values() for hit in hits}
         all_keyword_hits = {hit for hits in keywords.values() for hit in hits}
         text = context["all_text"].lower()
+        payment_terms = set(_matched_terms(" ".join([text, context["url"]]), PAYMENT_CONTEXT_TERMS))
         return {
             "has_sensitive_input": bool(context["has_password_input"] or keywords["sensitive"]),
             "has_login_context": bool({"login", "signin", "auth", "account", "登录", "账号"} & all_path_hits)
             or any(word in text for word in ["login", "sign in", "登录", "账号"]),
             "has_verification_context": bool({"verify", "verification", "security", "reset", "recover", "unlock", "验证", "解锁", "恢复"} & all_path_hits)
             or any(word in text for word in ["verification", "verify", "验证码", "验证"]),
-            "has_payment_context": bool({"payment", "pay", "wallet", "bank", "card", "transfer", "withdraw", "kyc", "支付", "银行卡", "转账", "钱包"} & all_path_hits)
-            or any(word in all_keyword_hits for word in ["银行卡", "钱包", "bank card", "wallet"]),
+            "has_payment_context": bool({"payment", "pay", "wallet", "bank", "card", "transfer", "withdraw", "kyc", "支付", "付款", "银行卡", "转账", "钱包"} & all_path_hits)
+            or any(word in all_keyword_hits for word in ["银行卡", "验证码", "钱包", "bank card", "verification code", "wallet"])
+            or bool(payment_terms),
+            "payment_terms": sorted(payment_terms),
             "has_wallet_secret": bool({"wallet", "private key", "seed phrase", "助记词", "私钥", "mnemonic"} & all_keyword_hits),
             "has_urgency": bool(keywords["urgency"]),
             "has_reward": bool(keywords["reward"]),
@@ -991,7 +1054,8 @@ class RuleEngine:
     def check_payment_urgency_combo(self, rule: RuleConfig, context: dict[str, Any]) -> dict[str, Any]:
         context = self._ensure_context(context)
         grouped = context["keyword_groups"]
-        payment_terms = [word for word in grouped["sensitive"] if word in {"银行卡", "bank card", "verification code"}]
+        searchable_text = " ".join([context["all_text"], context["url"]])
+        payment_terms = _matched_terms(searchable_text, PAYMENT_CONTEXT_TERMS)
         has_payment = context["flags"]["has_payment_context"] or bool(payment_terms)
         has_pressure = context["flags"]["has_urgency"] or context["flags"]["has_action_prompt"]
         matched = bool(has_payment and has_pressure)
