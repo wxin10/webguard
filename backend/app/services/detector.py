@@ -235,9 +235,10 @@ class Detector:
                     "severity": rule.get("severity"),
                     "category": rule.get("category"),
                     "score": float(rule.get("contribution", rule.get("weighted_score", 0.0)) or 0.0),
-                    "evidence": rule.get("raw_feature") or {},
+                    "evidence": rule.get("evidence") or rule.get("raw_feature") or {},
                     "reason": rule.get("reason") or rule.get("detail"),
-                    "caution": False,
+                    "caution": bool(rule.get("caution", False)),
+                    "false_positive_note": rule.get("false_positive_note"),
                 }
             )
         return signals

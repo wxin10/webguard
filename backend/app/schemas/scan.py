@@ -62,6 +62,9 @@ class HitRule(BaseModel):
     category: Optional[str] = None
     severity: Optional[str] = None
     raw_feature: Optional[Dict[str, Any]] = None
+    evidence: Optional[Dict[str, Any]] = None
+    caution: Optional[bool] = None
+    false_positive_note: Optional[str] = None
 
 
 class ScanResult(BaseModel):
