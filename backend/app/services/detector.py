@@ -40,14 +40,31 @@ class Detector:
                 )
                 if user_strategy:
                     if user_strategy.strategy_type == "blocked":
+                        reason = f"Domain matches your blocked-site policy: {user_strategy.reason or 'user policy'}"
                         return {
                             "label": "malicious",
-                            "reason": f"Domain matches your blocked-site policy: {user_strategy.reason or 'user policy'}",
+                            "reason": reason,
+                            "policy_hit": {
+                                "hit": True,
+                                "scope": "user",
+                                "list_type": "blocked",
+                                "source": user_strategy.source or "user_policy",
+                                "reason": reason,
+                            },
                         }
                     policy_name = "temporary bypass" if user_strategy.strategy_type == "paused" else "trusted site"
+                    list_type = "temporary_trust" if user_strategy.strategy_type == "paused" else "trusted"
+                    reason = f"Domain matches your {policy_name} policy: {user_strategy.reason or 'user policy'}"
                     return {
                         "label": "safe",
-                        "reason": f"Domain matches your {policy_name} policy: {user_strategy.reason or 'user policy'}",
+                        "reason": reason,
+                        "policy_hit": {
+                            "hit": True,
+                            "scope": "user",
+                            "list_type": list_type,
+                            "source": user_strategy.source or "user_policy",
+                            "reason": reason,
+                        },
                     }
 
             blacklist = (
@@ -59,9 +76,17 @@ class Detector:
                 .first()
             )
             if blacklist:
+                reason = f"Domain is in the global blacklist: {blacklist.reason or 'no reason provided'}"
                 return {
                     "label": "malicious",
-                    "reason": f"Domain is in the global blacklist: {blacklist.reason or 'no reason provided'}",
+                    "reason": reason,
+                    "policy_hit": {
+                        "hit": True,
+                        "scope": "global",
+                        "list_type": "blocked",
+                        "source": blacklist.source or "admin",
+                        "reason": reason,
+                    },
                 }
 
             whitelist = (
@@ -73,9 +98,17 @@ class Detector:
                 .first()
             )
             if whitelist:
+                reason = f"Domain is in the global whitelist: {whitelist.reason or 'no reason provided'}"
                 return {
                     "label": "safe",
-                    "reason": f"Domain is in the global whitelist: {whitelist.reason or 'no reason provided'}",
+                    "reason": reason,
+                    "policy_hit": {
+                        "hit": True,
+                        "scope": "global",
+                        "list_type": "trusted",
+                        "source": whitelist.source or "admin",
+                        "reason": reason,
+                    },
                 }
 
             return None
@@ -173,6 +206,76 @@ class Detector:
             return "Detected suspicious signals and recommend warning the user."
         return "No obvious high-risk signal was detected."
 
+    def _empty_policy_hit(self) -> dict[str, Any]:
+        return {
+            "hit": False,
+            "scope": None,
+            "list_type": None,
+            "source": None,
+            "reason": None,
+        }
+
+    def _phase1_ai_analysis(self) -> dict[str, Any]:
+        return {
+            "status": "not_used",
+            "provider": None,
+            "reason": "AI analysis is not integrated in phase 1",
+        }
+
+    def _build_behavior_signals(self, hit_rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        signals: list[dict[str, Any]] = []
+        for rule in hit_rules:
+            if not rule.get("matched"):
+                continue
+            signals.append(
+                {
+                    "rule_key": rule.get("rule_key"),
+                    "rule_name": rule.get("rule_name") or rule.get("name"),
+                    "matched": True,
+                    "severity": rule.get("severity"),
+                    "category": rule.get("category"),
+                    "score": float(rule.get("contribution", rule.get("weighted_score", 0.0)) or 0.0),
+                    "evidence": rule.get("raw_feature") or {},
+                    "reason": rule.get("reason") or rule.get("detail"),
+                    "caution": False,
+                }
+            )
+        return signals
+
+    def _with_phase1_compat_fields(
+        self,
+        result: Dict[str, Any],
+        policy_hit: Optional[dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        enriched = dict(result)
+        hit_rules = list(enriched.get("hit_rules") or [])
+        behavior_score = float(enriched.get("rule_score") or 0.0)
+        behavior_signals = self._build_behavior_signals(hit_rules)
+        ai_analysis = self._phase1_ai_analysis()
+
+        enriched["policy_hit"] = policy_hit or self._empty_policy_hit()
+        enriched["threat_intel_hit"] = False
+        enriched["threat_intel_matches"] = []
+        enriched["behavior_score"] = behavior_score
+        enriched["behavior_signals"] = behavior_signals
+        enriched["ai_score"] = None
+        enriched["ai_analysis"] = ai_analysis
+
+        score_breakdown = dict(enriched.get("score_breakdown") or {})
+        score_breakdown.update(
+            {
+                "policy_hit": enriched["policy_hit"],
+                "threat_intel_hit": False,
+                "threat_intel_matches": [],
+                "behavior_score": behavior_score,
+                "behavior_signals": behavior_signals,
+                "ai_score": None,
+                "ai_analysis": ai_analysis,
+            }
+        )
+        enriched["score_breakdown"] = score_breakdown
+        return enriched
+
     def _attach_result_metadata(
         self,
         *,
@@ -227,7 +330,7 @@ class Detector:
                 raw_feature_summary={},
             )
             reason_summary = [domain_list_result["reason"]]
-            return {
+            result = {
                 "label": label,
                 "risk_score": risk_score,
                 "summary": self._build_summary(
@@ -246,12 +349,16 @@ class Detector:
                 "explanation": domain_list_result["reason"],
                 "recommendation": self._generate_recommendation(label, risk_score),
             }
+            return self._with_phase1_compat_fields(
+                result,
+                policy_hit=domain_list_result.get("policy_hit"),
+            )
 
         if pipeline_result:
             fuse_result = pipeline_result["fuse_result"]
             model_result = pipeline_result["model_result"]
             reason_summary = self._summarize_reasons(pipeline_result["hit_rules"])
-            return {
+            result = {
                 "label": fuse_result["label"],
                 "risk_score": fuse_result["risk_score"],
                 "summary": self._build_summary(
@@ -269,8 +376,9 @@ class Detector:
                 "explanation": pipeline_result["explanation"],
                 "recommendation": pipeline_result["recommendation"],
             }
+            return self._with_phase1_compat_fields(result)
 
-        return {
+        result = {
             "label": "safe",
             "risk_score": 0.0,
             "summary": "No obvious high-risk signal was detected.",
@@ -284,6 +392,7 @@ class Detector:
             "explanation": "Detection has not been executed yet.",
             "recommendation": "No obvious high-risk signal was detected. Continue browsing with normal caution.",
         }
+        return self._with_phase1_compat_fields(result)
 
     def _resolve_user_id(self, username: Optional[str]) -> Optional[int]:
         if not username:
