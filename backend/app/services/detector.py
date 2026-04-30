@@ -11,6 +11,7 @@ from ..models import DomainBlacklist, DomainWhitelist, Report, ScanRecord, User,
 from .feature_extractor import FeatureExtractor
 from .model_service import ModelService
 from .rule_engine import RuleEngine, build_score_breakdown
+from .threat_intel_service import THREAT_INTEL_SOURCE_PREFIX
 
 
 class Detector:
@@ -76,16 +77,35 @@ class Detector:
                 .first()
             )
             if blacklist:
-                reason = f"Domain is in the global blacklist: {blacklist.reason or 'no reason provided'}"
+                is_threat_intel = bool((blacklist.source or "").startswith(THREAT_INTEL_SOURCE_PREFIX))
+                reason = blacklist.reason or "no reason provided"
+                display_reason = (
+                    reason
+                    if is_threat_intel
+                    else f"Domain is in the global blacklist: {reason}"
+                )
+                threat_intel_matches = (
+                    [
+                        {
+                            "domain": blacklist.domain,
+                            "source": blacklist.source,
+                            "risk_type": blacklist.risk_type,
+                            "reason": reason,
+                        }
+                    ]
+                    if is_threat_intel
+                    else []
+                )
                 return {
                     "label": "malicious",
-                    "reason": reason,
+                    "reason": display_reason,
+                    "threat_intel_matches": threat_intel_matches,
                     "policy_hit": {
                         "hit": True,
                         "scope": "global",
                         "list_type": "blocked",
                         "source": blacklist.source or "admin",
-                        "reason": reason,
+                        "reason": display_reason,
                     },
                 }
 
@@ -253,10 +273,12 @@ class Detector:
         behavior_score = float(enriched.get("rule_score") or 0.0)
         behavior_signals = self._build_behavior_signals(hit_rules)
         ai_analysis = self._phase1_ai_analysis()
+        threat_intel_matches = list(enriched.get("threat_intel_matches") or [])
+        threat_intel_hit = bool(threat_intel_matches)
 
         enriched["policy_hit"] = policy_hit or self._empty_policy_hit()
-        enriched["threat_intel_hit"] = False
-        enriched["threat_intel_matches"] = []
+        enriched["threat_intel_hit"] = threat_intel_hit
+        enriched["threat_intel_matches"] = threat_intel_matches
         enriched["behavior_score"] = behavior_score
         enriched["behavior_signals"] = behavior_signals
         enriched["ai_score"] = None
@@ -266,8 +288,8 @@ class Detector:
         score_breakdown.update(
             {
                 "policy_hit": enriched["policy_hit"],
-                "threat_intel_hit": False,
-                "threat_intel_matches": [],
+                "threat_intel_hit": threat_intel_hit,
+                "threat_intel_matches": threat_intel_matches,
                 "behavior_score": behavior_score,
                 "behavior_signals": behavior_signals,
                 "ai_score": None,
@@ -346,6 +368,7 @@ class Detector:
                 "model_suspicious_prob": 0.0,
                 "model_malicious_prob": model_result["malicious_prob"],
                 "hit_rules": [],
+                "threat_intel_matches": domain_list_result.get("threat_intel_matches", []),
                 "score_breakdown": score_breakdown,
                 "explanation": domain_list_result["reason"],
                 "recommendation": self._generate_recommendation(label, risk_score),
