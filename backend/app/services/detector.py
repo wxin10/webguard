@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..core.exceptions import DatabaseError, ModelServiceError, RuleEngineError
 from ..models import DomainBlacklist, DomainWhitelist, Report, ScanRecord, User, UserSiteStrategy
+from .deepseek_analysis_service import DeepSeekAnalysisService
 from .feature_extractor import FeatureExtractor
 from .model_service import ModelService
 from .rule_engine import RuleEngine, build_score_breakdown
@@ -22,6 +23,7 @@ class Detector:
         self.feature_extractor = FeatureExtractor()
         self.rule_engine = RuleEngine(db)
         self.model_service = ModelService(db)
+        self.ai_analysis_service = DeepSeekAnalysisService()
 
     def _check_domain_lists(self, domain: str, username: Optional[str] = None) -> Optional[Dict[str, Any]]:
         try:
@@ -149,32 +151,70 @@ class Detector:
         except Exception as exc:
             raise ModelServiceError(f"Model inference failed: {exc}") from exc
 
-        fuse_result = self._fuse_decision(rule_score, model_result)
+        legacy_fuse_result = self._fuse_decision(rule_score, model_result)
+        behavior_signals = self._build_behavior_signals(rule_details)
+        ai_analysis = self.ai_analysis_service.analyze(
+            features=features,
+            behavior_score=rule_score,
+            behavior_signals=behavior_signals,
+            threat_intel_hit=False,
+        )
+        ai_score = self._extract_ai_score(ai_analysis)
+        ai_fusion_used = ai_score is not None and ai_analysis.get("status") == "used"
+        fuse_result = self._fuse_ai_decision(rule_score, ai_score) if ai_fusion_used else legacy_fuse_result
+        fusion_summary = (
+            f"Final risk score = behavior score {rule_score:.1f} x 45% + DeepSeek AI score {ai_score:.1f} x 55%. "
+            f"Final decision is {fuse_result['label']} with risk score {fuse_result['risk_score']:.1f}."
+            if ai_fusion_used
+            else legacy_fuse_result["fusion_summary"]
+        )
         score_breakdown = build_score_breakdown(
             rules=rule_details,
             rule_score=rule_score,
             rule_score_total=rule_result["rule_score_total"],
             enabled_weight_total=rule_result["enabled_weight_total"],
             model_result=model_result,
-            model_score=fuse_result["model_score"],
+            model_score=legacy_fuse_result["model_score"],
             final_score=fuse_result["risk_score"],
             label=fuse_result["label"],
             raw_feature_summary=rule_result["raw_feature_summary"],
-            fusion_summary=fuse_result["fusion_summary"],
+            fusion_summary=fusion_summary,
+        )
+        score_breakdown.update(
+            {
+                "ai_score": ai_score,
+                "ai_analysis": ai_analysis,
+                "ai_fusion_used": ai_fusion_used,
+                "fallback": None if ai_fusion_used else "legacy_model_fusion",
+            }
         )
 
-        explanation = self._generate_explanation(rule_details, model_result, score_breakdown)
-        recommendation = self._generate_recommendation(fuse_result["label"], fuse_result["risk_score"])
+        explanation = self._generate_explanation(rule_details, model_result, score_breakdown, ai_analysis=ai_analysis)
+        recommendation = (
+            ai_analysis.get("recommendation")
+            if ai_fusion_used and ai_analysis.get("recommendation")
+            else self._generate_recommendation(fuse_result["label"], fuse_result["risk_score"])
+        )
 
         return {
             "fuse_result": fuse_result,
             "rule_score": rule_score,
             "hit_rules": rule_details,
             "model_result": model_result,
+            "ai_score": ai_score,
+            "ai_analysis": ai_analysis,
             "score_breakdown": score_breakdown,
             "explanation": explanation,
             "recommendation": recommendation,
         }
+
+    def _extract_ai_score(self, ai_analysis: dict[str, Any]) -> Optional[float]:
+        if ai_analysis.get("status") != "used":
+            return None
+        risk_score = ai_analysis.get("risk_score")
+        if risk_score is None:
+            return None
+        return max(0.0, min(100.0, float(risk_score)))
 
     def _decision_flags(self, label: str) -> tuple[str, bool, bool]:
         if label == "malicious":
@@ -238,8 +278,17 @@ class Detector:
     def _phase1_ai_analysis(self) -> dict[str, Any]:
         return {
             "status": "not_used",
-            "provider": None,
-            "reason": "AI analysis is not integrated in phase 1",
+            "provider": "deepseek",
+            "model": None,
+            "risk_score": None,
+            "label": None,
+            "risk_types": [],
+            "reasons": [],
+            "recommendation": "",
+            "confidence": 0.0,
+            "error": None,
+            "trigger_reasons": [],
+            "reason": "AI analysis was not used for this deterministic or default result.",
         }
 
     def _build_behavior_signals(self, hit_rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -272,7 +321,8 @@ class Detector:
         hit_rules = list(enriched.get("hit_rules") or [])
         behavior_score = float(enriched.get("rule_score") or 0.0)
         behavior_signals = self._build_behavior_signals(hit_rules)
-        ai_analysis = self._phase1_ai_analysis()
+        ai_analysis = dict(enriched.get("ai_analysis") or self._phase1_ai_analysis())
+        ai_score = self._extract_ai_score(ai_analysis)
         threat_intel_matches = list(enriched.get("threat_intel_matches") or [])
         threat_intel_hit = bool(threat_intel_matches)
 
@@ -281,10 +331,13 @@ class Detector:
         enriched["threat_intel_matches"] = threat_intel_matches
         enriched["behavior_score"] = behavior_score
         enriched["behavior_signals"] = behavior_signals
-        enriched["ai_score"] = None
+        enriched["ai_score"] = ai_score
         enriched["ai_analysis"] = ai_analysis
 
         score_breakdown = dict(enriched.get("score_breakdown") or {})
+        score_breakdown.setdefault("ai_fusion_used", bool(ai_score is not None and ai_analysis.get("status") == "used"))
+        if ai_score is None:
+            score_breakdown.setdefault("fallback", "legacy_model_fusion")
         score_breakdown.update(
             {
                 "policy_hit": enriched["policy_hit"],
@@ -292,7 +345,7 @@ class Detector:
                 "threat_intel_matches": threat_intel_matches,
                 "behavior_score": behavior_score,
                 "behavior_signals": behavior_signals,
-                "ai_score": None,
+                "ai_score": ai_score,
                 "ai_analysis": ai_analysis,
             }
         )
@@ -396,6 +449,8 @@ class Detector:
                 "model_suspicious_prob": model_result["suspicious_prob"],
                 "model_malicious_prob": model_result["malicious_prob"],
                 "hit_rules": pipeline_result["hit_rules"],
+                "ai_score": pipeline_result.get("ai_score"),
+                "ai_analysis": pipeline_result.get("ai_analysis"),
                 "score_breakdown": pipeline_result["score_breakdown"],
                 "explanation": pipeline_result["explanation"],
                 "recommendation": pipeline_result["recommendation"],
@@ -516,11 +571,27 @@ class Detector:
             "fusion_summary": fusion_summary,
         }
 
+    def _fuse_ai_decision(self, behavior_score: float, ai_score: float) -> Dict[str, Any]:
+        risk_score = min(100.0, max(0.0, (behavior_score * 0.45) + (ai_score * 0.55)))
+        if risk_score >= 70:
+            label = "malicious"
+        elif risk_score >= 40:
+            label = "suspicious"
+        else:
+            label = "safe"
+        return {
+            "label": label,
+            "risk_score": risk_score,
+            "ai_score": ai_score,
+        }
+
     def _generate_explanation(
         self,
         rule_details: list[dict[str, Any]],
         model_probs: Dict[str, float],
         breakdown: dict[str, Any],
+        *,
+        ai_analysis: Optional[dict[str, Any]] = None,
     ) -> str:
         matched_rules = [rule for rule in rule_details if rule.get("matched") and rule.get("enabled")]
         lines = [
@@ -545,6 +616,17 @@ class Detector:
             f"malicious={model_probs['malicious_prob']:.2f}"
         )
         lines.append(str(breakdown.get("fusion_summary", "")))
+        if ai_analysis:
+            status = ai_analysis.get("status")
+            lines.append(f"AI analysis status: {status}")
+            if status == "used":
+                lines.append(
+                    f"DeepSeek score: {ai_analysis.get('risk_score')}; confidence={ai_analysis.get('confidence', 0):.2f}"
+                )
+                for reason in (ai_analysis.get("reasons") or [])[:3]:
+                    lines.append(f"- AI: {reason}")
+            elif ai_analysis.get("reason"):
+                lines.append(f"AI fallback: {ai_analysis.get('reason')}")
         return "\n".join(lines)
 
     def _generate_recommendation(self, label: str, risk_score: float) -> str:
