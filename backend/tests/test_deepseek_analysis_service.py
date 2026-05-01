@@ -105,7 +105,7 @@ def test_valid_json_response_is_parsed():
     assert result["confidence"] == 0.91
 
 
-def test_non_json_response_returns_invalid_response():
+def test_non_json_response_returns_error():
     service = DeepSeekAnalysisService(
         api_key="secret",
         enabled="true",
@@ -118,7 +118,7 @@ def test_non_json_response_returns_invalid_response():
         behavior_signals=[password_signal()],
     )
 
-    assert result["status"] == "invalid_response"
+    assert result["status"] == "error"
     assert result["risk_score"] is None
 
 
@@ -160,7 +160,7 @@ def test_input_redaction_and_truncation():
     assert "safe=value" in ai_input["url"]
     assert "[REDACTED_EMAIL]" in ai_input["visible_text_summary"]
     assert "[REDACTED_PHONE]" in ai_input["visible_text_summary"]
-    assert "[REDACTED_ID]" in ai_input["visible_text_summary"]
+    assert "[REDACTED_ID_OR_CARD]" in ai_input["visible_text_summary"]
     assert "[REDACTED_TOKEN]" in ai_input["visible_text_summary"]
     assert len(ai_input["visible_text_summary"]) <= 1800
 
@@ -194,7 +194,7 @@ def test_risk_score_is_clamped_to_zero_to_one_hundred():
     assert result["confidence"] == 1.0
 
 
-def test_invalid_label_returns_invalid_response():
+def test_invalid_label_returns_error():
     service = DeepSeekAnalysisService(
         api_key="secret",
         enabled="true",
@@ -218,5 +218,5 @@ def test_invalid_label_returns_invalid_response():
         behavior_signals=[password_signal()],
     )
 
-    assert result["status"] == "invalid_response"
+    assert result["status"] == "error"
     assert result["risk_score"] is None

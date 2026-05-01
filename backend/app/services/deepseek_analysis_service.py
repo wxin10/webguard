@@ -107,7 +107,7 @@ class DeepSeekAnalysisService:
         except (TimeoutError, socket.timeout) as exc:
             return self._fallback("timeout", "DeepSeek request timed out.", trigger_reasons, error=str(exc))
         except ValueError as exc:
-            return self._fallback("invalid_response", "DeepSeek returned an invalid analysis response.", trigger_reasons, error=str(exc))
+            return self._fallback("error", "DeepSeek returned an invalid analysis response.", trigger_reasons, error=self._safe_error(exc))
         except (HTTPError, URLError, OSError) as exc:
             return self._fallback("error", "DeepSeek request failed.", trigger_reasons, error=self._safe_error(exc))
         except Exception as exc:
@@ -178,6 +178,8 @@ class DeepSeekAnalysisService:
         normalized = str(value or "auto").strip().lower()
         if normalized in {"false", "0", "off", "disabled", "no"}:
             return "disabled"
+        if normalized in {"auto", ""}:
+            return "enabled"
         return "enabled"
 
     def _build_request_payload(self, ai_input: dict[str, Any]) -> dict[str, Any]:
@@ -272,7 +274,7 @@ class DeepSeekAnalysisService:
     def _sanitize_text(self, value: Any, max_length: int) -> str:
         text = re.sub(r"\s+", " ", str(value or "")).strip()
         text = re.sub(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", "[REDACTED_EMAIL]", text)
-        text = re.sub(r"(?<!\d)(?:\d[ -]?){15,19}\d(?!\d)", "[REDACTED_ID]", text)
+        text = re.sub(r"(?<!\d)(?:\d[ -]?){15,19}\d(?!\d)", "[REDACTED_ID_OR_CARD]", text)
         text = re.sub(r"(?<!\d)(?:\+?\d[\d\s-]{9,}\d)(?!\d)", "[REDACTED_PHONE]", text)
         text = re.sub(r"\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\b", "[REDACTED_TOKEN]", text)
         text = re.sub(r"\b[A-Za-z0-9+/=_-]{32,}\b", "[REDACTED_TOKEN]", text)
@@ -322,4 +324,6 @@ class DeepSeekAnalysisService:
         message = str(exc)
         if self.api_key:
             message = message.replace(self.api_key, "[REDACTED]")
+        message = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", message)
+        message = re.sub(r"Bearer\s+[A-Za-z0-9._~+/=-]{8,}", "Bearer [REDACTED]", message, flags=re.IGNORECASE)
         return message[:300]

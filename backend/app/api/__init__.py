@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
+from .ai import router as ai_router
 from .auth import router as auth_router
 from .admin import router as admin_router
 from .blacklist import router as blacklist_router
 from .feedback import router as feedback_router
-from .model import router as model_router
 from .my import router as my_router
 from .plugin import router as plugin_router
 from .records import router as records_router
@@ -18,6 +18,7 @@ from .whitelist import router as whitelist_router
 
 api_router = APIRouter()
 
+api_router.include_router(ai_router)
 api_router.include_router(scan_router)
 api_router.include_router(my_router)
 api_router.include_router(admin_router)
@@ -26,7 +27,6 @@ api_router.include_router(records_router)
 api_router.include_router(whitelist_router)
 api_router.include_router(blacklist_router)
 api_router.include_router(rules_router)
-api_router.include_router(model_router)
 api_router.include_router(stats_router)
 api_router.include_router(plugin_router)
 api_router.include_router(auth_router)

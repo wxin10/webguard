@@ -166,7 +166,7 @@ export default function ReportDetail() {
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
               <ScorePill label="规则分" value={breakdown.rule_score_total} />
-              <ScorePill label="模型分" value={breakdown.model_score_total} />
+              <ScorePill label="AI 分" value={typeof aiScore === 'number' ? aiScore : 0} />
               <ScorePill label="命中规则" value={matchedRules.length} />
               <ScorePill label="助手事件" value={report.plugin_events?.length || 0} />
             </div>
@@ -281,7 +281,7 @@ export default function ReportDetail() {
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="text-lg font-bold text-slate-950">命中规则</h3>
-        <p className="mt-1 text-sm text-slate-500">{breakdown.fusion_summary || '规则与模型共同生成最终风险评分。'}</p>
+        <p className="mt-1 text-sm text-slate-500">{breakdown.fusion_summary || '规则引擎与 DeepSeek 大模型语义研判生成最终风险评分。'}</p>
         <div className="mt-4">
           <DataTable
             data={matchedRules}
@@ -375,25 +375,31 @@ function ruleSeverityText(value: string) {
 }
 
 function buildFallbackBreakdown(report: AnalysisReport): ScoreBreakdown {
-  const probs = report.model_probs || { safe: 0, suspicious: 0, malicious: 0 };
-  const modelScore = (Number(probs.malicious || 0) * 100) + (Number(probs.suspicious || 0) * 50);
-  const dominant = Object.entries(probs).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] as ScoreBreakdown['model']['dominant_label'];
   return {
     rule_score_total: Number(report.rule_score || 0),
-    model_score_total: modelScore,
+    behavior_score: Number(report.rule_score || 0),
+    behavior_signals: [],
+    ai_provider: 'deepseek',
+    ai_score: null,
+    ai_analysis: {
+      status: 'not_available',
+      provider: 'deepseek',
+      risk_score: null,
+      label: null,
+      risk_types: [],
+      reasons: [],
+      recommendation: '',
+      confidence: 0,
+      error: null,
+      trigger_reasons: [],
+      reason: '历史记录缺少 DeepSeek 语义研判详情。',
+    },
+    ai_fusion_used: false,
+    fallback: 'rule_engine_only',
     final_score: Number(report.risk_score || 0),
     label: report.risk_level || report.label,
-    fusion_summary: `最终风险分由规则分 ${Number(report.rule_score || 0).toFixed(1)} 与模型风险分 ${modelScore.toFixed(1)} 综合生成。`,
+    fusion_summary: `历史记录缺少 DeepSeek 评分拆解，当前按规则引擎分 ${Number(report.rule_score || 0).toFixed(1)} 读取兼容展示。`,
     rules: report.matched_rules || report.hit_rules || [],
-    model: {
-      safe_prob: Number(probs.safe || 0),
-      suspicious_prob: Number(probs.suspicious || 0),
-      malicious_prob: Number(probs.malicious || 0),
-      dominant_label: dominant || report.label,
-      model_score: modelScore,
-      contribution: modelScore,
-      contribution_summary: `模型倾向 ${dominant || report.label}`,
-    },
     raw_features: report.raw_features || {},
   };
 }

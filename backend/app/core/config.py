@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings for local development."""
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
     APP_NAME: str = "WebGuard"
     APP_VERSION: str = "1.0.0"
@@ -33,8 +33,6 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_PASSWORD: str = "admin"
     DEFAULT_GUEST_PASSWORD: str = "guest"
 
-    MODEL_DIR: str = "./models"
-    MODEL_NAME: str = "text_classifier"
     DEEPSEEK_API_KEY: str | None = None
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
@@ -78,6 +76,28 @@ class Settings(BaseSettings):
     @property
     def plugin_refresh_token_expires_seconds(self) -> int:
         return max(self.PLUGIN_REFRESH_TOKEN_EXPIRES_DAYS, 1) * 24 * 60 * 60
+
+    @property
+    def deepseek_configured(self) -> bool:
+        return bool((self.DEEPSEEK_API_KEY or "").strip())
+
+    @property
+    def deepseek_enabled(self) -> bool:
+        mode = str(self.DEEPSEEK_ENABLED or "auto").strip().lower()
+        if mode in {"false", "0", "off", "disabled", "no"}:
+            return False
+        if mode in {"true", "1", "on", "enabled", "yes"}:
+            return True
+        return self.deepseek_configured
+
+    @property
+    def deepseek_api_key_masked(self) -> str | None:
+        api_key = (self.DEEPSEEK_API_KEY or "").strip()
+        if not api_key:
+            return None
+        if len(api_key) <= 8:
+            return api_key[:2] + "****"
+        return api_key[:3] + "****" + api_key[-4:]
 
     def _normalize_database_url(self, database_url: str) -> str:
         if database_url.startswith("postgres://"):

@@ -81,24 +81,19 @@ class ScoreRuleDetail(BaseModel):
     raw_feature: Optional[Dict[str, Any]] = None
 
 
-class ScoreModelDetail(BaseModel):
-    safe_prob: float
-    suspicious_prob: float
-    malicious_prob: float
-    dominant_label: str
-    model_score: float
-    contribution: float
-    contribution_summary: str
-
-
 class ScoreBreakdown(BaseModel):
     rule_score_total: float
     rule_score_raw_total: Optional[float] = None
     enabled_rule_weight_total: Optional[float] = None
-    model_score_total: float
+    behavior_score: float
+    behavior_signals: List[Dict[str, Any]] = []
+    ai_provider: str = "deepseek"
+    ai_score: Optional[float] = None
+    ai_analysis: Dict[str, Any] = {}
+    ai_fusion_used: bool = False
+    fallback: Optional[str] = None
     final_score: float
     label: str
     fusion_summary: str
     rules: List[Dict[str, Any]]
-    model: Dict[str, Any]
     raw_features: Dict[str, Any] = {}

@@ -184,6 +184,34 @@ export interface AIAnalysis {
   reason?: string | null;
 }
 
+export interface AIStatus {
+  provider: 'deepseek' | string;
+  enabled: boolean;
+  configured: boolean;
+  base_url: string;
+  model: string;
+  timeout_seconds: number;
+  api_key_masked?: string | null;
+  mode: string;
+  message?: string | null;
+}
+
+export interface AITestRequest {
+  title: string;
+  visible_text: string;
+  url: string;
+  has_password_input: boolean;
+  button_texts?: string[];
+  input_labels?: string[];
+  form_action_domains?: string[];
+}
+
+export interface AITestResponse {
+  status: string;
+  analysis: AIAnalysis;
+  provider: 'deepseek' | string;
+}
+
 export interface RuleStats {
   rule_id?: number;
   rule_key: string;
@@ -202,26 +230,21 @@ export interface RuleStatsList {
   stats: RuleStats[];
 }
 
-export interface ModelBreakdown {
-  safe_prob: number;
-  suspicious_prob: number;
-  malicious_prob: number;
-  dominant_label: RiskLabel;
-  model_score: number;
-  contribution: number;
-  contribution_summary: string;
-}
-
 export interface ScoreBreakdown {
   rule_score_total: number;
   rule_score_raw_total?: number;
   enabled_rule_weight_total?: number;
-  model_score_total: number;
+  behavior_score?: number;
+  behavior_signals?: BehaviorSignal[];
+  ai_provider?: string;
+  ai_score?: number | null;
+  ai_analysis?: AIAnalysis;
+  ai_fusion_used?: boolean;
+  fallback?: string | null;
   final_score: number;
   label: RiskLabel;
   fusion_summary: string;
   rules: HitRule[];
-  model: ModelBreakdown;
   raw_features: {
     url?: string;
     domain?: string;
@@ -234,11 +257,6 @@ export interface ScoreBreakdown {
     text_length?: number;
     [key: string]: unknown;
   };
-  ai_analysis?: AIAnalysis;
-  ai_score?: number | null;
-  ai_fusion_used?: boolean;
-  fallback?: string;
-  behavior_score?: number;
   threat_intel_hit?: boolean;
   threat_intel_matches?: ThreatIntelMatch[];
   policy_hit?: PolicyHit;
@@ -598,13 +616,13 @@ export interface AnalysisReport {
   label_text: string;
   risk_score: number;
   rule_score: number;
-  model_score?: number;
-  model_probs: {
+  model_score?: number | null;
+  model_probs?: {
     safe: number;
     suspicious: number;
     malicious: number;
   };
-  model_breakdown?: ModelBreakdown;
+  model_breakdown?: Record<string, unknown> | null;
   score_breakdown?: ScoreBreakdown;
   hit_rules: HitRule[];
   matched_rules: HitRule[];

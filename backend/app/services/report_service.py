@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..models import PluginSyncEvent, Report, ReportAction, RuleConfig, ScanRecord
 from ..schemas import ScanRecord as ScanRecordSchema
-from .rule_engine import build_model_breakdown, build_score_breakdown, ensure_default_rules
+from .rule_engine import ensure_default_rules
 
 
 class ReportService:
@@ -129,9 +129,9 @@ class ReportService:
                 "items": all_rules,
             },
             {
-                "title": "Model score",
-                "summary": score_breakdown["model"]["contribution_summary"],
-                "items": [score_breakdown["model"]],
+                "title": "DeepSeek semantic analysis",
+                "summary": score_breakdown.get("fusion_summary", ""),
+                "items": [score_breakdown.get("ai_analysis", {})],
             },
             {
                 "title": "Page signals",
@@ -154,20 +154,13 @@ class ReportService:
             "label_text": self._risk_text(record.label),
             "risk_score": record.risk_score,
             "rule_score": record.rule_score,
-            "model_score": score_breakdown["model_score_total"],
+            "model_score": score_breakdown.get("ai_score"),
             "model_probs": {
                 "safe": record.model_safe_prob,
                 "suspicious": record.model_suspicious_prob,
                 "malicious": record.model_malicious_prob,
             },
-            "model_breakdown": build_model_breakdown(
-                {
-                    "safe_prob": record.model_safe_prob,
-                    "suspicious_prob": record.model_suspicious_prob,
-                    "malicious_prob": record.model_malicious_prob,
-                },
-                score_breakdown["model_score_total"],
-            ),
+            "model_breakdown": None,
             "score_breakdown": score_breakdown,
             "hit_rules": all_rules,
             "matched_rules": matched_rules,
@@ -226,29 +219,56 @@ class ReportService:
             for rule in self.db.query(RuleConfig).filter(RuleConfig.rule_key.in_(rule_keys)).all()
         } if rule_keys else {}
         rules = [self._normalize_rule_detail(rule, configs_by_key.get(rule.get("rule_key"))) for rule in raw_rules]
-        model_result = {
-            "safe_prob": record.model_safe_prob,
-            "suspicious_prob": record.model_suspicious_prob,
-            "malicious_prob": record.model_malicious_prob,
-        }
-        model_score = float(record.model_malicious_prob or 0) * 100.0 + float(record.model_suspicious_prob or 0) * 50.0
         raw_rule_total = sum(float(rule.get("contribution") or 0) for rule in rules if rule.get("enabled", True))
         enabled_weight_total = sum(float(rule.get("weight") or 0) for rule in rules if rule.get("enabled", True)) or 0
-        return build_score_breakdown(
-            rules=rules,
-            rule_score=float(record.rule_score or 0),
-            rule_score_total=raw_rule_total,
-            enabled_weight_total=float(enabled_weight_total),
-            model_result=model_result,
-            model_score=model_score,
-            final_score=float(record.risk_score or 0),
-            label=record.label,
-            raw_feature_summary=self._raw_feature_summary(record),
-            fusion_summary=(
-                f"Final risk score {record.risk_score:.1f}: "
-                f"rule score {record.rule_score:.1f}, model score {model_score:.1f}, label {record.label}."
-            ),
-        )
+        behavior_score = float(record.rule_score or 0)
+        behavior_signals = [
+            {
+                "rule_key": rule.get("rule_key"),
+                "rule_name": rule.get("rule_name") or rule.get("name"),
+                "matched": bool(rule.get("matched")),
+                "severity": rule.get("severity"),
+                "category": rule.get("category"),
+                "score": float(rule.get("contribution") or rule.get("weighted_score") or 0),
+                "evidence": rule.get("evidence") or rule.get("raw_feature") or {},
+                "reason": rule.get("reason") or rule.get("detail"),
+                "caution": bool(rule.get("caution", False)),
+                "false_positive_note": rule.get("false_positive_note"),
+            }
+            for rule in rules
+            if rule.get("matched")
+        ]
+        ai_analysis = {
+            "status": "not_available",
+            "provider": "deepseek",
+            "model": None,
+            "risk_score": None,
+            "label": None,
+            "risk_types": [],
+            "reasons": [],
+            "recommendation": "",
+            "confidence": 0.0,
+            "error": None,
+            "trigger_reasons": [],
+            "reason": "This persisted report does not store the original DeepSeek response.",
+        }
+        return {
+            "rule_score_total": behavior_score,
+            "rule_score_raw_total": raw_rule_total,
+            "enabled_rule_weight_total": float(enabled_weight_total),
+            "behavior_score": behavior_score,
+            "behavior_signals": behavior_signals,
+            "ai_provider": "deepseek",
+            "ai_score": None,
+            "ai_analysis": ai_analysis,
+            "ai_fusion_used": False,
+            "fallback": "rule_engine_only",
+            "final_score": float(record.risk_score or 0),
+            "label": record.label,
+            "fusion_summary": "DeepSeek semantic analysis details are not stored for this report view; persisted risk display falls back to rule-engine evidence.",
+            "rules": rules,
+            "raw_features": self._raw_feature_summary(record),
+        }
 
     def _normalize_rule_detail(self, rule: dict[str, Any], current_config: RuleConfig | None = None) -> dict[str, Any]:
         name = rule.get("name") or rule.get("rule_name") or rule.get("rule_key") or "Unnamed rule"

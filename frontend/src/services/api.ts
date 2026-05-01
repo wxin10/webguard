@@ -12,4 +12,4 @@ export { adminStatsService, adminStatsService as statsApi } from './adminStatsSe
 export { adminPluginService } from './adminPluginService';
 export { adminFeedbackService } from './adminFeedbackService';
 export { adminUsersService } from './adminUsersService';
-export { authApi, blacklistApi, modelApi, rulesApi, userStrategyApi, whitelistApi } from './legacyServices';
+export { aiApi, authApi, blacklistApi, rulesApi, userStrategyApi, whitelistApi } from './legacyServices';

@@ -1285,56 +1285,6 @@ def build_raw_feature_summary(context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_model_breakdown(model_probs: dict[str, float], model_score: float | None = None) -> dict[str, Any]:
-    safe_prob = float(model_probs.get("safe_prob", model_probs.get("safe", 0.0)) or 0.0)
-    suspicious_prob = float(model_probs.get("suspicious_prob", model_probs.get("suspicious", 0.0)) or 0.0)
-    malicious_prob = float(model_probs.get("malicious_prob", model_probs.get("malicious", 0.0)) or 0.0)
-    dominant_label = max(
-        {"safe": safe_prob, "suspicious": suspicious_prob, "malicious": malicious_prob}.items(),
-        key=lambda item: item[1],
-    )[0]
-    if model_score is None:
-        model_score = (malicious_prob * 100) + (suspicious_prob * 50)
-    return {
-        "safe_prob": safe_prob,
-        "suspicious_prob": suspicious_prob,
-        "malicious_prob": malicious_prob,
-        "dominant_label": dominant_label,
-        "model_score": model_score,
-        "contribution": model_score * 0.6,
-        "contribution_summary": f"Model leans {dominant_label}, maps to model risk score {model_score:.1f}, and contributes 60% in the current detector fusion.",
-    }
-
-
-def build_score_breakdown(
-    *,
-    rules: list[dict[str, Any]],
-    rule_score: float,
-    rule_score_total: float,
-    enabled_weight_total: float,
-    model_result: dict[str, float],
-    model_score: float,
-    final_score: float,
-    label: str,
-    raw_feature_summary: Optional[dict[str, Any]] = None,
-    fusion_summary: Optional[str] = None,
-) -> dict[str, Any]:
-    model = build_model_breakdown(model_result, model_score)
-    return {
-        "rule_score_total": rule_score,
-        "rule_score_raw_total": rule_score_total,
-        "enabled_rule_weight_total": enabled_weight_total,
-        "model_score_total": model_score,
-        "final_score": final_score,
-        "label": label,
-        "fusion_summary": fusion_summary
-        or f"Final risk score = rule score {rule_score:.1f} x 40% + model risk score {model_score:.1f} x 60%.",
-        "rules": rules,
-        "model": model,
-        "raw_features": raw_feature_summary or {},
-    }
-
-
 def db_order_rules(rules: list[RuleConfig]) -> list[RuleConfig]:
     order = {item["rule_key"]: index for index, item in enumerate(DEFAULT_RULES)}
     return sorted(rules, key=lambda item: (order.get(item.rule_key, 999), item.rule_key))

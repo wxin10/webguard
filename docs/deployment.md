@@ -46,7 +46,7 @@
 
 - **API 接口**：FastAPI 提供 RESTful API
 - **规则引擎**：处理规则匹配和评分
-- **模型推理**：本地模型推理
+- **AI 语义研判**：DeepSeek 大模型语义研判，异常时规则引擎兜底
 - **数据存储**：PostgreSQL 数据库
 
 ## PostgreSQL 生产建议
@@ -115,7 +115,7 @@ effective_io_concurrency = 200
 ### 数据备份
 
 - 数据库备份
-- 模型文件备份
+- DeepSeek 配置和密钥轮换记录备份
 - 配置文件备份
 
 ### 迁移策略

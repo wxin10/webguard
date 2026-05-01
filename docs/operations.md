@@ -1,192 +1,67 @@
-# 运维文档
+# WebGuard Operations Notes
 
-## 日志与监控建议
+WebGuard 当前检测架构为规则引擎 + DeepSeek 大模型语义研判。规则引擎负责快速、可解释的基础风险识别；DeepSeek 负责在高风险条件触发时分析页面语义、诱导话术和潜在攻击意图。未配置 DeepSeek、DeepSeek 未触发、超时或异常时，系统自动退回规则引擎兜底。
 
-### 日志管理
+## Logging
 
-- **前端日志**：
-  - 客户端错误日志
-  - 性能日志
-  - 用户行为日志
+Backend logs should cover:
 
-- **后端日志**：
-  - API 请求日志
-  - 错误日志
-  - 规则匹配日志
-  - 模型推理日志
+- API request path, method, status, latency, and request id.
+- Rule-engine matches and final label.
+- DeepSeek status: `used`, `not_triggered`, `no_api_key`, `disabled`, `timeout`, or `error`.
+- Fallback marker: `rule_engine_only`.
+- User id or plugin instance id when available.
 
-- **日志收集**：
-  - 使用 ELK Stack (Elasticsearch, Logstash, Kibana) 收集和分析日志
-  - 配置日志轮转和清理策略
-  - 日志备份和归档
+Never log plaintext passwords, full access tokens, refresh tokens, or `DEEPSEEK_API_KEY`.
 
-### 监控
+## Monitoring
 
-- **系统监控**：
-  - CPU 使用率
-  - 内存使用率
-  - 磁盘使用率
-  - 网络流量
+Recommended application metrics:
 
-- **应用监控**：
-  - API 响应时间
-  - API 错误率
-  - 并发请求数
-  - 模型推理时间
+- API response latency and error rate.
+- Scan count by label: `safe`, `suspicious`, `malicious`.
+- Rule-engine fallback count.
+- DeepSeek call count, timeout count, error count, and latency.
+- Plugin bootstrap and scan event count.
 
-- **数据库监控**：
-  - 连接数
-  - 查询性能
-  - 存储空间
-  - WAL 日志
+## DeepSeek Configuration
 
-- **监控工具**：
-  - Prometheus + Grafana
-  - Datadog
-  - New Relic
-
-### 告警
-
-- **系统告警**：
-  - CPU 使用率超过阈值
-  - 内存使用率超过阈值
-  - 磁盘使用率超过阈值
-
-- **应用告警**：
-  - API 错误率超过阈值
-  - 响应时间超过阈值
-  - 并发请求数超过阈值
-
-- **数据库告警**：
-  - 连接数超过阈值
-  - 查询时间超过阈值
-  - 存储空间不足
-
-## 模型目录与版本管理建议
-
-### 模型目录结构
-
-```
-models/
-├── active/           # 当前激活的模型
-│   └── model.pth
-├── versions/         # 模型版本
-│   ├── v1/
-│   │   └── model.pth
-│   ├── v2/
-│   │   └── model.pth
-│   └── ...
-└── backup/           # 模型备份
-    └── ...
+```text
+DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_ENABLED=auto
+DEEPSEEK_TIMEOUT_SECONDS=20
 ```
 
-### 模型版本管理
+Status endpoint:
 
-- **版本命名**：使用语义化版本号（如 v1.0.0）
-- **版本控制**：使用 Git 或其他版本控制系统管理模型文件
-- **版本切换**：通过配置文件或数据库记录当前激活的模型版本
-- **回滚机制**：支持快速回滚到之前的模型版本
+```text
+GET /api/v1/ai/status
+```
 
-### 模型性能评估
+Admin test endpoint:
 
-- **评估指标**：准确率、精确率、召回率、F1 分数
-- **评估数据集**：使用测试数据集定期评估模型性能
-- **性能监控**：监控模型推理时间和资源使用情况
+```text
+POST /api/v1/ai/test
+```
 
-### 模型更新流程
+If `DEEPSEEK_API_KEY` is missing, `/api/v1/ai/status` reports `configured=false` and detection continues through rule-engine fallback.
 
-1. 准备新模型文件
-2. 上传模型到 versions 目录
-3. 评估模型性能
-4. 激活新模型
-5. 监控模型运行情况
-6. 归档旧模型
+## Common Issues
 
-## 常见问题与解决方案
+### Backend startup fails
 
-### 1. 后端服务启动失败
+Check PostgreSQL availability, `DATABASE_URL`, port `8000`, and dependency installation.
 
-**症状**：后端服务无法启动
-**可能原因**：
-- 数据库连接失败
-- 模型文件不存在
-- 端口被占用
-- 依赖包缺失
+### Frontend cannot call backend
 
-**解决方案**：
-- 检查数据库连接配置
-- 检查模型文件是否存在
-- 检查端口是否被占用
-- 重新安装依赖包
+Check backend health, `VITE_API_BASE_URL`, CORS allowlist, and browser console network errors.
 
-### 2. 前端无法连接后端
+### DeepSeek unavailable
 
-**症状**：前端无法调用 API
-**可能原因**：
-- 后端服务未运行
-- CORS 配置错误
-- API 地址配置错误
-- 网络连接问题
+Check `/api/v1/ai/status`, confirm `DEEPSEEK_API_KEY` is configured, verify network access to `DEEPSEEK_BASE_URL`, and review timeout settings. Detection should continue with `score_breakdown.fallback=rule_engine_only`.
 
-**解决方案**：
-- 检查后端服务是否运行
-- 检查 CORS 配置
-- 检查 API 地址配置
-- 检查网络连接
+### Detection result looks inaccurate
 
-### 3. 模型推理速度慢
-
-**症状**：模型推理时间过长
-**可能原因**：
-- 模型过于复杂
-- 服务器资源不足
-- 输入数据过大
-
-**解决方案**：
-- 优化模型结构
-- 增加服务器资源
-- 减少输入数据大小
-- 使用 GPU 加速
-
-### 4. 检测准确率低
-
-**症状**：检测结果不准确
-**可能原因**：
-- 模型训练数据不足
-- 规则配置不合理
-- 模型版本过旧
-
-**解决方案**：
-- 增加训练数据
-- 调整规则配置
-- 更新模型版本
-
-### 5. 数据库连接问题
-
-**症状**：数据库连接失败
-**可能原因**：
-- 数据库服务未运行
-- 连接字符串错误
-- 数据库权限不足
-- 连接池耗尽
-
-**解决方案**：
-- 检查数据库服务是否运行
-- 检查连接字符串
-- 检查数据库权限
-- 调整连接池配置
-
-### 6. 插件检测失败
-
-**症状**：浏览器插件无法检测网站
-**可能原因**：
-- 后端服务未运行
-- 插件权限配置错误
-- 网络连接问题
-- API 接口变更
-
-**解决方案**：
-- 检查后端服务是否运行
-- 检查插件权限配置
-- 检查网络连接
-- 检查 API 接口是否变更
+Review matched rule signals, rule weights and thresholds, DeepSeek status, and whether semantic analysis was triggered. If DeepSeek was not used, the result is based on rule-engine evidence only.

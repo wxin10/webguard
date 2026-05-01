@@ -16,7 +16,7 @@ const adminSections = [
     items: [
       { path: '/app/admin/rules', label: '规则调整' },
       { path: '/app/admin/domains', label: '全局名单' },
-      { path: '/app/admin/model', label: '模型状态' },
+      { path: '/app/admin/model', label: 'AI 接入状态' },
       { path: '/app/admin/users', label: '用户管理' },
     ],
   },

@@ -145,9 +145,27 @@ P2 后续增强：
 
 - 二维码绑定 UI。
 - Redis 缓存和限流。
-- 模型检测能力增强。
+- DeepSeek 语义研判能力增强。
 - 观测和告警。
 
 ## 7. 结论
 
 WebGuard 已经不是单点 demo，而是具备三端闭环、鉴权基线、插件绑定、策略同步、风险报告和工程化验证的本地内测版。下一阶段重点应从“功能闭环”转向“真实生产环境、发布合规、安全审计和运维保障”。
+
+## Current AI Detection Position
+
+WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判的混合检测架构。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义、诱导话术和潜在攻击意图。
+
+Paddle 本地模型路线已取消，不作为当前项目能力。主检测链路不再调用本地模型服务，也不再使用旧的规则 + 本地模型概率融合。
+
+DeepSeek 接入通过环境变量配置：
+
+```text
+DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_ENABLED=auto
+DEEPSEEK_TIMEOUT_SECONDS=20
+```
+
+启动后可通过 `GET http://127.0.0.1:8000/api/v1/ai/status` 查看接入状态，管理员可通过 `POST http://127.0.0.1:8000/api/v1/ai/test` 测试 DeepSeek。未配置 DeepSeek API Key、DeepSeek 超时或返回异常时，系统自动退回规则引擎兜底，不影响基础检测能力。

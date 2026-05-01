@@ -1,0 +1,47 @@
+warning: in the working copy of '.env.production.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/.env.production.example', LF will be replaced by CRLF the next time Git touches it
+ .env.example                                      |   7 [32m+[m[31m-[m
+ .env.production.example                           |   2 [32m+[m[31m-[m
+ README.md                                         |  26 [32m+[m[31m-[m
+ backend/.env.example                              |   7 [32m+[m[31m-[m
+ backend/.env.production.example                   |   5 [32m+[m[31m-[m
+ backend/README.md                                 | 115 [32m++++[m[31m---[m
+ backend/app/api/__init__.py                       |   4 [32m+[m[31m-[m
+ backend/app/api/model.py                          |  39 [31m---[m
+ backend/app/core/config.py                        |  26 [32m+[m[31m-[m
+ backend/app/core/exceptions.py                    |  21 [32m+[m[31m-[m
+ backend/app/schemas/__init__.py                   |   4 [32m+[m
+ backend/app/schemas/rule.py                       |  19 [32m+[m[31m-[m
+ backend/app/seed/seed_data.py                     | 349 [32m++++++[m[31m----------------[m
+ backend/app/services/__init__.py                  |   2 [31m-[m
+ backend/app/services/deepseek_analysis_service.py |   8 [32m+[m[31m-[m
+ backend/app/services/detector.py                  | 203 [32m+++++++[m[31m------[m
+ backend/app/services/feature_extractor.py         | 129 [32m++++[m[31m----[m
+ backend/app/services/model_service.py             | 229 [31m--------------[m
+ backend/app/services/report_service.py            |  88 [32m+++[m[31m---[m
+ backend/app/services/rule_engine.py               |  50 [31m----[m
+ backend/download_model.py                         |  26 [31m--[m
+ backend/requirements.txt                          |   4 [31m-[m
+ backend/tests/test_deepseek_analysis_service.py   |  10 [32m+[m[31m-[m
+ backend/tests/test_detector.py                    | 305 [32m++++++[m[31m-------------[m
+ backend/tests/test_scan_api.py                    |   9 [32m+[m[31m-[m
+ docker-compose.yml                                |   8 [32m+[m[31m-[m
+ docs/architecture.md                              |  14 [32m+[m[31m-[m
+ docs/demo-acceptance.md                           |  32 [32m++[m
+ docs/demo-script.md                               |   2 [32m+[m[31m-[m
+ docs/deployment.md                                |   6 [32m+[m[31m-[m
+ docs/operations.md                                | 223 [32m+++[m[31m-----------[m
+ docs/project-status-report.md                     |  20 [32m+[m[31m-[m
+ docs/roadmap.md                                   |   6 [32m+[m[31m-[m
+ docs/rule-system-roadmap.md                       |  18 [32m+[m[31m-[m
+ extension/README.md                               |   2 [32m+[m[31m-[m
+ frontend/README.md                                |   2 [32m+[m[31m-[m
+ frontend/src/components/AppSidebar.tsx            |   2 [32m+[m[31m-[m
+ frontend/src/components/ScanResultCard.tsx        |   2 [32m+[m[31m-[m
+ frontend/src/pages/Model.tsx                      | 146 [32m++++++[m[31m---[m
+ frontend/src/pages/ProductHome.tsx                |   4 [32m+[m[31m-[m
+ frontend/src/pages/ReportDetail.tsx               |  38 [32m++[m[31m-[m
+ frontend/src/services/api.ts                      |   2 [32m+[m[31m-[m
+ frontend/src/services/legacyServices.ts           |  13 [32m+[m[31m-[m
+ frontend/src/types/index.ts                       |  58 [32m++[m[31m--[m
+ 44 files changed, 869 insertions(+), 1416 deletions(-)

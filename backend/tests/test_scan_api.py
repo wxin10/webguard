@@ -63,7 +63,7 @@ def test_scan_url_safe_result_persists_record_and_report(client: TestClient):
     assert data["ai_analysis"]["status"] == "not_triggered"
     assert data["score_breakdown"]["behavior_score"] == data["rule_score"]
     assert data["score_breakdown"]["ai_fusion_used"] is False
-    assert data["score_breakdown"]["fallback"] == "legacy_model_fusion"
+    assert data["score_breakdown"]["fallback"] == "rule_engine_only"
 
     record_response = client.get(f"/api/v1/records/{data['record_id']}")
     assert record_response.status_code == 200
@@ -174,10 +174,10 @@ def test_scan_url_threat_intel_blacklist_hit_blocks_and_explains(client: TestCli
     assert "外部恶意网站规则库" in data["explanation"]
     assert any("外部恶意网站规则库" in item for item in data["reason_summary"])
     assert data["ai_score"] is None
-    assert data["ai_analysis"]["status"] == "not_used"
+    assert data["ai_analysis"]["status"] == "not_triggered"
 
 
-def test_plugin_analyze_ai_failure_falls_back_to_legacy_fusion(client: TestClient):
+def test_plugin_analyze_ai_failure_falls_back_to_rule_engine_only(client: TestClient):
     response = client.post(
         "/api/v1/plugin/analyze-current",
         json={
@@ -198,7 +198,8 @@ def test_plugin_analyze_ai_failure_falls_back_to_legacy_fusion(client: TestClien
     assert data["ai_score"] is None
     assert data["ai_analysis"]["status"] in {"no_api_key", "disabled"}
     assert data["score_breakdown"]["ai_fusion_used"] is False
-    assert data["score_breakdown"]["fallback"] == "legacy_model_fusion"
+    assert data["score_breakdown"]["fallback"] == "rule_engine_only"
+    assert data["risk_score"] == data["behavior_score"]
     assert "label" in data
     assert "risk_score" in data
     assert "action" in data

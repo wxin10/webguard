@@ -1,13 +1,14 @@
 import { api, unwrap } from './client';
 import type {
   ApiResponse,
+  AIStatus,
+  AITestRequest,
+  AITestResponse,
   AuthTokenResponse,
   BlacklistItem,
   DevelopmentUser,
   LoginRequest,
   DomainList,
-  ModelStatus,
-  ModelVersionList,
   RegisterRequest,
   RuleConfig,
   RuleConfigList,
@@ -67,8 +68,8 @@ export const rulesApi = {
     unwrap(api.put<ApiResponse<RuleConfig>>(`/api/v1/rules/${id}`, data)),
 };
 
-export const modelApi = {
-  getModelStatus: () => unwrap(api.get<ApiResponse<ModelStatus>>('/api/v1/model/status')),
-  getModelVersions: () =>
-    unwrap(api.get<ApiResponse<ModelVersionList>>('/api/v1/model/versions')),
+export const aiApi = {
+  getStatus: () => unwrap(api.get<ApiResponse<AIStatus>>('/api/v1/ai/status')),
+  testDeepSeek: (data: AITestRequest) =>
+    unwrap(api.post<ApiResponse<AITestResponse>>('/api/v1/ai/test', data)),
 };

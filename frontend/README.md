@@ -9,7 +9,7 @@ WebGuard 前端是正式 Web 主平台，不再把浏览器插件或后台页面
 - 管理员：`/app/admin/records`、`/app/admin/samples`、`/app/admin/rules`、`/app/admin/domains`、`/app/admin/model`、`/app/admin/stats`、`/app/admin/plugin`、`/app/admin/users`
 - 共用报告：`/app/reports/:id`
 
-普通用户围绕检测、报告、个人策略和插件同步记录开展日常使用；管理员围绕运营态势、样本与误报、规则、名单、模型、插件和用户开展平台治理。
+普通用户围绕检测、报告、个人策略和插件同步记录开展日常使用；管理员围绕运营态势、样本与误报、规则、名单、AI 接入状态、插件和用户开展平台治理。
 
 ## 启动
 

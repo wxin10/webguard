@@ -26,10 +26,10 @@
 4. 未命中名单时，`Detector._run_detection_pipeline()` 调用 `RuleEngine.execute_rules(features)`。
 5. `RuleEngine.execute_rules()` 把特征整理为 `context`，再按 `rule.rule_key` 在本地 `checkers` 字典中查找对应函数。
 6. 找到 checker 的规则会执行硬编码检测逻辑；找不到 checker 的规则只会返回一条“规则配置存在，但后端尚未实现对应执行逻辑”的规则详情，不会贡献分数。
-7. 规则结果和模型结果一起交给 `Detector._fuse_decision()` 融合。
+7. 规则结果和 DeepSeek 语义研判结果交给 `Detector` 生成最终风险分；DeepSeek 未使用时直接采用规则引擎分。
 8. 检测记录和报告通过 `ScanRecord`、`Report` 持久化。
 
-### 1.3 规则分和模型分如何融合
+### 1.3 规则分和 DeepSeek 分如何融合
 
 规则分在 `RuleEngine.execute_rules()` 中计算：
 
@@ -39,10 +39,10 @@
 - `enabled_weight_total` 是所有启用规则的权重和。
 - `rule_score = rule_score_total / enabled_weight_total * 100`，再限制到 0 到 100。
 
-模型分在 `Detector._fuse_decision()` 中计算：
+DeepSeek 分在 `Detector` 中按状态参与融合：
 
-- `model_score = malicious_prob * 100 + suspicious_prob * 50`。
-- `risk_score = rule_score * 0.4 + model_score * 0.6`，再限制到 0 到 100。
+- DeepSeek 成功返回 `used` 时：`risk_score = behavior_score * 0.45 + deepseek_score * 0.55`。
+- DeepSeek 未触发、未配置、超时或异常时：`risk_score = behavior_score`。
 - 判定阈值：
   - `malicious`：`risk_score >= 70`，或 `rule_score >= 65 且 malicious_prob >= 0.45`，或 `malicious_prob >= 0.75`。
   - `suspicious`：`risk_score >= 40`，或 `rule_score >= 35`，或 `suspicious_prob >= 0.5`。
@@ -154,7 +154,7 @@
 - `/api/v1/my/policy` 只支持插件行为开关和临时绕过时长。
 - 兼容的 `/api/v1/user/*` 接口也只是 trusted、blocked、paused 站点策略。
 - 没有用户级规则创建、更新、测试、启停接口。
-- `RuleConfig.scope="user"` 虽然可由管理员接口写入，但模型没有 `owner_user_id` 或适用用户集合。
+- `RuleConfig.scope="user"` 虽然可由管理员接口写入，但规则适用用户集合仍需进一步收敛。
 - `RuleEngine` 执行时只加载全量 `RuleConfig`，不按当前用户、插件实例或租户过滤。
 
 所以当前“用户策略”是域名名单策略，不是个人规则系统。
@@ -272,7 +272,7 @@
 
 - 管理页面可能误导用户认为草稿已经生效。
 - 启停和发布状态混用会造成线上行为不可预测。
-- 权重配置过大可能导致规则压倒模型。
+- 权重配置过大可能导致规则分过高，降低 DeepSeek 语义研判的增量价值。
 
 不应该做什么：
 
@@ -411,7 +411,7 @@
 不应该做什么：
 
 - 不要把完整后端规则引擎搬进插件。
-- 不要同步包含敏感内部策略或模型细节的规则。
+- 不要同步包含敏感内部策略或 DeepSeek 提示词细节的规则。
 - 不要让插件本地安全判定覆盖后端强制策略。
 - 不要在没有缓存过期和兼容检查的情况下长期使用旧规则包。
 
@@ -443,7 +443,7 @@
 
 验收标准：
 
-- 每条检测记录能追溯命中的规则、规则版本、模型分和最终融合结果。
+- 每条检测记录能追溯命中的规则、规则版本、DeepSeek 使用状态和最终融合结果。
 - 管理员能看到规则近 7 天或更长周期的命中与误报趋势。
 - 用户或插件提交误报反馈后，管理员能定位相关规则。
 - 规则调整和发布能关联到反馈关闭结果。

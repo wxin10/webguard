@@ -95,6 +95,38 @@ Expected:
 - Plugin instance list includes the smoke instance.
 - Revoked plugin token is rejected.
 
+## 4.1 DeepSeek AI Access Check
+
+WebGuard 当前检测架构是规则引擎 + DeepSeek 大模型语义研判。Paddle 本地模型路线已取消，不作为当前项目能力。
+
+Local `.env`:
+
+```text
+DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_ENABLED=auto
+DEEPSEEK_TIMEOUT_SECONDS=20
+```
+
+Check status:
+
+```text
+GET http://127.0.0.1:8000/api/v1/ai/status
+```
+
+Admin test:
+
+```text
+POST http://127.0.0.1:8000/api/v1/ai/test
+```
+
+Expected:
+
+- If `DEEPSEEK_API_KEY` is configured, status shows `provider=deepseek`, `configured=true`, and a masked key.
+- If `DEEPSEEK_API_KEY` is missing, status shows `configured=false` and detection still works through rule-engine fallback.
+- If DeepSeek times out or returns an error, scan results continue to return normally with `score_breakdown.fallback=rule_engine_only`.
+
 ## 5. Manual Extension Binding
 
 In extension Options:

@@ -31,7 +31,7 @@ export default function ScanResultCard({ url, result }: ScanResultCardProps) {
         <Metric title="风险评分" value={result.risk_score.toFixed(1)} tone={result.label} />
         <Metric title="行为评分" value={behaviorScore.toFixed(1)} />
         <Metric title="AI 评分" value={typeof result.ai_score === 'number' ? result.ai_score.toFixed(1) : '--'} />
-        <Metric title="模型恶意概率" value={`${((result.model_malicious_prob ?? 0) * 100).toFixed(1)}%`} />
+        <Metric title="AI 融合" value={aiFusionUsed ? '已使用' : '未使用'} />
       </div>
 
       <div className="mt-5 h-2 rounded-full bg-slate-200">

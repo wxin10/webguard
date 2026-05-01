@@ -1,70 +1,113 @@
 # WebGuard Backend
 
-Runtime target: Python 3.14.
+FastAPI backend for WebGuard detection, policy, reports, authentication, persistence, plugin binding, and AI access status.
 
-FastAPI 后端负责恶意网站检测、历史记录、规则、黑白名单、模型状态、统计分析、插件联动和结构化报告接口。
+## Runtime
 
-## 本地数据库
+- Python 3.11+
+- FastAPI
+- SQLAlchemy 2.x
+- Alembic
+- PostgreSQL target database
 
-本地开发默认使用 MySQL，不再使用 SQLite 作为正式默认方案。
+Local database default:
 
 ```text
-DATABASE_URL=mysql+pymysql://admin:adminadmin@127.0.0.1:3306/webguard?charset=utf8mb4
+postgresql://webguard:webguard@127.0.0.1:5432/webguard
 ```
 
-如需创建数据库：
+Run migrations before startup:
 
-```bash
-mysql -u admin -padminadmin -h 127.0.0.1 -P 3306 < scripts/init_mysql.sql
-```
-
-也可以手动执行：
-
-```sql
-CREATE DATABASE IF NOT EXISTS webguard
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-```
-
-## 启动
-
-```bash
+```powershell
 cd backend
-python --version
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+alembic upgrade head
 ```
 
-The current local dependency stack is FastAPI 0.135.3, Pydantic 2.12.5, pydantic-core 2.41.5, pydantic-settings 2.13.1, SQLAlchemy 2.0.49, Alembic 1.18.4, Uvicorn 0.44.0, python-dotenv 1.2.2, and PyMySQL 1.1.2.
+Start:
 
-## 配置
+```powershell
+cd backend
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-`backend/.env.example` 提供本地 MySQL 示例。复制为 `backend/.env` 后可按需调整。也可以不创建 `.env`，代码默认会组装同一条本地 MySQL 连接串。
+## Detection Chain
 
-## 认证接口
+Current architecture:
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
+```text
+FeatureExtractor -> RuleEngine -> DeepSeekAnalysisService -> Detector
+```
 
-WebGuard 认证只走真实账号密码登录、真实注册、refresh/logout。旧的开发登录入口已移除。
+The rule engine remains the fast, explainable baseline. DeepSeek is the only AI semantic analysis provider. The previous Paddle/local model route has been removed from the main detection path.
 
-## 主要接口
+Fusion rule:
+
+- DeepSeek `used`: `final_score = behavior_score * 0.45 + deepseek_score * 0.55`
+- DeepSeek not triggered, disabled, missing key, timeout, or error: `final_score = behavior_score`
+- Label: `>=70 malicious`, `>=40 suspicious`, otherwise `safe`
+
+## DeepSeek Configuration
+
+```text
+DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_ENABLED=auto
+DEEPSEEK_TIMEOUT_SECONDS=20
+```
+
+`DEEPSEEK_ENABLED` modes:
+
+- `auto`: enabled only when `DEEPSEEK_API_KEY` is configured.
+- `true`: force a DeepSeek attempt; missing key returns `no_api_key`.
+- `false`: disable DeepSeek semantic analysis.
+
+The API key is read from environment variables only. It is never hardcoded and is not returned to clients.
+
+## AI API
+
+Status:
+
+```text
+GET /api/v1/ai/status
+```
+
+Admin test:
+
+```text
+POST /api/v1/ai/test
+```
+
+Example test body:
+
+```json
+{
+  "title": "登录验证",
+  "visible_text": "您的账号存在异常，请立即输入验证码完成验证",
+  "url": "https://example-login.test/verify",
+  "has_password_input": true
+}
+```
+
+If `DEEPSEEK_API_KEY` is not configured, detection does not fail. WebGuard automatically uses rule-engine-only fallback.
+
+## Main APIs
 
 - `POST /api/v1/scan/url`
+- `POST /api/v1/scan/page`
 - `POST /api/v1/plugin/analyze-current`
+- `GET /api/v1/ai/status`
+- `POST /api/v1/ai/test`
 - `GET /api/v1/records`
 - `GET /api/v1/records/me`
 - `GET /api/v1/reports/latest`
 - `GET /api/v1/reports/{id}`
-- `GET /api/v1/model/status`
 - `GET /api/v1/stats/overview`
 
-## 检测主流程
+## Checks
 
-项目保留现有检测主链路：
-
-`FeatureExtractor -> RuleEngine -> ModelService -> Detector`
-
-真实模型依赖不可用时，`ModelService` 会回退到 fallback 模型，保证本地开发链路可运行。
+```powershell
+cd backend
+python -m pytest
+```

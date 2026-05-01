@@ -149,7 +149,7 @@
 
 - 尚未真实生产部署。
 - HTTPS / reverse proxy / secret manager / official extension ID 仍待落地。
-- 后续会补限流、审计、观测告警、RBAC、商店发布材料和模型增强。
+- 后续会补限流、审计、观测告警、RBAC、商店发布材料和 DeepSeek 语义研判增强。
 
 ## 3. 常见故障应对
 
