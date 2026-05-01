@@ -42,6 +42,12 @@ def main() -> None:
         db.close()
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    failed_sources = [source for source in result["sources"] if source.get("error")]
+    if failed_sources:
+        print(
+            "Some sources failed. This does not block synchronization for other sources. "
+            "Check network access or upstream availability before production import."
+        )
     if args.dry_run:
         print("Dry run completed: no database writes were performed.")
 

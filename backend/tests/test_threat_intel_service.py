@@ -1,3 +1,5 @@
+from urllib.error import HTTPError, URLError
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -176,6 +178,47 @@ def test_one_source_download_failure_does_not_stop_other_sources(db):
     result = service.sync_sources()
 
     assert result["sources"][0]["error"] is not None
+    assert result["sources"][0]["error"].startswith("unexpected error")
+    assert result["sources"][1]["error"] is None
+    assert result["total_inserted"] == 1
+    assert db.query(DomainBlacklist).filter(DomainBlacklist.domain == "good.example.com").count() == 1
+
+
+def test_source_http_rejection_returns_clear_error(db):
+    service = FakeThreatIntelService(
+        db,
+        responses={
+            "source_one": HTTPError(
+                "https://example.test/one.txt",
+                403,
+                "Forbidden",
+                hdrs=None,
+                fp=None,
+            ),
+        },
+    )
+
+    result = service.sync_sources()
+
+    assert result["sources"][0]["fetched"] is False
+    assert result["sources"][0]["parsed_domains"] == 0
+    assert result["sources"][0]["error"] == "upstream rejected request (HTTP 403): Forbidden"
+    assert result["total_inserted"] == 0
+
+
+def test_source_network_failure_returns_clear_error_and_continues(db):
+    service = FakeThreatIntelService(
+        db,
+        sources=(SOURCE_ONE, SOURCE_TWO),
+        responses={
+            "source_one": URLError("temporary DNS failure"),
+            "source_two": "good.example.com\n",
+        },
+    )
+
+    result = service.sync_sources()
+
+    assert result["sources"][0]["error"] == "network error while fetching source: temporary DNS failure"
     assert result["sources"][1]["error"] is None
     assert result["total_inserted"] == 1
     assert db.query(DomainBlacklist).filter(DomainBlacklist.domain == "good.example.com").count() == 1

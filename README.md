@@ -99,6 +99,8 @@ cd backend
 python -m app.scripts.sync_threat_intel --dry-run
 ```
 
+Run a dry run before production import to check source availability without writing to the database. External sources can fail because of network routing, TLS/certificate issues, regional access restrictions, rate limits, or upstream request policies. A single source failure is non-blocking: WebGuard continues synchronizing the other enabled sources and reports the failed source in the command output.
+
 Supported sources:
 
 - MalwareDomainList
