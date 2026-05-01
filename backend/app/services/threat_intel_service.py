@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import socket
+import ssl
 from typing import Any, Iterable
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from sqlalchemy.orm import Session
@@ -98,12 +100,15 @@ class ThreatIntelService:
                 source_result["inserted"] = inserted
                 source_result["updated"] = updated
                 source_result["skipped"] = skipped
-        except (URLError, TimeoutError, OSError, ValueError) as exc:
+        except HTTPError as exc:
             self.db.rollback()
-            source_result["error"] = str(exc)
+            source_result["error"] = self._format_fetch_error(exc)
+        except (URLError, TimeoutError, socket.timeout, ssl.SSLError, OSError, ValueError) as exc:
+            self.db.rollback()
+            source_result["error"] = self._format_fetch_error(exc)
         except Exception as exc:
             self.db.rollback()
-            source_result["error"] = f"{type(exc).__name__}: {exc}"
+            source_result["error"] = f"unexpected error ({type(exc).__name__}): {exc}"
         return source_result
 
     def _disable_replaceable_records(self) -> int:
@@ -162,3 +167,35 @@ class ThreatIntelService:
 
     def _reason(self, source: ThreatIntelSource) -> str:
         return f"命中外部恶意网站规则库：{source.name}；风险类型：{source.risk_type}"
+
+    def _format_fetch_error(self, exc: Exception) -> str:
+        if isinstance(exc, HTTPError):
+            if exc.code in {401, 403, 429}:
+                return f"upstream rejected request (HTTP {exc.code}): {exc.reason}"
+            if 500 <= exc.code <= 599:
+                return f"source unavailable (HTTP {exc.code}): {exc.reason}"
+            return f"HTTP error while fetching source (HTTP {exc.code}): {exc.reason}"
+
+        if isinstance(exc, (TimeoutError, socket.timeout)):
+            return "timeout while fetching source"
+
+        if isinstance(exc, URLError):
+            reason = exc.reason
+            if isinstance(reason, ssl.SSLError) or "ssl" in str(reason).lower():
+                return f"ssl/network error while fetching source: {reason}"
+            return f"network error while fetching source: {reason}"
+
+        if isinstance(exc, ssl.SSLError):
+            return f"ssl/network error while fetching source: {exc}"
+
+        if isinstance(exc, OSError):
+            message = str(exc)
+            lowered = message.lower()
+            if "ssl" in lowered or "eof" in lowered or "certificate" in lowered:
+                return f"ssl/network error while fetching source: {message}"
+            return f"network error while fetching source: {message}"
+
+        if isinstance(exc, ValueError):
+            return f"invalid source content: {exc}"
+
+        return f"source unavailable: {exc}"

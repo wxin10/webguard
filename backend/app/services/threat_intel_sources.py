@@ -45,7 +45,7 @@ DEFAULT_THREAT_INTEL_SOURCES: tuple[ThreatIntelSource, ...] = (
     ThreatIntelSource(
         source_key="urlhaus_online",
         name="URLHaus / Online Malicious URL Blocklist",
-        url="https://curben.gitlab.io/malware-filter/urlhaus-filter-agh-online.txt",
+        url="https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-agh-online.txt",
         risk_type="malicious_url",
         description="Online malicious URL and malicious domain rules.",
     ),
