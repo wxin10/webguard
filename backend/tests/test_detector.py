@@ -177,6 +177,8 @@ def test_ai_success_uses_behavior_ai_fusion(db):
     expected = (result["behavior_score"] * 0.45) + (90.0 * 0.55)
     assert result["ai_analysis"]["status"] == "used"
     assert result["ai_score"] == 90.0
+    assert result["ai_fusion_used"] is True
+    assert result["fallback"] is None
     assert result["score_breakdown"]["ai_fusion_used"] is True
     assert result["score_breakdown"]["fallback"] is None
     assert result["risk_score"] == pytest.approx(expected)
@@ -192,6 +194,8 @@ def test_low_risk_page_ai_not_triggered_uses_rule_engine_only(db):
     assert result["label"] == "safe"
     assert result["ai_score"] is None
     assert result["ai_analysis"]["status"] == "not_triggered"
+    assert result["ai_fusion_used"] is False
+    assert result["fallback"] == "rule_engine_only"
     assert result["score_breakdown"]["ai_fusion_used"] is False
     assert result["score_breakdown"]["fallback"] == "rule_engine_only"
     assert result["risk_score"] == result["behavior_score"]

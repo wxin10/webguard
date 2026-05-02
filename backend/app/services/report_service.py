@@ -154,6 +154,15 @@ class ReportService:
             "label_text": self._risk_text(record.label),
             "risk_score": record.risk_score,
             "rule_score": record.rule_score,
+            "behavior_score": score_breakdown.get("behavior_score", record.rule_score),
+            "behavior_signals": score_breakdown.get("behavior_signals", []),
+            "ai_score": score_breakdown.get("ai_score"),
+            "ai_analysis": score_breakdown.get("ai_analysis", {}),
+            "ai_fusion_used": bool(score_breakdown.get("ai_fusion_used", False)),
+            "fallback": score_breakdown.get("fallback"),
+            "policy_hit": score_breakdown.get("policy_hit", {}),
+            "threat_intel_hit": bool(score_breakdown.get("threat_intel_hit", False)),
+            "threat_intel_matches": score_breakdown.get("threat_intel_matches", []),
             "model_score": score_breakdown.get("ai_score"),
             "model_probs": {
                 "safe": record.model_safe_prob,
@@ -212,7 +221,9 @@ class ReportService:
 
     def _score_breakdown_from_record(self, record: ScanRecord) -> dict[str, Any]:
         ensure_default_rules(self.db)
-        raw_rules = record.hit_rules_json or []
+        persisted = record.raw_features_json or {}
+        persisted_breakdown = persisted.get("score_breakdown") if isinstance(persisted.get("score_breakdown"), dict) else {}
+        raw_rules = persisted_breakdown.get("rules") or record.hit_rules_json or []
         rule_keys = [rule.get("rule_key") for rule in raw_rules if rule.get("rule_key")]
         configs_by_key = {
             rule.rule_key: rule
@@ -221,8 +232,8 @@ class ReportService:
         rules = [self._normalize_rule_detail(rule, configs_by_key.get(rule.get("rule_key"))) for rule in raw_rules]
         raw_rule_total = sum(float(rule.get("contribution") or 0) for rule in rules if rule.get("enabled", True))
         enabled_weight_total = sum(float(rule.get("weight") or 0) for rule in rules if rule.get("enabled", True)) or 0
-        behavior_score = float(record.rule_score or 0)
-        behavior_signals = [
+        behavior_score = float(persisted_breakdown.get("behavior_score", persisted.get("behavior_score", record.rule_score or 0)) or 0)
+        behavior_signals = persisted_breakdown.get("behavior_signals") or persisted.get("behavior_signals") or [
             {
                 "rule_key": rule.get("rule_key"),
                 "rule_name": rule.get("rule_name") or rule.get("name"),
@@ -238,7 +249,7 @@ class ReportService:
             for rule in rules
             if rule.get("matched")
         ]
-        ai_analysis = {
+        ai_analysis = persisted_breakdown.get("ai_analysis") or persisted.get("ai_analysis") or {
             "status": "not_available",
             "provider": "deepseek",
             "model": None,
@@ -250,24 +261,48 @@ class ReportService:
             "confidence": 0.0,
             "error": None,
             "trigger_reasons": [],
-            "reason": "This persisted report does not store the original DeepSeek response.",
+            "reason": "本报告未保存结构化 AI 分析详情，仅保留融合解释文本。",
         }
+        ai_score = persisted_breakdown.get("ai_score", persisted.get("ai_score"))
+        if ai_score is None and ai_analysis.get("status") == "used":
+            ai_score = ai_analysis.get("risk_score")
+        ai_score = float(ai_score) if ai_score is not None else None
+        ai_fusion_used = bool(
+            persisted_breakdown.get(
+                "ai_fusion_used",
+                persisted.get("ai_fusion_used", ai_analysis.get("status") == "used" and ai_score is not None),
+            )
+        )
+        fallback = persisted_breakdown.get("fallback", persisted.get("fallback"))
+        if not ai_fusion_used and fallback is None:
+            fallback = "rule_engine_only"
+        final_score = float(persisted_breakdown.get("final_score", record.risk_score or 0) or 0)
+        fusion_summary = persisted_breakdown.get("fusion_summary")
+        if not fusion_summary:
+            fusion_summary = (
+                "最终风险分 = 行为规则分 × 45% + DeepSeek 语义分 × 55%"
+                if ai_fusion_used
+                else "DeepSeek 未触发或不可用，系统使用规则引擎兜底。"
+            )
         return {
             "rule_score_total": behavior_score,
-            "rule_score_raw_total": raw_rule_total,
-            "enabled_rule_weight_total": float(enabled_weight_total),
+            "rule_score_raw_total": float(persisted_breakdown.get("rule_score_raw_total", raw_rule_total) or 0),
+            "enabled_rule_weight_total": float(persisted_breakdown.get("enabled_rule_weight_total", enabled_weight_total) or 0),
             "behavior_score": behavior_score,
             "behavior_signals": behavior_signals,
             "ai_provider": "deepseek",
-            "ai_score": None,
+            "ai_score": ai_score,
             "ai_analysis": ai_analysis,
-            "ai_fusion_used": False,
-            "fallback": "rule_engine_only",
-            "final_score": float(record.risk_score or 0),
-            "label": record.label,
-            "fusion_summary": "DeepSeek semantic analysis details are not stored for this report view; persisted risk display falls back to rule-engine evidence.",
+            "ai_fusion_used": ai_fusion_used,
+            "fallback": fallback,
+            "final_score": final_score,
+            "label": persisted_breakdown.get("label", record.label),
+            "fusion_summary": fusion_summary,
             "rules": rules,
             "raw_features": self._raw_feature_summary(record),
+            "policy_hit": persisted_breakdown.get("policy_hit") or persisted.get("policy_hit") or {},
+            "threat_intel_hit": bool(persisted_breakdown.get("threat_intel_hit", persisted.get("threat_intel_hit", False))),
+            "threat_intel_matches": persisted_breakdown.get("threat_intel_matches") or persisted.get("threat_intel_matches") or [],
         }
 
     def _normalize_rule_detail(self, rule: dict[str, Any], current_config: RuleConfig | None = None) -> dict[str, Any]:

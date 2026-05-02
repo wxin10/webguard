@@ -56,7 +56,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "password_field",
-        "rule_name": "Password input present",
+        "rule_name": "检测到密码输入框",
         "description": "Detects whether the page can collect user credentials through a password input.",
         "category": "page",
         "severity": "low",
@@ -76,7 +76,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "risky_keywords",
-        "rule_name": "Risky persuasion wording",
+        "rule_name": "风险诱导话术",
         "description": "Detects sensitive objects, urgency, reward, and action wording as grouped persuasion signals.",
         "category": "content",
         "severity": "medium",
@@ -86,7 +86,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "brand_impersonation",
-        "rule_name": "Possible brand impersonation",
+        "rule_name": "疑似品牌冒充",
         "description": "Detects brand wording on domains that do not match official brand markers, especially with login or payment context.",
         "category": "content",
         "severity": "high",
@@ -96,7 +96,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "title_domain_mismatch",
-        "rule_name": "Low title-domain similarity",
+        "rule_name": "标题与域名相似度较低",
         "description": "Detects low similarity between title words and domain words as a weak supporting signal.",
         "category": "content",
         "severity": "low",
@@ -126,7 +126,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "brand_login_mismatch_combo",
-        "rule_name": "Brand login mismatch combination",
+        "rule_name": "品牌登录不匹配组合",
         "description": "Combines brand wording, credential or verification context, and a non-official domain.",
         "category": "combo",
         "severity": "high",
@@ -146,7 +146,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
     },
     {
         "rule_key": "payment_urgency_combo",
-        "rule_name": "Payment urgency combination",
+        "rule_name": "支付/验证码紧迫性组合",
         "description": "Combines payment, bank card, or verification-code wording with urgent action pressure.",
         "category": "combo",
         "severity": "high",
@@ -1032,7 +1032,7 @@ class RuleEngine:
         reason = (
             f"Brand login mismatch detected: brand(s) {brand_context['mismatched']} appear with login, verification, payment, or password context on non-official domain {context['domain']}."
             if matched
-            else "Brand login mismatch combination was not detected."
+            else "未检测到品牌登录不匹配组合。"
         )
         raw_score = 0.85 if context["has_password_input"] and matched else 0.7 if matched else 0.0
         return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=raw_score, evidence=evidence)
@@ -1063,7 +1063,7 @@ class RuleEngine:
         reason = (
             "Payment or verification-code wording appears with urgency or submit/action pressure. This pattern is common in payment fraud and account verification scams."
             if matched
-            else "Payment urgency combination was not detected."
+            else "未检测到支付/验证码紧迫性组合。"
         )
         return self._result(rule, matched, reason, evidence, 1.0 if matched else 0.0, raw_score=0.75 if matched else 0.0, evidence=evidence)
 

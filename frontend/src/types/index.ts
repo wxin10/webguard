@@ -193,7 +193,38 @@ export interface AIStatus {
   timeout_seconds: number;
   api_key_masked?: string | null;
   mode: string;
+  source?: 'database' | 'env' | string;
   message?: string | null;
+}
+
+export interface AIConfig extends AIStatus {
+  source: 'database' | 'env' | string;
+  last_test_status?: string | null;
+  last_test_message?: string | null;
+  last_test_at?: string | null;
+}
+
+export interface AIConfigUpdateRequest {
+  enabled: boolean;
+  base_url: string;
+  model: string;
+  timeout_seconds: number;
+  api_key?: string | null;
+}
+
+export interface AIConfigTestRequest {
+  enabled?: boolean;
+  base_url?: string;
+  model?: string;
+  timeout_seconds?: number;
+  api_key?: string | null;
+  title?: string;
+  visible_text?: string;
+  url?: string;
+  has_password_input?: boolean;
+  button_texts?: string[];
+  input_labels?: string[];
+  form_action_domains?: string[];
 }
 
 export interface AITestRequest {
@@ -211,6 +242,8 @@ export interface AITestResponse {
   analysis: AIAnalysis;
   provider: 'deepseek' | string;
 }
+
+export interface AIConfigTestResponse extends AITestResponse {}
 
 export interface RuleStats {
   rule_id?: number;
@@ -290,6 +323,8 @@ export interface ScanResult {
   behavior_signals?: BehaviorSignal[];
   ai_score?: number | null;
   ai_analysis?: AIAnalysis;
+  ai_fusion_used?: boolean;
+  fallback?: string | null;
 }
 
 export interface ScanRecordList {
@@ -635,6 +670,8 @@ export interface AnalysisReport {
   behavior_signals?: BehaviorSignal[];
   ai_score?: number | null;
   ai_analysis?: AIAnalysis;
+  ai_fusion_used?: boolean;
+  fallback?: string | null;
   explanation?: string;
   summary?: string;
   reasons?: Record<string, unknown>[];

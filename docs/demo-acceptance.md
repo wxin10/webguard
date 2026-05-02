@@ -97,7 +97,7 @@ Expected:
 
 ## 4.1 DeepSeek AI Access Check
 
-WebGuard 当前检测架构是规则引擎 + DeepSeek 大模型语义研判。Paddle 本地模型路线已取消，不作为当前项目能力。
+WebGuard 当前检测架构是规则引擎 + DeepSeek 大模型语义研判。
 
 Local `.env`:
 

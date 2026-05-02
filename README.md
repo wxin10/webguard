@@ -119,10 +119,12 @@ DeepSeek does not replace blacklists, whitelists, external blocklists, or the lo
 
 The backend calls DeepSeek only when behavior rules expose meaningful risk signals, such as password inputs, unknown cross-domain forms, brand impersonation, credential-theft combinations, payment urgency, wallet secret phrases, or suspicious redirect combinations. Clearly low-risk pages and deterministic domain-list decisions skip AI analysis.
 
-Local `.env` configuration:
+Admin-managed configuration is available in the Web backend AI page. The database value is used first and the local `.env` value remains a fallback when no database API key is configured.
+
+Local `.env` fallback configuration:
 
 ```powershell
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_API_KEY=<your-api-key>
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto

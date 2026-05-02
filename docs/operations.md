@@ -12,7 +12,7 @@ Backend logs should cover:
 - Fallback marker: `rule_engine_only`.
 - User id or plugin instance id when available.
 
-Never log plaintext passwords, full access tokens, refresh tokens, or `DEEPSEEK_API_KEY`.
+Never log plaintext passwords, full access tokens, refresh tokens, `SECRET_ENCRYPTION_KEY`, or full DeepSeek API keys.
 
 ## Monitoring
 
@@ -26,8 +26,11 @@ Recommended application metrics:
 
 ## DeepSeek Configuration
 
+Administrators can configure DeepSeek / Volcano Ark from the Web AI configuration page. Runtime detection uses the database configuration first; if no database API key is saved, it falls back to these environment variables:
+
 ```text
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
+SECRET_ENCRYPTION_KEY=<fernet-key-for-production>
+DEEPSEEK_API_KEY=<your-api-key>
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
@@ -47,6 +50,15 @@ POST /api/v1/ai/test
 ```
 
 If `DEEPSEEK_API_KEY` is missing, `/api/v1/ai/status` reports `configured=false` and detection continues through rule-engine fallback.
+
+Admin configuration endpoints:
+
+```text
+GET    /api/v1/ai/config
+PUT    /api/v1/ai/config
+DELETE /api/v1/ai/config/key
+POST   /api/v1/ai/config/test
+```
 
 ## Common Issues
 

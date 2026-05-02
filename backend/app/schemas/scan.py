@@ -89,6 +89,8 @@ class ScanResult(BaseModel):
     behavior_signals: List[Dict[str, Any]] = Field(default_factory=list)
     ai_score: Optional[float] = None
     ai_analysis: Dict[str, Any] = Field(default_factory=dict)
+    ai_fusion_used: bool = False
+    fallback: Optional[str] = None
     score_breakdown: Optional[Dict[str, Any]] = None
     explanation: str
     recommendation: str

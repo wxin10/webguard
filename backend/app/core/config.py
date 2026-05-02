@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     PLUGIN_REFRESH_TOKEN_EXPIRES_DAYS: int = 30
     DEFAULT_ADMIN_PASSWORD: str = "admin"
     DEFAULT_GUEST_PASSWORD: str = "guest"
+    SECRET_ENCRYPTION_KEY: str | None = None
 
     DEEPSEEK_API_KEY: str | None = None
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
@@ -125,6 +126,8 @@ class Settings(BaseSettings):
             errors.append("ENABLE_RUNTIME_SCHEMA_GUARD must be false when DEBUG=false")
         if self.DEFAULT_ADMIN_PASSWORD == "admin" or self.DEFAULT_GUEST_PASSWORD == "guest":
             errors.append("default account passwords must be changed when DEBUG=false")
+        if not (self.SECRET_ENCRYPTION_KEY or "").strip():
+            errors.append("production must configure SECRET_ENCRYPTION_KEY")
 
         if errors:
             raise RuntimeError("Unsafe production settings: " + "; ".join(errors))

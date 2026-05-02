@@ -536,4 +536,4 @@ PostgreSQL
 
 WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义、诱导话术和潜在攻击意图。最终风险分在 DeepSeek 成功返回 `used` 时按 `behavior_score * 0.45 + deepseek_score * 0.55` 融合；未配置 DeepSeek、未触发、超时或异常时自动退回规则引擎兜底。
 
-Paddle 本地模型路线已取消，不作为当前项目能力。
+当前主检测链路只保留规则引擎 + DeepSeek 大模型语义研判。

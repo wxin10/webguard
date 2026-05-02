@@ -22,6 +22,7 @@ DEBUG=false
 ENABLE_DEV_AUTH=false
 ENABLE_RUNTIME_SCHEMA_GUARD=false
 JWT_SECRET=<strong unique secret, at least 32 characters>
+SECRET_ENCRYPTION_KEY=<fernet-key-for-api-key-encryption>
 REFRESH_TOKEN_COOKIE_SECURE=true
 CORS_ORIGINS=https://<web-origin>,chrome-extension://<published-extension-id>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>

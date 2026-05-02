@@ -15,11 +15,11 @@ def seed_rules(db: Session) -> None:
         {"rule_key": "ip_direct", "rule_name": "Direct IP host", "weight": 14.0, "threshold": 1.0},
         {"rule_key": "suspicious_subdomain", "rule_name": "Sensitive subdomain wording", "weight": 8.0, "threshold": 1.0},
         {"rule_key": "risky_path", "rule_name": "Sensitive path wording", "weight": 12.0, "threshold": 1.0},
-        {"rule_key": "password_field", "rule_name": "Password input present", "weight": 7.0, "threshold": 1.0},
+        {"rule_key": "password_field", "rule_name": "检测到密码输入框", "weight": 7.0, "threshold": 1.0},
         {"rule_key": "cross_domain_form", "rule_name": "Cross-domain form submission", "weight": 12.0, "threshold": 1.0},
-        {"rule_key": "risky_keywords", "rule_name": "Risky persuasion wording", "weight": 12.0, "threshold": 1.0},
-        {"rule_key": "brand_impersonation", "rule_name": "Possible brand impersonation", "weight": 14.0, "threshold": 1.0},
-        {"rule_key": "title_domain_mismatch", "rule_name": "Low title-domain similarity", "weight": 5.0, "threshold": 0.3},
+        {"rule_key": "risky_keywords", "rule_name": "风险诱导话术", "weight": 12.0, "threshold": 1.0},
+        {"rule_key": "brand_impersonation", "rule_name": "疑似品牌冒充", "weight": 14.0, "threshold": 1.0},
+        {"rule_key": "title_domain_mismatch", "rule_name": "标题与域名相似度较低", "weight": 5.0, "threshold": 0.3},
         {"rule_key": "suspicious_redirect", "rule_name": "Redirect or countdown signal", "weight": 6.0, "threshold": 1.0},
     ]
     for rule_data in rules:

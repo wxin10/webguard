@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..core.exceptions import DatabaseError, RuleEngineError
 from ..models import DomainBlacklist, DomainWhitelist, Report, ScanRecord, User, UserSiteStrategy
+from .ai_config_service import AIConfigService
 from .deepseek_analysis_service import DeepSeekAnalysisService
 from .feature_extractor import FeatureExtractor
 from .rule_engine import RuleEngine
@@ -21,7 +22,8 @@ class Detector:
         self.db = db
         self.feature_extractor = FeatureExtractor()
         self.rule_engine = RuleEngine(db)
-        self.ai_analysis_service = DeepSeekAnalysisService()
+        self.ai_config_service = AIConfigService(db)
+        self.ai_analysis_service: DeepSeekAnalysisService | None = None
 
     def _check_domain_lists(self, domain: str, username: Optional[str] = None) -> Optional[Dict[str, Any]]:
         try:
@@ -144,7 +146,8 @@ class Detector:
             raise RuleEngineError(f"Rule engine execution failed: {exc}") from exc
 
         behavior_signals = self._build_behavior_signals(rule_details)
-        ai_analysis = self.ai_analysis_service.analyze(
+        ai_service = self.ai_analysis_service or self.ai_config_service.build_analysis_service()
+        ai_analysis = ai_service.analyze(
             features=features,
             behavior_score=rule_score,
             behavior_signals=behavior_signals,
@@ -154,9 +157,9 @@ class Detector:
         ai_fusion_used = ai_score is not None and ai_analysis.get("status") == "used"
         fuse_result = self._fuse_ai_decision(rule_score, ai_score) if ai_fusion_used else self._rule_only_decision(rule_score)
         fusion_summary = (
-            "Final risk score = behavior score x45% + DeepSeek semantic score x55%."
+            "最终风险分 = 行为规则分 × 45% + DeepSeek 语义分 × 55%"
             if ai_fusion_used
-            else "DeepSeek semantic analysis was not used; final risk falls back to rule-engine score."
+            else "DeepSeek 未触发或不可用，系统使用规则引擎兜底。"
         )
         score_breakdown = self._build_score_breakdown(
             rules=rule_details,
@@ -272,7 +275,7 @@ class Detector:
             "confidence": 0.0,
             "error": None,
             "trigger_reasons": [],
-            "reason": "DeepSeek semantic analysis was not used for this deterministic or default result.",
+            "reason": "DeepSeek 未触发或不可用，系统使用规则引擎兜底。",
         }
 
     def _build_behavior_signals(self, hit_rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -351,6 +354,8 @@ class Detector:
             }
         )
         enriched["score_breakdown"] = score_breakdown
+        enriched["ai_fusion_used"] = bool(score_breakdown.get("ai_fusion_used", False))
+        enriched["fallback"] = score_breakdown.get("fallback")
         return enriched
 
     def _attach_result_metadata(
@@ -399,7 +404,7 @@ class Detector:
                 fallback="rule_engine_only",
                 fusion_summary=(
                     f"Decision was short-circuited by a domain list policy and marked as {label}. "
-                    "DeepSeek semantic analysis was not used; final risk falls back to rule-engine score."
+                    "DeepSeek 未触发或不可用，系统使用规则引擎兜底。"
                 ),
             )
             reason_summary = [domain_list_result["reason"]]
@@ -503,6 +508,22 @@ class Detector:
         record.report_id = report.id
         return report
 
+    def _persisted_detection_snapshot(self, raw_features: dict[str, Any], result: Dict[str, Any]) -> dict[str, Any]:
+        score_breakdown = dict(result.get("score_breakdown") or {})
+        return {
+            **raw_features,
+            "score_breakdown": score_breakdown,
+            "ai_score": result.get("ai_score"),
+            "ai_analysis": result.get("ai_analysis") or score_breakdown.get("ai_analysis") or {},
+            "ai_fusion_used": bool(score_breakdown.get("ai_fusion_used", False)),
+            "fallback": score_breakdown.get("fallback"),
+            "behavior_score": result.get("behavior_score", result.get("rule_score")),
+            "behavior_signals": result.get("behavior_signals") or score_breakdown.get("behavior_signals") or [],
+            "policy_hit": result.get("policy_hit") or score_breakdown.get("policy_hit") or self._empty_policy_hit(),
+            "threat_intel_hit": bool(result.get("threat_intel_hit", score_breakdown.get("threat_intel_hit", False))),
+            "threat_intel_matches": result.get("threat_intel_matches") or score_breakdown.get("threat_intel_matches") or [],
+        }
+
     def _save_record(
         self,
         url: str,
@@ -528,7 +549,7 @@ class Detector:
                 model_malicious_prob=result["model_malicious_prob"],
                 has_password_input=bool(features.get("has_password_input", False)),
                 hit_rules_json=result["hit_rules"],
-                raw_features_json=features["raw_features"],
+                raw_features_json=self._persisted_detection_snapshot(features["raw_features"], result),
                 explanation=result["explanation"],
                 recommendation=result["recommendation"],
             )
@@ -615,11 +636,11 @@ class Detector:
     ) -> str:
         matched_rules = [rule for rule in rule_details if rule.get("matched") and rule.get("enabled")]
         lines = [
-            f"Rule-engine behavior score: {breakdown.get('behavior_score', breakdown.get('rule_score_total', 0)):.1f}",
-            f"Final risk score: {breakdown.get('final_score', 0):.1f}",
+            f"规则引擎行为分: {breakdown.get('behavior_score', breakdown.get('rule_score_total', 0)):.1f}",
+            f"最终风险分: {breakdown.get('final_score', 0):.1f}",
         ]
         if matched_rules:
-            lines.append(f"Matched and applied rules: {len(matched_rules)}")
+            lines.append(f"命中并参与评分的规则: {len(matched_rules)}")
             for rule in matched_rules[:5]:
                 lines.append(
                     f"- {rule.get('name') or rule.get('rule_name')}: "
@@ -631,29 +652,27 @@ class Detector:
         lines.append(str(breakdown.get("fusion_summary", "")))
         if ai_analysis:
             status = ai_analysis.get("status")
-            lines.append(f"DeepSeek semantic analysis status: {status}")
+            lines.append(f"DeepSeek 语义研判状态: {status}")
             if status == "used":
                 lines.append(
-                    f"DeepSeek score: {ai_analysis.get('risk_score')}; confidence={ai_analysis.get('confidence', 0):.2f}"
+                    f"DeepSeek 风险分: {ai_analysis.get('risk_score')}; confidence={ai_analysis.get('confidence', 0):.2f}"
                 )
                 for reason in (ai_analysis.get("reasons") or [])[:3]:
                     lines.append(f"- DeepSeek: {reason}")
             elif ai_analysis.get("reason"):
-                lines.append(f"DeepSeek fallback: {ai_analysis.get('reason')}")
+                lines.append(f"DeepSeek 兜底说明: {ai_analysis.get('reason')}")
         return "\n".join(lines)
 
     def _generate_recommendation(self, label: str, risk_score: float) -> str:
         if label == "malicious":
             return (
-                "Do not continue to this site. Avoid entering passwords, verification codes, "
-                "payment information, or other sensitive data."
+                "不要继续访问该网站。避免输入密码、验证码、支付信息或其他敏感数据。"
             )
         if label == "suspicious":
             return (
-                "Proceed with caution. Verify the domain, certificate, and page source before entering "
-                "any sensitive information."
+                "请谨慎访问。在输入任何敏感信息前，先核对域名、证书和页面来源。"
             )
-        return "No obvious high-risk signal was detected. Continue browsing with normal caution."
+        return "未发现明显高风险信号，可继续访问但仍需保持基础安全习惯。"
 
     def detect_url(self, url: str, source: str = "manual", username: Optional[str] = None) -> Dict[str, Any]:
         features = self.feature_extractor.extract_features(url)

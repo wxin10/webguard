@@ -29,7 +29,9 @@ def override_get_db():
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.DEEPSEEK_API_KEY", None)
+    monkeypatch.setattr("app.core.config.settings.DEEPSEEK_ENABLED", "true")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
@@ -131,6 +133,65 @@ def test_plugin_analyze_current_high_risk_can_trigger_block_flow(client: TestCli
     assert report_payload["code"] == 0
     assert report_payload["data"]["risk_level"] == "malicious"
     assert report_payload["data"]["record_id"] == data["record_id"]
+
+
+def test_report_detail_preserves_used_deepseek_analysis(client: TestClient, monkeypatch):
+    def fake_analyze(self, **_kwargs):
+        return {
+            "status": "used",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "risk_score": 65.0,
+            "label": "suspicious",
+            "risk_types": ["phishing"],
+            "reasons": ["页面存在品牌登录和密码采集组合。"],
+            "recommendation": "不要输入账号、密码或验证码。",
+            "confidence": 0.82,
+            "error": None,
+            "trigger_reasons": ["matched_rule:brand_login_mismatch_combo"],
+        }
+
+    monkeypatch.setattr("app.services.deepseek_analysis_service.DeepSeekAnalysisService.analyze", fake_analyze)
+
+    response = client.post(
+        "/api/v1/plugin/analyze-current",
+        json={
+            "url": "https://login-paypal-account-security.example-phish.com/verify/password",
+            "title": "PayPal Secure Login",
+            "visible_text": "Verify your account password to continue payment.",
+            "button_texts": ["Sign in", "Verify"],
+            "input_labels": ["Email", "Password"],
+            "form_action_domains": ["secure-paypal.example-phish.com"],
+            "has_password_input": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    expected_score = (data["behavior_score"] * 0.45) + (65.0 * 0.55)
+    assert data["ai_analysis"]["status"] == "used"
+    assert data["ai_score"] == 65.0
+    assert data["ai_fusion_used"] is True
+    assert data["fallback"] is None
+    assert data["score_breakdown"]["ai_analysis"]["status"] == "used"
+    assert data["score_breakdown"]["ai_score"] == 65.0
+    assert data["score_breakdown"]["ai_fusion_used"] is True
+    assert data["score_breakdown"]["fallback"] is None
+    assert data["risk_score"] == pytest.approx(expected_score)
+
+    report_response = client.get(f"/api/v1/reports/{data['report_id']}")
+    assert report_response.status_code == 200
+    report = report_response.json()["data"]
+    assert report["ai_score"] == 65.0
+    assert report["ai_analysis"]["status"] == "used"
+    assert report["ai_analysis"]["label"] == "suspicious"
+    assert report["ai_fusion_used"] is True
+    assert report["fallback"] is None
+    assert report["score_breakdown"]["ai_score"] == 65.0
+    assert report["score_breakdown"]["ai_analysis"]["status"] == "used"
+    assert report["score_breakdown"]["ai_fusion_used"] is True
+    assert report["score_breakdown"]["fallback"] is None
+    assert report["risk_score"] == pytest.approx(expected_score)
 
 
 def test_scan_url_threat_intel_blacklist_hit_blocks_and_explains(client: TestClient):

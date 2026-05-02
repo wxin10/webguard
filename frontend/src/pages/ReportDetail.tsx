@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { feedbackService } from '../services/feedbackService';
 import { reportsService } from '../services/reportsService';
 import type { AIAnalysis, AnalysisReport, BehaviorSignal, HitRule, PolicyHit, ScanRecordItem, ScoreBreakdown, ThreatIntelMatch } from '../types';
+import { aiStatusDescription, aiStatusLabel, fusionDescription, missingStructuredAiDetailsText, resolveAiAnalysis, resolveAiFusionUsed, resolveAiScore, resolveAiStatus } from '../utils/aiAnalysis';
 import { feedbackStatusText, formatDate, pluginEventText, riskBar, scanSourceText } from '../utils';
 
 export default function ReportDetail() {
@@ -76,8 +77,13 @@ export default function ReportDetail() {
   const policyHit = report.policy_hit ?? breakdown.policy_hit ?? {};
   const threatIntelHit = report.threat_intel_hit ?? Boolean(breakdown.threat_intel_hit);
   const threatIntelMatches = report.threat_intel_matches ?? breakdown.threat_intel_matches ?? [];
-  const aiAnalysis = report.ai_analysis ?? breakdown.ai_analysis ?? { status: 'not_available' };
-  const aiScore = report.ai_score ?? breakdown.ai_score ?? aiAnalysis.risk_score ?? null;
+  const aiSource = { ...report, score_breakdown: breakdown };
+  const aiAnalysis = resolveAiAnalysis(aiSource);
+  const aiStatus = resolveAiStatus(aiSource);
+  const aiScore = resolveAiScore(aiSource);
+  const aiFusionUsed = resolveAiFusionUsed(aiSource);
+  const finalScore = Number(breakdown.final_score ?? report.risk_score ?? 0);
+  const fusionText = fusionDescription(aiFusionUsed);
   const reasonSummary = report.reason_summary?.length
     ? report.reason_summary
     : [report.explanation || report.summary || report.conclusion].filter(Boolean);
@@ -160,15 +166,15 @@ export default function ReportDetail() {
           </div>
           <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-5 lg:w-96">
             <p className="text-sm font-semibold text-slate-500">风险分数</p>
-            <div className="mt-2 text-5xl font-bold text-slate-950">{breakdown.final_score.toFixed(1)}</div>
+            <div className="mt-2 text-5xl font-bold text-slate-950">{finalScore.toFixed(1)}</div>
             <div className="mt-5 h-3 rounded-full bg-slate-200">
-              <div className={`h-3 rounded-full ${riskBar(report.risk_level || report.label)}`} style={{ width: `${Math.min(breakdown.final_score, 100)}%` }} />
+              <div className={`h-3 rounded-full ${riskBar(report.risk_level || report.label)}`} style={{ width: `${Math.min(finalScore, 100)}%` }} />
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <ScorePill label="规则分" value={breakdown.rule_score_total} />
-              <ScorePill label="AI 分" value={typeof aiScore === 'number' ? aiScore : 0} />
+              <ScorePill label="规则分" value={behaviorScore} />
+              <ScorePill label="AI 分" value={typeof aiScore === 'number' ? aiScore : '未使用'} />
+              <ScorePill label="最终分" value={finalScore} />
               <ScorePill label="命中规则" value={matchedRules.length} />
-              <ScorePill label="助手事件" value={report.plugin_events?.length || 0} />
             </div>
           </div>
         </div>
@@ -183,7 +189,7 @@ export default function ReportDetail() {
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            {breakdown.ai_fusion_used ? '已使用 AI 融合评分' : '基础检测结果'}
+            {aiFusionUsed ? '已使用 DeepSeek 融合评分' : '规则引擎兜底'}
           </span>
         </div>
 
@@ -191,7 +197,7 @@ export default function ReportDetail() {
           <SourceCard title="策略命中" active={Boolean(policyHit.hit)} activeText="命中站点访问策略" description={policyDescription(policyHit)} />
           <SourceCard title="外部规则库" active={threatIntelHit} activeText="命中外部恶意网站规则库" description={threatIntelDescription(threatIntelHit, threatIntelMatches)} />
           <SourceCard title="页面行为风险信号" active={behaviorSignals.length > 0} activeText="页面行为风险信号" description={`行为风险评分 ${behaviorScore.toFixed(1)}。`} />
-          <SourceCard title="AI 语义研判" active={aiAnalysis.status === 'used'} activeText="AI 语义研判已参与本次分析" description={aiStatusDescription(aiAnalysis)} />
+          <SourceCard title="AI 语义研判" active={aiStatus === 'used'} activeText={aiStatusLabel(aiStatus)} inactiveText={aiStatusLabel(aiStatus)} description={aiStatusDescription(aiStatus)} />
         </div>
 
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
@@ -204,20 +210,26 @@ export default function ReportDetail() {
           <section className="space-y-4">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <h4 className="font-semibold text-slate-950">AI 语义研判</h4>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{aiStatusDescription(aiAnalysis)}</p>
-              {aiAnalysis.status === 'used' && (
+              <p className="mt-2 text-sm leading-6 text-slate-700">{aiStatusDescription(aiStatus)}</p>
+              {aiStatus === 'used' && hasStructuredAiDetails(aiAnalysis) && (
                 <div className="mt-3 space-y-2 text-sm text-slate-700">
-                  <p>AI 评分：{typeof aiScore === 'number' ? aiScore.toFixed(1) : '--'}</p>
-                  <p>置信度：{typeof aiAnalysis.confidence === 'number' ? `${(aiAnalysis.confidence * 100).toFixed(0)}%` : '--'}</p>
+                  <p>DeepSeek 风险分：{typeof aiScore === 'number' ? aiScore.toFixed(1) : '--'}</p>
+                  <p>标签：{aiAnalysis.label || '未提供'}</p>
                   <p>风险类型：{aiAnalysis.risk_types?.length ? aiAnalysis.risk_types.join('、') : '未提供'}</p>
-                  {(aiAnalysis.reasons || []).slice(0, 3).map((reason, index) => <p key={index}>原因：{reason}</p>)}
+                  <p>判断理由：{aiAnalysis.reasons?.length ? aiAnalysis.reasons.join('；') : '未提供'}</p>
+                  <p>安全建议：{aiAnalysis.recommendation || '未提供'}</p>
+                  <p>置信度：{typeof aiAnalysis.confidence === 'number' ? `${(aiAnalysis.confidence * 100).toFixed(0)}%` : '--'}</p>
+                  <p>触发原因：{aiAnalysis.trigger_reasons?.length ? aiAnalysis.trigger_reasons.join('、') : '未提供'}</p>
                 </div>
+              )}
+              {aiStatus === 'used' && !hasStructuredAiDetails(aiAnalysis) && (
+                <p className="mt-3 text-sm leading-6 text-slate-600">{missingStructuredAiDetailsText()}</p>
               )}
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <h4 className="font-semibold text-slate-950">融合说明</h4>
               <p className="mt-2 text-sm leading-6 text-slate-700">
-                {breakdown.ai_fusion_used ? '最终分数融合了页面行为风险与 AI 语义研判。' : breakdown.fusion_summary || '最终分数基于基础检测结果生成。'}
+                {fusionText}
               </p>
               {breakdown.fallback && <p className="mt-2 text-xs text-slate-500">降级策略：{String(breakdown.fallback)}</p>}
             </div>
@@ -382,7 +394,7 @@ function buildFallbackBreakdown(report: AnalysisReport): ScoreBreakdown {
     ai_provider: 'deepseek',
     ai_score: null,
     ai_analysis: {
-      status: 'not_available',
+      status: 'unknown',
       provider: 'deepseek',
       risk_score: null,
       label: null,
@@ -392,19 +404,19 @@ function buildFallbackBreakdown(report: AnalysisReport): ScoreBreakdown {
       confidence: 0,
       error: null,
       trigger_reasons: [],
-      reason: '历史记录缺少 DeepSeek 语义研判详情。',
+      reason: missingStructuredAiDetailsText(),
     },
     ai_fusion_used: false,
     fallback: 'rule_engine_only',
     final_score: Number(report.risk_score || 0),
     label: report.risk_level || report.label,
-    fusion_summary: `历史记录缺少 DeepSeek 评分拆解，当前按规则引擎分 ${Number(report.rule_score || 0).toFixed(1)} 读取兼容展示。`,
+    fusion_summary: fusionDescription(false),
     rules: report.matched_rules || report.hit_rules || [],
     raw_features: report.raw_features || {},
   };
 }
 
-function ScorePill({ label, value }: { label: string; value: number }) {
+function ScorePill({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-lg bg-white p-3">
       <p className="text-xs text-slate-500">{label}</p>
@@ -431,13 +443,13 @@ function RuleTitle({ rule }: { rule: HitRule }) {
   );
 }
 
-function SourceCard({ title, active, activeText, description }: { title: string; active: boolean; activeText: string; description: string }) {
+function SourceCard({ title, active, activeText, inactiveText = '未命中', description }: { title: string; active: boolean; activeText: string; inactiveText?: string; description: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
         <h4 className="font-semibold text-slate-950">{title}</h4>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-          {active ? activeText : '未命中'}
+          {active ? activeText : inactiveText}
         </span>
       </div>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
@@ -472,15 +484,17 @@ function threatIntelDescription(hit: boolean, matches: ThreatIntelMatch[]): stri
   return `${first.source || '未知来源'} · ${first.risk_type || '未知风险'}${first.reason ? ` · ${first.reason}` : ''}`;
 }
 
-function aiStatusDescription(analysis: AIAnalysis): string {
-  if (analysis.status === 'used') return 'AI 语义研判已参与本次分析。';
-  if (analysis.status === 'not_triggered') return '当前页面风险信号较低，未触发 AI 语义研判。';
-  if (analysis.status === 'disabled' || analysis.status === 'no_api_key' || analysis.status === 'timeout' || analysis.status === 'error' || analysis.status === 'invalid_response') {
-    return 'AI 语义研判暂不可用，已使用基础检测结果。';
-  }
-  return 'AI 语义研判未参与本次分析。';
-}
-
 function stringifyList(value: unknown) {
   return Array.isArray(value) && value.length ? value.join(', ') : '未采集';
+}
+
+function hasStructuredAiDetails(analysis: AIAnalysis): boolean {
+  return Boolean(
+    analysis.risk_score !== null
+    || analysis.label
+    || analysis.risk_types?.length
+    || analysis.reasons?.length
+    || analysis.recommendation
+    || analysis.trigger_reasons?.length,
+  );
 }

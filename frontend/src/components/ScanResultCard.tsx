@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { AIAnalysis, BehaviorSignal, ScanResult } from '../types';
+import { aiStatusDescription, aiStatusLabel, fusionDescription, resolveAiAnalysis, resolveAiFusionUsed, resolveAiScore, resolveAiStatus } from '../utils/aiAnalysis';
 import { riskBar } from '../utils';
 import RiskBadge from './RiskBadge';
 import RuleHitList from './RuleHitList';
@@ -12,8 +13,10 @@ interface ScanResultCardProps {
 export default function ScanResultCard({ url, result }: ScanResultCardProps) {
   const behaviorScore = result.behavior_score ?? result.rule_score ?? 0;
   const behaviorSignals = normalizedBehaviorSignals(result);
-  const aiAnalysis = result.ai_analysis ?? { status: 'not_available' };
-  const aiFusionUsed = Boolean(result.score_breakdown?.ai_fusion_used);
+  const aiAnalysis = resolveAiAnalysis(result);
+  const aiStatus = resolveAiStatus(result);
+  const aiScore = resolveAiScore(result);
+  const aiFusionUsed = resolveAiFusionUsed(result);
   const reportId = result.report_id || result.record_id;
 
   return (
@@ -30,8 +33,8 @@ export default function ScanResultCard({ url, result }: ScanResultCardProps) {
       <div className="mt-6 grid gap-4 lg:grid-cols-4">
         <Metric title="风险评分" value={result.risk_score.toFixed(1)} tone={result.label} />
         <Metric title="行为评分" value={behaviorScore.toFixed(1)} />
-        <Metric title="AI 评分" value={typeof result.ai_score === 'number' ? result.ai_score.toFixed(1) : '--'} />
-        <Metric title="AI 融合" value={aiFusionUsed ? '已使用' : '未使用'} />
+        <Metric title="DeepSeek 风险分" value={typeof aiScore === 'number' ? aiScore.toFixed(1) : '--'} />
+        <Metric title="AI 语义研判" value={aiStatusLabel(aiStatus)} />
       </div>
 
       <div className="mt-5 h-2 rounded-full bg-slate-200">
@@ -61,13 +64,14 @@ export default function ScanResultCard({ url, result }: ScanResultCardProps) {
           />
           <SourceItem
             title="AI 语义研判"
-            active={aiAnalysis.status === 'used'}
-            description={aiStatusDescription(aiAnalysis)}
-            activeText="AI 语义研判已参与本次分析"
+            active={aiStatus === 'used'}
+            description={aiStatusDescription(aiStatus)}
+            activeText={aiStatusLabel(aiStatus)}
+            inactiveText={aiStatusLabel(aiStatus)}
           />
         </div>
         <p className="mt-4 rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
-          {aiFusionUsed ? '最终分数融合了页面行为风险与 AI 语义研判。' : '最终分数基于基础检测结果生成。'}
+          {fusionDescription(aiFusionUsed)}
         </p>
       </section>
 
@@ -77,7 +81,7 @@ export default function ScanResultCard({ url, result }: ScanResultCardProps) {
           <RuleHitList rules={behaviorSignals.slice(0, 3)} />
         </section>
         <section className="space-y-4">
-          <AIAnalysisSummary analysis={aiAnalysis} aiScore={result.ai_score} />
+          <AIAnalysisSummary analysis={aiAnalysis} aiScore={aiScore} />
           <ThreatIntelSummary result={result} />
         </section>
       </div>
@@ -112,13 +116,13 @@ function Metric({ title, value, tone }: { title: string; value: string; tone?: s
   );
 }
 
-function SourceItem({ title, active, description, activeText }: { title: string; active: boolean; description: string; activeText: string }) {
+function SourceItem({ title, active, description, activeText, inactiveText = '未命中' }: { title: string; active: boolean; description: string; activeText: string; inactiveText?: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-slate-900">{title}</span>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-          {active ? activeText : '未命中'}
+          {active ? activeText : inactiveText}
         </span>
       </div>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
@@ -132,13 +136,16 @@ function AIAnalysisSummary({ analysis, aiScore }: { analysis: AIAnalysis; aiScor
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <h4 className="font-semibold text-slate-900">AI 语义研判</h4>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{aiStatusDescription(analysis)}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{aiStatusDescription(analysis.status)}</p>
       {analysis.status === 'used' && (
         <div className="mt-3 space-y-2 text-sm text-slate-600">
-          <p>AI 评分：{typeof aiScore === 'number' ? aiScore.toFixed(1) : typeof analysis.risk_score === 'number' ? analysis.risk_score.toFixed(1) : '--'}</p>
+          <p>DeepSeek 风险分：{typeof aiScore === 'number' ? aiScore.toFixed(1) : typeof analysis.risk_score === 'number' ? analysis.risk_score.toFixed(1) : '--'}</p>
+          <p>标签：{analysis.label || '未提供'}</p>
           <p>置信度：{typeof analysis.confidence === 'number' ? `${(analysis.confidence * 100).toFixed(0)}%` : '--'}</p>
           <p>风险类型：{riskTypes}</p>
-          {reasons.map((reason, index) => <p key={index}>原因：{reason}</p>)}
+          {reasons.map((reason, index) => <p key={index}>判断理由：{reason}</p>)}
+          <p>安全建议：{analysis.recommendation || '未提供'}</p>
+          <p>触发原因：{analysis.trigger_reasons?.length ? analysis.trigger_reasons.join('、') : '未提供'}</p>
         </div>
       )}
     </div>
@@ -204,13 +211,4 @@ function threatIntelDescription(result: ScanResult): string {
   const first = result.threat_intel_matches?.[0];
   if (!first) return '命中外部恶意网站规则库。';
   return `${first.source || '未知来源'} · ${first.risk_type || '未知风险'}${first.reason ? ` · ${first.reason}` : ''}`;
-}
-
-function aiStatusDescription(analysis: AIAnalysis): string {
-  if (analysis.status === 'used') return 'AI 语义研判已参与本次分析。';
-  if (analysis.status === 'not_triggered') return '当前页面风险信号较低，未触发 AI 语义研判。';
-  if (analysis.status === 'disabled' || analysis.status === 'no_api_key' || analysis.status === 'timeout' || analysis.status === 'error' || analysis.status === 'invalid_response') {
-    return 'AI 语义研判暂不可用，已使用基础检测结果。';
-  }
-  return 'AI 语义研判未参与本次分析。';
 }

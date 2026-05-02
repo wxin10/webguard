@@ -1,4 +1,5 @@
 from .scan_record import ScanRecord
+from .ai_config import AIProviderConfig
 from .domain_list import DomainWhitelist, DomainBlacklist
 from .rule_config import RuleConfig
 from .model_version import ModelVersion
@@ -22,6 +23,7 @@ from .user_strategy import (
 
 __all__ = [
     "ScanRecord",
+    "AIProviderConfig",
     "DomainWhitelist",
     "DomainBlacklist",
     "RuleConfig",

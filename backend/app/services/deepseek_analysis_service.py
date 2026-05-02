@@ -44,20 +44,22 @@ SENSITIVE_TEXT_TERMS = {
 
 
 Transport = Callable[[str, dict[str, Any], dict[str, str], int], dict[str, Any]]
+_UNSET = object()
 
 
 class DeepSeekAnalysisService:
     def __init__(
         self,
         *,
-        api_key: str | None = None,
+        api_key: str | None | object = _UNSET,
         base_url: str | None = None,
         model: str | None = None,
         enabled: str | bool | None = None,
         timeout_seconds: int | None = None,
         transport: Transport | None = None,
     ):
-        self.api_key = api_key if api_key is not None else settings.DEEPSEEK_API_KEY
+        resolved_api_key = settings.DEEPSEEK_API_KEY if api_key is _UNSET else api_key
+        self.api_key = str(resolved_api_key) if resolved_api_key else None
         self.base_url = (base_url or settings.DEEPSEEK_BASE_URL).rstrip("/")
         self.model = model or settings.DEEPSEEK_MODEL
         self.enabled = enabled if enabled is not None else settings.DEEPSEEK_ENABLED

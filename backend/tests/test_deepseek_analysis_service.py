@@ -90,7 +90,7 @@ def test_valid_json_response_is_parsed():
             )
         )
 
-    service = DeepSeekAnalysisService(api_key="secret", enabled="true", transport=transport)
+    service = DeepSeekAnalysisService(api_key="secret", model="deepseek-chat", enabled="true", transport=transport)
 
     result = service.analyze(
         features=build_features(),

@@ -1,5 +1,5 @@
 from .common import BaseResponse, ApiResponse, PaginationQuery
-from .ai import AIStatus, AITestRequest, AITestResponse
+from .ai import AIConfig, AIConfigTestRequest, AIConfigUpdateRequest, AIStatus, AITestRequest, AITestResponse
 from .scan import UrlScanRequest, PageScanRequest, ScanResult, HitRule
 from .record import ScanRecord, ScanRecordCreate, ScanRecordList
 from .domain import (
@@ -36,6 +36,9 @@ __all__ = [
     "ApiResponse",
     "PaginationQuery",
     "AIStatus",
+    "AIConfig",
+    "AIConfigUpdateRequest",
+    "AIConfigTestRequest",
     "AITestRequest",
     "AITestResponse",
     "UrlScanRequest",

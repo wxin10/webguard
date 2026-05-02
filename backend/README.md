@@ -39,7 +39,7 @@ Current architecture:
 FeatureExtractor -> RuleEngine -> DeepSeekAnalysisService -> Detector
 ```
 
-The rule engine remains the fast, explainable baseline. DeepSeek is the only AI semantic analysis provider. The previous Paddle/local model route has been removed from the main detection path.
+The rule engine remains the fast, explainable baseline. DeepSeek is the only AI semantic analysis provider in the main detection path.
 
 Fusion rule:
 
@@ -49,8 +49,11 @@ Fusion rule:
 
 ## DeepSeek Configuration
 
+Admin-managed configuration is available through the Web AI configuration page. Database configuration is preferred at runtime; these environment variables remain the fallback when no database API key is configured.
+
 ```text
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
+SECRET_ENCRYPTION_KEY=<fernet-key-for-production>
+DEEPSEEK_API_KEY=<your-api-key>
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
@@ -63,7 +66,7 @@ DEEPSEEK_TIMEOUT_SECONDS=20
 - `true`: force a DeepSeek attempt; missing key returns `no_api_key`.
 - `false`: disable DeepSeek semantic analysis.
 
-The API key is read from environment variables only. It is never hardcoded and is not returned to clients.
+API keys saved through the admin page are encrypted in `ai_provider_configs.encrypted_api_key`. Clients only receive `api_key_masked`.
 
 ## AI API
 
@@ -77,6 +80,15 @@ Admin test:
 
 ```text
 POST /api/v1/ai/test
+```
+
+Admin configuration:
+
+```text
+GET    /api/v1/ai/config
+PUT    /api/v1/ai/config
+DELETE /api/v1/ai/config/key
+POST   /api/v1/ai/config/test
 ```
 
 Example test body:
