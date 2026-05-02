@@ -94,7 +94,7 @@ async function startBinding(): Promise<void> {
     await saveOptions();
     const challenge = await createPluginBindingChallenge();
     await renderSettings();
-    showBindingMessage(`绑定验证码 ${challenge.binding_code} 已创建。请在 WebGuard 平台确认后回到这里完成绑定。`);
+    showBindingMessage(`Binding challenge ${challenge.binding_code} 已创建。请在 WebGuard 平台确认后回到这里换取插件专用 plugin token。`);
   } catch (error) {
     showBindingMessage(`绑定请求创建失败：${errorMessage(error)}`, true);
   } finally {
@@ -117,7 +117,7 @@ async function finishBinding(): Promise<void> {
   try {
     const token = await exchangePluginBindingToken();
     await renderSettings();
-    showBindingMessage(`浏览器助手 ${token.plugin_instance_id} 已绑定成功。`);
+    showBindingMessage(`浏览器助手 ${token.plugin_instance_id} 已绑定成功，已保存插件专用 plugin token。`);
   } catch (error) {
     showBindingMessage(`连接已失效，请重新绑定：${errorMessage(error)}`, true);
   } finally {

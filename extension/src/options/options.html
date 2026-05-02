@@ -16,6 +16,7 @@
 
       <section class="card">
         <h2>连接平台账号</h2>
+        <p class="hint">正式连接路径是浏览器助手绑定：创建 binding challenge，在 WebGuard 平台确认验证码，然后换取插件专用 plugin token。</p>
         <label for="api-base-url">平台接口地址</label>
         <input id="api-base-url" type="url" placeholder="http://127.0.0.1:8000" />
         <p class="hint">用于连接 WebGuard 后端服务。</p>
@@ -25,10 +26,10 @@
         <p class="hint">用于打开网站报告和站点策略页面。</p>
 
         <details class="advanced-config">
-          <summary>高级连接配置</summary>
-          <label for="access-token">访问凭证</label>
-          <input id="access-token" type="password" autocomplete="off" placeholder="可选访问凭证" />
-          <p class="hint">仅在无法完成账号绑定时使用，常规连接请优先使用下方绑定流程。</p>
+          <summary>开发兼容配置 / Advanced development fallback</summary>
+          <p class="hint warning-hint">Access Token 仅用于本地开发或绑定流程不可用时排障。生产和正式答辩不推荐使用；常规连接请使用插件绑定、binding challenge 和 plugin token。</p>
+          <label for="access-token">开发兼容访问凭证</label>
+          <input id="access-token" type="password" autocomplete="off" placeholder="仅本地开发 fallback 使用" />
 
           <label for="plugin-instance-id">助手实例标识</label>
           <input id="plugin-instance-id" type="text" autocomplete="off" placeholder="assistant-instance-id" />
@@ -41,7 +42,7 @@
 
       <section class="card">
         <h2>绑定浏览器助手</h2>
-        <p class="hint">发起绑定后，请在 WebGuard 平台确认验证码，再回到这里完成连接。</p>
+        <p class="hint">这是正式连接流程：先创建 binding challenge，在 WebGuard 平台确认验证码，再回到这里换取插件专用 plugin token。</p>
         <div class="binding-grid">
           <div>
             <label>绑定验证码</label>

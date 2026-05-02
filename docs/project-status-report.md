@@ -8,8 +8,8 @@
 
 WebGuard 当前已经达到“本地可用内测版 / 准部署前状态”：
 
-- Web 平台、FastAPI 后端、Manifest V3 浏览器插件三端已形成闭环。
-- 本地 PostgreSQL、Alembic baseline、正式登录、Refresh Token、插件绑定、策略同步、报告记录、CI、Runbook 和 smoke 脚本均已建立。
+- Web 平台、FastAPI 后端、Manifest V3 浏览器插件三端已形成闭环；Web 平台是主产品入口，浏览器插件是轻量辅助执行端，FastAPI 后端是检测、策略、报告、鉴权和持久化的可信边界。
+- PostgreSQL 目标数据库、Alembic baseline、正式登录、Refresh Token、插件绑定、策略同步、报告记录、CI、Runbook 和 smoke 脚本均已建立。SQLite 只作为 CI/单元测试轻量配置出现，不作为正式运行数据库。
 - 真实浏览器插件 smoke test 已验证核心路径可用。
 - 项目尚未完成真实生产部署、正式 extension ID allowlist、secret manager、公开隐私政策、生产反向代理和商店发布材料。
 
@@ -63,7 +63,7 @@ WebGuard 当前已经达到“本地可用内测版 / 准部署前状态”：
 
 - 限流、完整审计日志、生产观测告警未完整实现。
 - Redis 仍是目标能力，尚未接入。
-- 生产部署配置仍是草案。
+- 已有生产配置草案、部署 checklist 和 runbook，但尚未完成真实生产部署。
 
 ### 浏览器插件
 
@@ -154,18 +154,18 @@ WebGuard 已经不是单点 demo，而是具备三端闭环、鉴权基线、插
 
 ## Current AI Detection Position
 
-WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判的混合检测架构。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义、诱导话术和潜在攻击意图。
+WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释行为风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义诱导、品牌冒充、支付、验证码、钱包和潜在攻击意图。
 
-主检测链路只保留规则引擎 + DeepSeek 大模型语义研判，不再使用旧的概率模型融合口径。
+DeepSeek 不替代规则引擎、黑白名单和外部威胁情报。DeepSeek 未配置、未触发、超时或异常时，系统自动回退到规则引擎兜底。
 
-DeepSeek 接入通过环境变量配置：
+DeepSeek / 火山方舟接入以管理员后台 AI 配置页为主路径；环境变量只作为数据库未保存 API Key 时的 fallback：
 
 ```text
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
 DEEPSEEK_TIMEOUT_SECONDS=20
 ```
 
-启动后可通过 `GET http://127.0.0.1:8000/api/v1/ai/status` 查看接入状态，管理员可通过 `POST http://127.0.0.1:8000/api/v1/ai/test` 测试 DeepSeek。未配置 DeepSeek API Key、DeepSeek 超时或返回异常时，系统自动退回规则引擎兜底，不影响基础检测能力。
+启动后可通过 `GET http://127.0.0.1:8000/api/v1/ai/status` 查看接入状态，管理员可通过 AI 配置页或 `POST http://127.0.0.1:8000/api/v1/ai/config/test` 测试 DeepSeek。未配置有效 DeepSeek API Key、DeepSeek 超时或返回异常时，系统自动退回规则引擎兜底，不影响基础检测能力。

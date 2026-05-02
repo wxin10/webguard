@@ -1,6 +1,6 @@
 # WebGuard Backend
 
-FastAPI backend for WebGuard detection, policy, reports, authentication, persistence, plugin binding, and AI access status.
+FastAPI backend for WebGuard detection, policy, reports, authentication, persistence, plugin binding, and AI access configuration. The backend is the trusted boundary for product decisions; the Web platform and browser extension are backend clients.
 
 ## Runtime
 
@@ -9,6 +9,8 @@ FastAPI backend for WebGuard detection, policy, reports, authentication, persist
 - SQLAlchemy 2.x
 - Alembic
 - PostgreSQL target database
+
+Schema changes are managed through Alembic. SQLite may appear in CI and unit tests as a lightweight test configuration only; it is not the formal runtime database.
 
 Local database default:
 
@@ -49,11 +51,11 @@ Fusion rule:
 
 ## DeepSeek Configuration
 
-Admin-managed configuration is available through the Web AI configuration page. Database configuration is preferred at runtime; these environment variables remain the fallback when no database API key is configured.
+Administrators should configure DeepSeek / Volcano Ark through the Web AI configuration page. Runtime detection uses the database configuration first. These environment variables remain the fallback only when no database API key is configured.
 
 ```text
 SECRET_ENCRYPTION_KEY=<fernet-key-for-production>
-DEEPSEEK_API_KEY=<your-api-key>
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
@@ -62,7 +64,7 @@ DEEPSEEK_TIMEOUT_SECONDS=20
 
 `DEEPSEEK_ENABLED` modes:
 
-- `auto`: enabled only when `DEEPSEEK_API_KEY` is configured.
+- `auto`: enabled only when an effective database or fallback `.env` API key is configured.
 - `true`: force a DeepSeek attempt; missing key returns `no_api_key`.
 - `false`: disable DeepSeek semantic analysis.
 
@@ -102,7 +104,7 @@ Example test body:
 }
 ```
 
-If `DEEPSEEK_API_KEY` is not configured, detection does not fail. WebGuard automatically uses rule-engine-only fallback.
+If no effective DeepSeek API key is configured, detection does not fail. WebGuard automatically uses rule-engine-only fallback.
 
 ## Main APIs
 

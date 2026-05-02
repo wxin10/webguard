@@ -97,12 +97,19 @@ Expected:
 
 ## 4.1 DeepSeek AI Access Check
 
-WebGuard 当前检测架构是规则引擎 + DeepSeek 大模型语义研判。
+WebGuard 当前检测架构是规则引擎 + DeepSeek 大模型语义研判。Web 平台是主产品入口，浏览器插件是轻量辅助执行端，FastAPI 后端是检测、策略、报告、鉴权和持久化的可信边界。插件采集页面访问与交互特征；后端规则引擎生成可解释行为风险信号；DeepSeek 在高风险信号触发时研判语义诱导、品牌冒充、支付、验证码、钱包等风险。DeepSeek 不替代规则引擎、黑白名单和外部威胁情报；不可用时系统自动回退到规则引擎。
 
-Local `.env`:
+Primary setup path:
+
+- Log in as an admin.
+- Open the Web AI configuration page.
+- Configure DeepSeek / Volcano Ark `base_url`, `model`, `timeout_seconds`, `enabled`, and API key.
+- Save and test the connection.
+
+Environment fallback only when no database API key is saved:
 
 ```text
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
@@ -123,8 +130,8 @@ POST http://127.0.0.1:8000/api/v1/ai/test
 
 Expected:
 
-- If `DEEPSEEK_API_KEY` is configured, status shows `provider=deepseek`, `configured=true`, and a masked key.
-- If `DEEPSEEK_API_KEY` is missing, status shows `configured=false` and detection still works through rule-engine fallback.
+- If the admin database config or fallback `.env` key is configured, status shows `provider=deepseek`, `configured=true`, source, and a masked key.
+- If no effective API key is configured, status shows `configured=false` and detection still works through rule-engine fallback.
 - If DeepSeek times out or returns an error, scan results continue to return normally with `score_breakdown.fallback=rule_engine_only`.
 
 ## 5. Manual Extension Binding

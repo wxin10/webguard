@@ -1,6 +1,6 @@
 # WebGuard Operations Notes
 
-WebGuard 当前检测架构为规则引擎 + DeepSeek 大模型语义研判。规则引擎负责快速、可解释的基础风险识别；DeepSeek 负责在高风险条件触发时分析页面语义、诱导话术和潜在攻击意图。未配置 DeepSeek、DeepSeek 未触发、超时或异常时，系统自动退回规则引擎兜底。
+WebGuard 当前检测架构为规则引擎 + DeepSeek 大模型语义研判。Web 平台是主产品入口，浏览器插件是轻量辅助执行端，FastAPI 后端是检测、策略、报告、鉴权和持久化的可信边界。插件采集页面访问与交互特征；后端规则引擎生成可解释行为风险信号；DeepSeek 在高风险信号触发时研判语义诱导、品牌冒充、支付、验证码、钱包等风险。DeepSeek 不替代规则引擎、黑白名单或外部威胁情报；未配置、未触发、超时或异常时，系统自动退回规则引擎兜底。
 
 ## Logging
 
@@ -24,18 +24,24 @@ Recommended application metrics:
 - DeepSeek call count, timeout count, error count, and latency.
 - Plugin bootstrap and scan event count.
 
+## Database
+
+The runtime target database is PostgreSQL, and schema evolution is handled by Alembic. SQLite is allowed only as a lightweight CI/unit-test configuration and should not be described as the formal runtime database.
+
 ## DeepSeek Configuration
 
-Administrators can configure DeepSeek / Volcano Ark from the Web AI configuration page. Runtime detection uses the database configuration first; if no database API key is saved, it falls back to these environment variables:
+Administrators configure DeepSeek / Volcano Ark from the Web AI configuration page. Runtime detection uses the database configuration first; if no database API key is saved, it falls back to these environment variables:
 
 ```text
 SECRET_ENCRYPTION_KEY=<fernet-key-for-production>
-DEEPSEEK_API_KEY=<your-api-key>
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
 DEEPSEEK_TIMEOUT_SECONDS=20
 ```
+
+`DEEPSEEK_API_KEY` is intentionally empty in examples because the admin configuration page is the primary setup path. Use the environment key only as a fallback.
 
 Status endpoint:
 
@@ -49,8 +55,6 @@ Admin test endpoint:
 POST /api/v1/ai/test
 ```
 
-If `DEEPSEEK_API_KEY` is missing, `/api/v1/ai/status` reports `configured=false` and detection continues through rule-engine fallback.
-
 Admin configuration endpoints:
 
 ```text
@@ -60,11 +64,13 @@ DELETE /api/v1/ai/config/key
 POST   /api/v1/ai/config/test
 ```
 
+If no database or fallback `.env` API key is configured, `/api/v1/ai/status` reports `configured=false` and detection continues through rule-engine fallback.
+
 ## Common Issues
 
 ### Backend startup fails
 
-Check PostgreSQL availability, `DATABASE_URL`, port `8000`, and dependency installation.
+Check PostgreSQL availability, `DATABASE_URL`, port `8000`, dependency installation, and whether Alembic migrations have been applied.
 
 ### Frontend cannot call backend
 
@@ -72,7 +78,7 @@ Check backend health, `VITE_API_BASE_URL`, CORS allowlist, and browser console n
 
 ### DeepSeek unavailable
 
-Check `/api/v1/ai/status`, confirm `DEEPSEEK_API_KEY` is configured, verify network access to `DEEPSEEK_BASE_URL`, and review timeout settings. Detection should continue with `score_breakdown.fallback=rule_engine_only`.
+Check `/api/v1/ai/status`, confirm whether the effective configuration source is `database` or `env`, verify the configured `base_url`, `model`, API key state, and timeout settings. Detection should continue with `score_breakdown.fallback=rule_engine_only`.
 
 ### Detection result looks inaccurate
 

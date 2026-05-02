@@ -76,9 +76,10 @@ extension/  -> 浏览器插件
 
 当前代码和配置存在几类不一致：
 
-1. **数据库口径不一致**：
-   - `docker-compose.yml` 使用 PostgreSQL；
-   - 根 `.env.example` 和 `backend/.env.example` 仍以 MySQL 为主。
+1. **数据库口径已收敛到 PostgreSQL**：
+   - `docker-compose.yml`、根 `.env.example` 和 `backend/.env.example` 均以 PostgreSQL 作为当前目标数据库；
+   - Schema 演进使用 Alembic；
+   - SQLite 只允许作为 CI/单元测试轻量配置出现，不作为正式运行数据库。
 
 2. **鉴权已切换到真实 Web 账号体系**：
    - Web 平台只走真实账号密码登录、真实注册、refresh/logout；
@@ -439,9 +440,8 @@ PostgreSQL
 - 已在 `docker-compose.yml` 中部分体现
 
 ## 迁移原则
-当前若存在 MySQL 兼容逻辑：
-- 可以临时保留
-- 但所有新文档、新部署方案、新环境示例应优先围绕 PostgreSQL 收敛
+
+所有新文档、新部署方案、新环境示例应围绕 PostgreSQL + Alembic 收敛。测试中可以使用 SQLite 降低 CI/单元测试成本，但正式运行、部署模板和答辩口径不应把 SQLite 描述为运行数据库。
 
 ---
 
@@ -526,7 +526,7 @@ PostgreSQL
 
 1. Web 是主产品，不要把复杂流程继续推到插件里。
 2. 后端是可信中心，插件只做轻量编排和展示。
-3. 数据库口径要逐步收敛，不要继续放大 MySQL/PostgreSQL 双口径漂移。
+3. 数据库口径保持 PostgreSQL + Alembic，SQLite 仅限 CI/单元测试。
 4. 任何新 API 都必须遵守统一契约。
 5. 任何新功能都必须考虑将来上线，而不是只考虑本地能跑。
 
@@ -534,6 +534,8 @@ PostgreSQL
 
 ## Current AI Detection Architecture
 
-WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义、诱导话术和潜在攻击意图。最终风险分在 DeepSeek 成功返回 `used` 时按 `behavior_score * 0.45 + deepseek_score * 0.55` 融合；未配置 DeepSeek、未触发、超时或异常时自动退回规则引擎兜底。
+WebGuard 当前采用规则引擎 + DeepSeek 大模型语义研判。浏览器插件采集页面访问与交互特征，后端规则引擎生成可解释行为风险信号，并在命中高风险条件时调用 DeepSeek 分析页面语义诱导、品牌冒充、支付、验证码、钱包和潜在攻击意图。最终风险分在 DeepSeek 成功返回 `used` 时按 `behavior_score * 0.45 + deepseek_score * 0.55` 融合；未配置 DeepSeek、未触发、超时或异常时自动退回规则引擎兜底。
 
 当前主检测链路只保留规则引擎 + DeepSeek 大模型语义研判。
+
+DeepSeek 不替代规则引擎、黑白名单或外部威胁情报。管理员后台 AI 配置页是 DeepSeek / 火山方舟接入主路径，`.env` 中的 `DEEPSEEK_API_KEY` 仅作为数据库未保存 API Key 时的 fallback。

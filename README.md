@@ -1,6 +1,6 @@
 # WebGuard
 
-WebGuard is a malicious website detection and warning platform. The Web app is the primary product surface, the FastAPI backend owns detection and persistence, and the Manifest V3 browser extension is a lightweight companion for page scanning, warning, blocking, and opening Web reports.
+WebGuard is a malicious website detection and warning platform. The Web app is the primary product surface, the Manifest V3 browser extension is a lightweight companion execution client, and the FastAPI backend is the trusted boundary for detection, policy, reports, authentication, and persistence.
 
 This repository currently represents a local-development internal test build. It is not a production deployment package yet.
 
@@ -113,25 +113,25 @@ Supported sources:
 
 ## Detection Architecture
 
-WebGuard currently uses a hybrid detection architecture: rule engine + DeepSeek large-model semantic risk analysis. The browser extension collects page access and interaction features, the backend rule engine produces explainable behavior signals, and DeepSeek is the only AI capability used for semantic judgment of page wording, inducement patterns, and attack intent. The previous Paddle/local model path has been cancelled and is not part of the current project capability.
+WebGuard currently uses rule engine + DeepSeek large-model semantic risk analysis as the main detection architecture. The browser extension collects page access and interaction features, the backend rule engine produces explainable behavior risk signals, and DeepSeek is used for semantic judgment of risky persuasion, brand impersonation, payment, verification-code, wallet, and attack-intent patterns.
 
 DeepSeek does not replace blacklists, whitelists, external blocklists, or the local behavior-rule engine. The rule engine remains the fast, explainable baseline and the fallback path.
 
 The backend calls DeepSeek only when behavior rules expose meaningful risk signals, such as password inputs, unknown cross-domain forms, brand impersonation, credential-theft combinations, payment urgency, wallet secret phrases, or suspicious redirect combinations. Clearly low-risk pages and deterministic domain-list decisions skip AI analysis.
 
-Admin-managed configuration is available in the Web backend AI page. The database value is used first and the local `.env` value remains a fallback when no database API key is configured.
+Administrators should configure DeepSeek / Volcano Ark from the Web AI configuration page. Runtime detection uses the database configuration first. The local `.env` values are fallback only when no database API key is saved.
 
 Local `.env` fallback configuration:
 
 ```powershell
-DEEPSEEK_API_KEY=<your-api-key>
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_ENABLED=auto
 DEEPSEEK_TIMEOUT_SECONDS=20
 ```
 
-`DEEPSEEK_ENABLED=auto` enables AI only when `DEEPSEEK_API_KEY` is present. `true` forces the backend to try DeepSeek and returns `no_api_key` when the key is missing. `false` disables semantic analysis. If the key is absent, DeepSeek is disabled, the request times out, or DeepSeek returns an invalid response, scanning still succeeds and falls back to rule-engine-only detection.
+`DEEPSEEK_API_KEY` is intentionally empty in examples because the admin AI configuration page is the primary setup path. `DEEPSEEK_ENABLED=auto` enables AI only when an effective database or fallback `.env` key is present. `true` forces the backend to try DeepSeek and returns `no_api_key` when no effective key exists. `false` disables semantic analysis. If the key is absent, DeepSeek is disabled, the request times out, or DeepSeek returns an invalid response, scanning still succeeds and falls back to rule-engine-only detection.
 
 Check AI status after startup:
 
@@ -294,7 +294,7 @@ extension build: passed
 
 GitHub Actions runs the same baseline checks on `push` and `pull_request`:
 
-- backend: `python -m pytest` with SQLite test configuration
+- backend: `python -m pytest` with SQLite only as a lightweight CI/unit-test configuration; PostgreSQL remains the runtime target database
 - frontend: `npm run lint` and `npm run build`
 - extension: `npm run build`
 
@@ -310,7 +310,7 @@ The CI workflow does not require secrets or a PostgreSQL service.
 - Minimal plugin binding exists and issues plugin-specific access/refresh tokens.
 - Manual extension token entry remains available only as a development-compatible fallback.
 - QR-code binding UI and full plugin device management are not implemented yet.
-- There is no production deployment configuration yet.
+- Production configuration drafts, deployment checklist, and runbook exist, but the repository is not a real production deployment package yet.
 - The extension can generate and persist `Plugin Instance ID`, but production device-management UX is still minimal.
 - Do not treat this local setup as a production authentication or authorization model.
 
