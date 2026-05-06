@@ -1,183 +1,69 @@
-# WebGuard
+# WebGuard 恶意网站检测与安全预警系统
 
-WebGuard is a malicious website detection and warning platform. The Web app is the primary product surface, the Manifest V3 browser extension is a lightweight companion execution client, and the FastAPI backend is the trusted boundary for detection, policy, reports, authentication, and persistence.
+WebGuard 是面向网页访问场景的恶意网站检测与安全预警系统。系统以 Web 管理平台为主体，以浏览器插件为辅助执行端，通过后端风险检测服务完成网页风险识别、检测记录留存、风险报告生成、黑白名单管理和管理员审核。
 
-This repository currently represents a local-development internal test build. It is not a production deployment package yet.
+系统面向日常网页访问、校园网络安全教学实践、钓鱼网站识别实验和中小型组织的网页访问安全防护场景。用户可以在网站平台中发起风险查询、查看检测记录和报告，浏览器插件可以在用户访问网页时实时采集页面特征并联动后端进行风险判断。
 
-## Deliverables
+## 核心能力
 
-- `frontend/`: React 18 + TypeScript + Vite Web platform.
-- `backend/`: FastAPI + SQLAlchemy + Alembic service.
-- `extension/`: Chrome/Edge Manifest V3 extension.
-- `docs/`: architecture, API, development, deployment, and operations notes.
+- URL 风险查询：支持用户在 Web 平台输入网址并获取风险等级、风险分数和处置建议。
+- 实时检测预警：浏览器插件在访问网页时联动后端检测，可对可疑或恶意页面进行提醒或拦截。
+- 规则检测：后端基于 URL、域名、页面文本、表单、按钮、跨域提交等特征执行规则引擎判断。
+- DeepSeek 语义分析：在高风险特征触发时调用 DeepSeek 对页面语义、诱导话术、品牌仿冒和凭证窃取意图进行分析。
+- 黑白名单管理：支持管理员维护全局黑白名单，用户维护个人信任、阻止和临时信任策略。
+- 检测记录与报告：保存检测记录、风险命中规则、页面特征摘要、AI 分析结果和处置动作。
+- 管理员审核：支持管理员查看样本、审核反馈、管理规则、域名、用户、插件实例和 AI 配置。
+- 浏览器插件绑定：支持插件实例绑定、策略同步、插件事件上报和实例撤销。
 
-## Local Baseline
+## 技术栈
 
-Default local services:
+- 后端：FastAPI、SQLAlchemy、Alembic、Pydantic、PostgreSQL
+- 前端：React、TypeScript、Vite、React Router、Axios、Tailwind CSS
+- 浏览器插件：Chrome/Edge Manifest V3、TypeScript、Service Worker、content script、chrome.storage.local
+- AI 分析：DeepSeek 语义风险分析，可通过管理员后台配置
+- 测试与集成：pytest、ESLint、TypeScript build、GitHub Actions
 
-```text
-Backend API: http://127.0.0.1:8000
-Frontend:    http://127.0.0.1:5173
-PostgreSQL:  postgresql://webguard:webguard@127.0.0.1:5432/webguard
-```
-
-Environment templates:
-
-- Local development: `.env.example`, `backend/.env.example`, `frontend/.env.example`.
-- Production draft: `.env.production.example`, `backend/.env.production.example`, `frontend/.env.production.example`.
-- Production readiness checklist: `docs/deployment-checklist.md`.
-- Extension release checklist: `docs/extension-release-checklist.md`.
-- Pre-production runbook: `docs/production-runbook.md`.
-- Demo acceptance guide: `docs/demo-acceptance.md`.
-
-Production templates are placeholders for operators and CI/release planning. They do not contain real secrets and are not a complete deployment recipe.
-
-Create the local PostgreSQL user and database if they do not exist:
-
-```sql
-CREATE USER webguard WITH PASSWORD 'webguard';
-CREATE DATABASE webguard OWNER webguard;
-```
-
-Apply migrations before starting the backend:
-
-```powershell
-cd backend
-alembic upgrade head
-```
-
-Create or update a local formal login user:
-
-```powershell
-cd backend
-$env:WEBGUARD_SEED_USERNAME = "platform-admin"
-$env:WEBGUARD_SEED_PASSWORD = "change-me-local"
-$env:WEBGUARD_SEED_ROLE = "admin"
-$env:WEBGUARD_SEED_EMAIL = "platform-admin@example.local"
-python -m app.scripts.seed_dev_user
-```
-
-The seed command uses the same password hashing logic as formal login, stores no plaintext password, and is idempotent. In development auth mode it can fall back to local-only defaults, but production-like runs should always provide `WEBGUARD_SEED_PASSWORD` explicitly.
-
-## External Threat Intelligence Blocklists
-
-WebGuard can import external malicious website blocklists into the existing backend `DomainBlacklist` table. This first version reuses `DomainBlacklist` instead of introducing a separate threat-intel schema.
-
-Imported records use this shape:
+## 目录结构
 
 ```text
-domain=<malicious domain>
-source=threat_intel:<source_key>
-risk_type=scam|malware|malicious_url|cryptomining|hacked_malware|...
-reason=命中外部恶意网站规则库：<source name>；风险类型：<risk_type>
-status=active
+backend/      FastAPI 后端服务，负责检测、鉴权、策略、报告和持久化
+frontend/     React Web 平台，负责用户与管理员操作界面
+extension/    Manifest V3 浏览器插件，负责网页访问侧实时检测与预警
+docs/         参赛作品说明、架构、功能、接口、运行、测试和维护文档
+scripts/      本地检查与辅助脚本
 ```
 
-The browser extension does not maintain large rule libraries. The backend owns synchronization, parsing, storage, lookup, and final risk decisions.
+## 作品文档
 
-Blocklists are not downloaded on FastAPI startup. Synchronization is explicit:
+- [01-项目说明](docs/01-项目说明.md)
+- [02-系统架构说明](docs/02-系统架构说明.md)
+- [03-功能模块说明](docs/03-功能模块说明.md)
+- [04-技术实现说明](docs/04-技术实现说明.md)
+- [05-接口说明](docs/05-接口说明.md)
+- [06-安装与运行说明](docs/06-安装与运行说明.md)
+- [07-测试说明](docs/07-测试说明.md)
+- [08-技术亮点与创新点](docs/08-技术亮点与创新点.md)
+- [09-系统维护说明](docs/09-系统维护说明.md)
 
-```powershell
-cd backend
-python -m app.scripts.sync_threat_intel --limit-per-source 500
-```
+## 快速运行
 
-Full import:
-
-```powershell
-cd backend
-python -m app.scripts.sync_threat_intel
-```
-
-Dry run:
-
-```powershell
-cd backend
-python -m app.scripts.sync_threat_intel --dry-run
-```
-
-Run a dry run before production import to check source availability without writing to the database. External sources can fail because of network routing, TLS/certificate issues, regional access restrictions, rate limits, or upstream request policies. A single source failure is non-blocking: WebGuard continues synchronizing the other enabled sources and reports the failed source in the command output.
-
-Supported sources:
-
-- MalwareDomainList
-- Scam Blocklist by DurableNapkin
-- Spam404
-- The Big List of Hacked Malware Web Sites
-- URLHaus / Online Malicious URL Blocklist
-- NoCoin Filter List
-- AdGuard DNS filter
-
-## Detection Architecture
-
-WebGuard currently uses rule engine + DeepSeek large-model semantic risk analysis as the main detection architecture. The browser extension collects page access and interaction features, the backend rule engine produces explainable behavior risk signals, and DeepSeek is used for semantic judgment of risky persuasion, brand impersonation, payment, verification-code, wallet, and attack-intent patterns.
-
-DeepSeek does not replace blacklists, whitelists, external blocklists, or the local behavior-rule engine. The rule engine remains the fast, explainable baseline and the fallback path.
-
-The backend calls DeepSeek only when behavior rules expose meaningful risk signals, such as password inputs, unknown cross-domain forms, brand impersonation, credential-theft combinations, payment urgency, wallet secret phrases, or suspicious redirect combinations. Clearly low-risk pages and deterministic domain-list decisions skip AI analysis.
-
-Administrators should configure DeepSeek / Volcano Ark from the Web AI configuration page. Runtime detection uses the database configuration first. The local `.env` values are fallback only when no database API key is saved.
-
-Local `.env` fallback configuration:
-
-```powershell
-DEEPSEEK_API_KEY=
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_ENABLED=auto
-DEEPSEEK_TIMEOUT_SECONDS=20
-```
-
-`DEEPSEEK_API_KEY` is intentionally empty in examples because the admin AI configuration page is the primary setup path. `DEEPSEEK_ENABLED=auto` enables AI only when an effective database or fallback `.env` key is present. `true` forces the backend to try DeepSeek and returns `no_api_key` when no effective key exists. `false` disables semantic analysis. If the key is absent, DeepSeek is disabled, the request times out, or DeepSeek returns an invalid response, scanning still succeeds and falls back to rule-engine-only detection.
-
-Check AI status after startup:
-
-```text
-GET http://127.0.0.1:8000/api/v1/ai/status
-```
-
-Admin-only connection test:
-
-```text
-POST http://127.0.0.1:8000/api/v1/ai/test
-```
-
-DeepSeek is called only when behavior rules expose meaningful risk signals, such as password inputs, unknown cross-domain forms, brand impersonation, credential-theft combinations, payment urgency, wallet secret phrases, or suspicious redirect combinations. When DeepSeek returns `used`, the final score is `behavior_score * 0.45 + deepseek_score * 0.55`. Otherwise the final score is the rule-engine behavior score.
-
-The backend sends only structured page features to DeepSeek. It does not send full webpage source, cookies, localStorage, complete HTML, or full form contents. URL secrets, emails, phone numbers, card/ID-like values, JWT-like strings, and long random tokens are redacted before the request, and visible text is truncated.
-
-For local demo acceptance, seed these local-only accounts when needed:
-
-```powershell
-cd backend
-$env:WEBGUARD_SEED_USERNAME = "admin"
-$env:WEBGUARD_SEED_PASSWORD = "admin"
-$env:WEBGUARD_SEED_ROLE = "admin"
-$env:WEBGUARD_SEED_EMAIL = "admin@example.local"
-$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Admin"
-python -m app.scripts.seed_dev_user
-
-$env:WEBGUARD_SEED_USERNAME = "guest"
-$env:WEBGUARD_SEED_PASSWORD = "guest"
-$env:WEBGUARD_SEED_ROLE = "user"
-$env:WEBGUARD_SEED_EMAIL = "guest@example.local"
-$env:WEBGUARD_SEED_DISPLAY_NAME = "Local Guest"
-python -m app.scripts.seed_dev_user
-```
-
-`admin` / `admin` and `guest` / `guest` are local demonstration accounts only. They are not production defaults and are not shown in the product login UI.
-
-## Start
-
-Backend:
+### 1. 后端
 
 ```powershell
 cd backend
 python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+$env:DATABASE_URL = "postgresql://webguard:webguard@127.0.0.1:5432/webguard"
+alembic upgrade head
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Frontend:
+健康检查：
+
+```text
+http://127.0.0.1:8000/health
+```
+
+### 2. 前端
 
 ```powershell
 cd frontend
@@ -185,7 +71,13 @@ npm install
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Extension:
+访问地址：
+
+```text
+http://127.0.0.1:5173
+```
+
+### 3. 浏览器插件
 
 ```powershell
 cd extension
@@ -193,139 +85,26 @@ npm install
 npm run build
 ```
 
-Open Chrome or Edge extension management, enable developer mode, and load the `extension/` directory as an unpacked extension.
+在 Chrome 或 Edge 中打开扩展管理页，启用开发者模式，加载 `extension/` 目录。插件设置页中填写后端地址 `http://127.0.0.1:8000` 和 Web 平台地址 `http://127.0.0.1:5173`。
 
-## Stop Old Local Processes
+## 局域网与服务器部署
 
-If `/health` or frontend behavior looks stale, confirm which process owns the ports:
+系统支持本地运行、局域网 IP 访问和服务器部署。局域网访问时，后端可使用 `--host 0.0.0.0` 启动，前端可通过 `VITE_API_BASE_URL` 指向局域网后端地址，同时在后端环境变量 `CORS_ORIGINS` 中加入前端访问地址。服务器部署时，应配置 PostgreSQL、HTTPS、反向代理、强密钥、精确跨域白名单和正式插件访问地址。
 
-```powershell
-Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue |
-  Select-Object LocalPort,State,OwningProcess
-```
+详细步骤见 [06-安装与运行说明](docs/06-安装与运行说明.md)。
 
-Stop stale backend/frontend processes by PID:
-
-```powershell
-Stop-Process -Id <PID> -Force
-```
-
-Confirm the backend is current code by checking `/health`. Current code returns no `success` field:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 5
-```
-
-Expected shape:
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "status": "healthy"
-  }
-}
-```
-
-## Local End-to-End Acceptance
-
-1. Start PostgreSQL, run `alembic upgrade head`, then start backend and frontend.
-2. Open `http://127.0.0.1:5173/login`.
-3. Log in through the Web page. For local acceptance you may use the seeded formal user, such as `admin` / `admin` or `guest` / `guest`.
-4. Open extension Options and set:
-   - API Base URL: `http://127.0.0.1:8000`
-   - Web App URL: `http://127.0.0.1:5173`
-   - Access Token: optional, only when using the development-compatible manual token path with `VITE_ENABLE_DEV_TOKEN_STORAGE=true`
-   - Plugin Instance ID: for example `local-dev-plugin`, or let the extension generate one
-5. For the formal plugin path, click Start binding in Options, open the Web verification URL, confirm the binding code as the logged-in Web user, then return to Options and finish binding to store plugin tokens.
-6. Click the connection test button. It must pass backend health and plugin bootstrap.
-7. Visit `https://example.com`; it should be allowed.
-8. Visit `https://login-paypal-account-security.example-phish.com/verify/password`; it should warn or block.
-9. In the Web app, open records or reports to confirm the scan was persisted.
-10. On the warning page, choose temporary trust or permanent trust.
-11. Re-run bootstrap or reload the extension flow; the trusted domain should appear in policy and take effect locally.
-
-HTTP smoke helper:
-
-```powershell
-.\scripts\smoke-local.ps1 -DryRun
-.\scripts\smoke-local.ps1 -Username platform-admin -Password "<local-demo-password>"
-```
-
-The smoke helper checks the backend/plugin HTTP path only. It does not automate Chrome or Edge extension UI.
-
-## Checks
-
-Backend:
+## 测试
 
 ```powershell
 cd backend
 python -m pytest
-```
 
-Frontend:
-
-```powershell
-cd frontend
+cd ../frontend
 npm run lint
 npm run build
-```
 
-Extension:
-
-```powershell
-cd extension
+cd ../extension
 npm run build
 ```
 
-Current verified baseline after P2-E:
-
-```text
-backend pytest: 39 passed
-frontend lint/build: passed
-extension build: passed
-```
-
-## CI
-
-GitHub Actions runs the same baseline checks on `push` and `pull_request`:
-
-- backend: `python -m pytest` with SQLite only as a lightweight CI/unit-test configuration; PostgreSQL remains the runtime target database
-- frontend: `npm run lint` and `npm run build`
-- extension: `npm run build`
-
-The CI workflow does not require secrets or a PostgreSQL service.
-
-## Development-Only Limits
-
-- WebGuard authentication uses real username/password login, registration, refresh, and logout flows.
-- Legacy development login shortcuts have been removed.
-- Formal Web login exists for registered or pre-created users with password hashes.
-- `python -m app.scripts.seed_dev_user` is the supported local way to create the first formal login user.
-- Web Refresh Token is stored as an HttpOnly cookie and only the server-side hash is persisted.
-- Minimal plugin binding exists and issues plugin-specific access/refresh tokens.
-- Manual extension token entry remains available only as a development-compatible fallback.
-- QR-code binding UI and full plugin device management are not implemented yet.
-- Production configuration drafts, deployment checklist, and runbook exist, but the repository is not a real production deployment package yet.
-- The extension can generate and persist `Plugin Instance ID`, but production device-management UX is still minimal.
-- Do not treat this local setup as a production authentication or authorization model.
-
-## Production Safety Notes
-
-The committed defaults are for local internal testing. Before any staging or production deployment, start from the production template files and set `DEBUG=false`, `ENABLE_DEV_AUTH=false`, `ENABLE_RUNTIME_SCHEMA_GUARD=false`, a strong unique `JWT_SECRET`, `REFRESH_TOKEN_COOKIE_SECURE=true`, production PostgreSQL `DATABASE_URL`, exact `CORS_ORIGINS`, and the final published extension origin. The backend refuses to start with unsafe production settings such as development auth, placeholder JWT secrets, insecure refresh cookies, wildcard CORS, or runtime schema guards while `DEBUG=false`.
-
-Runtime schema guard behavior:
-
-- Local development: enabled by default when `DEBUG=true`, unless `ENABLE_RUNTIME_SCHEMA_GUARD=false`.
-- Production-like runs: disabled by default when `DEBUG=false`; explicitly enabling it with `DEBUG=false` is rejected.
-- Production schema changes must be applied through Alembic, for example `cd backend && alembic upgrade head`.
-
-Known release blockers before production:
-
-- HTTPS, reverse proxy, and production CORS allowlist are not finalized.
-- Secrets management and environment-specific deployment injection are not finalized.
-- Production extension ID/origin allowlist and release packaging are not finalized.
-- Extension store privacy materials and production permission review remain tracked in `docs/extension-release-checklist.md`.
-- Manual extension token fallback remains only for development compatibility.
-- Production Web access tokens are kept in memory. The `webguard_dev_user` localStorage mirror is disabled by default and only available when `VITE_ENABLE_DEV_TOKEN_STORAGE=true` for local manual-token fallback.
+详细测试说明见 [07-测试说明](docs/07-测试说明.md)。
