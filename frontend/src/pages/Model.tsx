@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import LoadingBlock from '../components/LoadingBlock';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
-import { aiApi } from '../services/api';
+import { aiApi } from '../services/legacyServices';
 import type { AIConfig, AIConfigTestResponse } from '../types';
 import { formatDate } from '../utils';
 

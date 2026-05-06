@@ -2,9 +2,9 @@ import axios from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { ApiResponse, AuthTokenResponse, DevelopmentUser } from '../types';
 
-export const AUTH_STORAGE_KEY = 'webguard_dev_user';
+const AUTH_STORAGE_KEY = 'webguard_dev_user';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-export const ENABLE_DEV_TOKEN_STORAGE = import.meta.env.VITE_ENABLE_DEV_TOKEN_STORAGE === 'true';
+const ENABLE_DEV_TOKEN_STORAGE = import.meta.env.VITE_ENABLE_DEV_TOKEN_STORAGE === 'true';
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _webguardRetry?: boolean;
@@ -30,12 +30,12 @@ export function readStoredAuthUser(): DevelopmentUser | null {
   }
 }
 
-export function writeStoredAuthUser(user: DevelopmentUser | null): void {
+function writeStoredAuthUser(user: DevelopmentUser | null): void {
   if (user && ENABLE_DEV_TOKEN_STORAGE) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   else localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
-export function getAuthSession(): DevelopmentUser | null {
+function getAuthSession(): DevelopmentUser | null {
   return authSession;
 }
 
@@ -122,5 +122,3 @@ export async function unwrap<T>(request: Promise<AxiosResponse<ApiResponse<T>>>)
     throw new Error('网络请求失败');
   }
 }
-
-export default api;

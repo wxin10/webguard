@@ -16,7 +16,7 @@ Use this runbook for:
 Do not use this document as:
 
 - A full cloud deployment plan.
-- A full Nginx, Docker, Kubernetes, or systemd guide.
+- A full container, reverse-proxy, Kubernetes, or systemd guide.
 - A substitute for the production checklist in `docs/deployment-checklist.md`.
 
 ## 2. Required Inputs

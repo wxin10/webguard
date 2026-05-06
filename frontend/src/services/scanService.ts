@@ -7,5 +7,3 @@ export const scanService = {
   scanPage: (data: PageScanRequest) =>
     unwrap(api.post<ApiResponse<ScanResult>>('/api/v1/scan/page', data)),
 };
-
-export type ScanService = typeof scanService;

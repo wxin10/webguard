@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { authApi } from '../services/api';
+import { authApi } from '../services/legacyServices';
 import { readStoredAuthUser, setAuthSession } from '../services/client';
 import type { DevelopmentUser, UserRole } from '../types';
 

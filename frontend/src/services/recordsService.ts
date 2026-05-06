@@ -1,7 +1,7 @@
 import { api, unwrap } from './client';
 import type { ApiResponse, ScanRecordItem, ScanRecordList } from '../types';
 
-export interface RecordQuery {
+interface RecordQuery {
   label?: string;
   source?: string;
   q?: string;

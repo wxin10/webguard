@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi } from '../services/api';
+import { authApi } from '../services/legacyServices';
 
 const registerImage = 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1400&q=80';
 

@@ -1,6 +1,6 @@
 import type { AIAnalysis, ScoreBreakdown } from '../types';
 
-export interface AIReportLike {
+interface AIReportLike {
   ai_score?: number | null;
   ai_analysis?: AIAnalysis;
   ai_fusion_used?: boolean;

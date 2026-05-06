@@ -1,9 +1,9 @@
 import { api, unwrap } from './client';
 import type { ApiResponse, DomainListItem, DomainListItemList } from '../types';
 
-export type DomainListType = 'trusted' | 'blocked' | 'temp_bypass';
+type DomainListType = 'trusted' | 'blocked' | 'temp_bypass';
 
-export interface MyDomainPayload {
+interface MyDomainPayload {
   host: string;
   list_type: DomainListType;
   source?: string;

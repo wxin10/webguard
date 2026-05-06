@@ -9,7 +9,7 @@ This repository currently represents a local-development internal test build. It
 - `frontend/`: React 18 + TypeScript + Vite Web platform.
 - `backend/`: FastAPI + SQLAlchemy + Alembic service.
 - `extension/`: Chrome/Edge Manifest V3 extension.
-- `docs/`: architecture, API, rollout, and development setup notes.
+- `docs/`: architecture, API, development, deployment, and operations notes.
 
 ## Local Baseline
 
@@ -29,9 +29,6 @@ Environment templates:
 - Extension release checklist: `docs/extension-release-checklist.md`.
 - Pre-production runbook: `docs/production-runbook.md`.
 - Demo acceptance guide: `docs/demo-acceptance.md`.
-- Project status report: `docs/project-status-report.md`.
-- Technical highlights: `docs/technical-highlights.md`.
-- Roadmap: `docs/roadmap.md`.
 
 Production templates are placeholders for operators and CI/release planning. They do not contain real secrets and are not a complete deployment recipe.
 

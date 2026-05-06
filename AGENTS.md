@@ -40,7 +40,6 @@ WebGuard is a malicious website detection and warning platform.
 ├─ backend/
 ├─ extension/
 ├─ docs/
-├─ docker-compose.yml
 ├─ .env.example
 └─ AGENTS.md
 ```
@@ -53,7 +52,6 @@ WebGuard is a malicious website detection and warning platform.
 - Vite
 - React Router
 - Axios
-- ECharts
 - Tailwind CSS
 
 #### Backend
@@ -62,8 +60,7 @@ WebGuard is a malicious website detection and warning platform.
 - Alembic
 - Pydantic v2
 - Uvicorn
-- Current code has MySQL-oriented local defaults in some files
-- `docker-compose.yml` already uses PostgreSQL
+- PostgreSQL is the target runtime database
 
 #### Extension
 - Chrome/Chromium extension
@@ -75,10 +72,7 @@ WebGuard is a malicious website detection and warning platform.
 
 ### Important architecture note
 
-The repository currently has **environment inconsistency**:
-
-- some local documentation/configs still point to **MySQL**;
-- `docker-compose.yml` already points to **PostgreSQL**.
+The repository targets PostgreSQL for runtime persistence.
 
 When modifying the project, treat the architecture target as:
 
@@ -189,7 +183,7 @@ Before planning or coding, read the following files in this order when they exis
 3. `docs/api-contract.md`
 4. `docs/coding-standards.md`
 5. `docs/dev-setup.md`
-6. `docs/rollout-plan.md`
+6. `docs/deployment-checklist.md`
 
 When there is a conflict:
 

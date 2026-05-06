@@ -2,7 +2,7 @@
 
 Version: P2-J production configuration draft
 
-This checklist is a deployment planning document. It is not a complete Docker, Nginx, cloud, or store-publishing guide. The current repository remains a local internal-test build until every blocking item in this document is closed.
+This checklist is a deployment planning document. It is not a complete container, reverse-proxy, cloud, or store-publishing guide. The current repository remains a local internal-test build until every blocking item in this document is closed.
 
 ## 1. Environment Templates
 

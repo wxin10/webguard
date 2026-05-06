@@ -53,7 +53,6 @@ extension/  -> 浏览器插件
 - React 18 + TypeScript + Vite
 - React Router
 - Axios
-- ECharts
 - Tailwind CSS
 - 当前页面已经包含：产品首页、登录、插件安装引导、用户工作区、管理员页面、报告页等
 
@@ -77,7 +76,7 @@ extension/  -> 浏览器插件
 当前代码和配置存在几类不一致：
 
 1. **数据库口径已收敛到 PostgreSQL**：
-   - `docker-compose.yml`、根 `.env.example` 和 `backend/.env.example` 均以 PostgreSQL 作为当前目标数据库；
+   - 根 `.env.example` 和 `backend/.env.example` 均以 PostgreSQL 作为当前目标数据库；
    - Schema 演进使用 Alembic；
    - SQLite 只允许作为 CI/单元测试轻量配置出现，不作为正式运行数据库。
 
@@ -113,7 +112,6 @@ extension/  -> 浏览器插件
 - React Router v6
 - Axios
 - Tailwind CSS
-- ECharts
 
 ### 建议增强但不强制一次性引入
 - TanStack Query：管理服务端状态
@@ -437,7 +435,7 @@ PostgreSQL
 理由：
 - 支持更清晰的 JSON 字段能力
 - 更适合复杂查询、统计和可演进结构
-- 已在 `docker-compose.yml` 中部分体现
+- 已在环境模板和 Alembic 迁移流程中体现
 
 ## 迁移原则
 

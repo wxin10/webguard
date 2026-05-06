@@ -43,13 +43,6 @@ export function getRiskColor(label?: string) {
   return colorMap[label || 'unknown'] || colorMap.unknown;
 }
 
-export function riskAccent(label?: RiskLabel | string) {
-  if (label === 'malicious') return 'text-red-600';
-  if (label === 'suspicious') return 'text-amber-600';
-  if (label === 'safe') return 'text-emerald-600';
-  return 'text-slate-600';
-}
-
 export function riskBar(label?: RiskLabel | string) {
   if (label === 'malicious') return 'bg-red-600';
   if (label === 'suspicious') return 'bg-amber-500';

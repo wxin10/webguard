@@ -11,7 +11,7 @@ import type {
   PluginSyncEventList,
 } from '../types';
 
-export interface PluginEventPayload {
+interface PluginEventPayload {
   event_type: string;
   action?: string;
   url?: string;
